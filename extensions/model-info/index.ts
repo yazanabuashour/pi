@@ -15,7 +15,7 @@ const CHARS_PER_ESTIMATED_TOKEN = 4;
 const LIVE_UPDATE_INTERVAL_MS = 200;
 
 // SDK pricing estimates for assistant messages on the current branch only.
-// Not subscription billing; excludes nested tool work and summaries.
+// Not subscription billing; excludes nested tool work.
 function getBranchAssistantEstimatedCost(ctx: ExtensionContext) {
   let cost = 0;
   for (const entry of ctx.sessionManager.getBranch()) {

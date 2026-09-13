@@ -55,4 +55,4 @@ Copilot login does not provide Codex-backed OpenAI search.
 
 Use `/login` to authenticate with your coding provider. Use `/model` to select a
 model. In the model picker, press Ctrl+S to save the startup model. Verify that
-recaps and page answers work with the chosen provider.
+page answers work with the chosen provider.

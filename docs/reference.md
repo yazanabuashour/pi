@@ -7,7 +7,6 @@ Package installation leaves these settings and files unchanged:
 | Owner | Configuration |
 | --- | --- |
 | Pi | `~/.pi/agent/settings.json`: provider, model, thinking level, interface preferences, and package entries and filters |
-| Recap interface | `~/.pi/agent/summary-model.json`: optional recap provider, model, and effort |
 | pi-web-access | `~/.pi/web-search.json`: search routing, summary models, page-answer models, and network policy |
 | User or employer | Global and project `AGENTS.md`, approved tools, proxies, and browser profiles |
 | Applications | Credentials, sessions, project trust, browser cookies, caches, and generated state |
@@ -16,16 +15,11 @@ Pi's agent files follow `PI_CODING_AGENT_DIR` when set. That variable does not
 change the installer's HOME-relative package directory. The web extension owns
 its configuration paths and settings.
 
-## Models and recaps
+## Models
 
 Swarm agents, `/btw` agents, and workflow agents inherit the calling session's
 complete model and reasoning effort. Agent tools permit an effort override, but
 not a model or provider override.
-
-Without `summary-model.json`, recaps and unnamed-session titles use the current
-session model and effort. `/summary-model` selects an explicit override or restores
-session inheritance. An invalid or unavailable override produces a warning and
-a local recap fallback, not a request to another provider.
 
 Search is independent of the coding provider. Copilot authentication does not
 provide Codex-backed OpenAI search. Search queries, hosted extraction, web

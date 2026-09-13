@@ -4,7 +4,7 @@ Reusable extensions, skills, and themes for [Pi](https://github.com/earendil-wor
 Provider choices, credentials, and other private settings stay on each machine.
 
 The package provides background terminals, swarm agents, workflows, structured
-questions, recaps, and interface tools. Browser and web tools are separate packages.
+questions, and interface tools. Browser and web tools are separate packages.
 
 Documentation covers these tasks and contracts:
 
