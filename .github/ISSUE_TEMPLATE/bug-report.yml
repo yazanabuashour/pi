@@ -1,0 +1,50 @@
+name: Bug report
+description: Report a reproducible defect in this Pi package
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Report vulnerabilities privately through SECURITY.md. Do not attach credentials, private prompts, session transcripts, or personal settings.
+  - type: input
+    id: version
+    attributes:
+      label: Package commit and Pi version
+      description: Include the installed package commit and output of `pi --version`.
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Operating system and architecture
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Name the affected extension or command and provide a safe, redacted reproduction.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include redacted errors and whether agents or processes remained running.
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: This is not an undisclosed vulnerability, and I have removed private data.
+          required: true

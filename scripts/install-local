@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+INSTALL_ROOT="$HOME/.local/share/dotfiles-pi-package"
+
+if [[ $# -ne 0 ]]; then
+  printf 'Usage: npm run install:local\n' >&2
+  exit 2
+fi
+
+for command_name in node npm; do
+  command -v "$command_name" >/dev/null 2>&1 || {
+    printf 'Missing required command: %s\n' "$command_name" >&2
+    exit 1
+  }
+done
+if [[ -e $INSTALL_ROOT/current && ! -L $INSTALL_ROOT/current ]]; then
+  printf 'Refusing to replace non-symlink: %s/current\n' "$INSTALL_ROOT" >&2
+  exit 1
+fi
+
+temporary="$(mktemp -d)"
+trap 'rm -rf "$temporary"' EXIT
+cd "$ROOT"
+npm ci --ignore-scripts --include=dev --legacy-peer-deps --no-audit --no-fund
+npm pack --ignore-scripts --pack-destination "$temporary" >/dev/null
+
+mkdir -p "$INSTALL_ROOT"
+prefix="$(mktemp -d "$INSTALL_ROOT/install.XXXXXX")"
+npm install --prefix "$prefix" --omit=dev --legacy-peer-deps --ignore-scripts \
+  --no-audit --no-fund "$temporary"/*.tgz
+ln -s "$prefix" "$prefix/.current"
+# Replace the link atomically without removing resources used by running sessions.
+node -e 'require("node:fs").renameSync(process.argv[1], process.argv[2])' \
+  "$prefix/.current" "$INSTALL_ROOT/current"
+
+printf 'Personal Pi package installed at %s/current. Existing sessions were not reloaded.\n' "$INSTALL_ROOT"
+printf 'Settings were not changed. For first-time registration only, run:\n'
+printf '  pi install "%s/current/node_modules/yazan-pi-setup" --no-approve\n' "$INSTALL_ROOT"

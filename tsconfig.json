@@ -1,0 +1,15 @@
+{
+  "extends": "./tools/typescript-config-policy/node-ts-source.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "noEmit": true,
+    "target": "ES2022",
+    "types": ["node"]
+  },
+  "include": [
+    "extensions/**/*.ts",
+    "runtime-probes/**/*.ts",
+    "oxlint.config.ts",
+    "vitest.config.ts"
+  ]
+}

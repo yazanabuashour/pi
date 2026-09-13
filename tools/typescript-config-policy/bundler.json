@@ -1,0 +1,9 @@
+{
+  "extends": "./portable.json",
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "module": "Preserve",
+    "moduleResolution": "Bundler",
+    "noEmit": true
+  }
+}

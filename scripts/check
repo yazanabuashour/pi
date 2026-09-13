@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+for script in scripts/*; do
+  bash -n "$script"
+done
+shellcheck -x scripts/*
+shfmt -d -i 2 -ci scripts/*
+
+for readme in README.md extensions/workflows/README.md; do
+  if [[ $(wc -l <"$readme") -ge 25 ]]; then
+    printf '%s must contain fewer than 25 lines.\n' "$readme" >&2
+    exit 1
+  fi
+done
+
+jq -e '
+  . as $package
+  | all(["@earendil-works/pi-ai", "@earendil-works/pi-coding-agent", "@earendil-works/pi-tui", "typebox"][];
+      . as $sdk
+      | $package.peerDependencies[$sdk] == "*"
+        and $package.devDependencies[$sdk] != null
+        and ($package.dependencies | has($sdk) | not))
+  and (.dependencies | has("agent-browser") or has("pi-web-access") or has("pi-agent-browser-native") | not)
+  and all(.pi.extensions[], .pi.skills[]; contains("node_modules/") | not)
+  and (.pi.extensions | index("./runtime-probes/automation-telemetry.ts"))
+' package.json >/dev/null
+
+git diff --check
+git diff --cached --check

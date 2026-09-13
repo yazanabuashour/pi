@@ -1,0 +1,28 @@
+{
+  "repository": "https://github.com/dmmulroy/anti-slop",
+  "revision": "95a56e5d24fb3d849673c2d51eb0908b8bd2d33b",
+  "files": {
+    "LICENSE": "10ed33bf340d6d63dc0633dfc917a346b369b6aa41fe20734aefc6a3fb75ba17",
+    "src/effect/rules/no-service-constructor-imports.test.ts": "d9f70f735154695d75b81c995884d0fed52bc3ea2c4ab6b947598cf91c9ea918",
+    "src/effect/rules/no-service-constructor-imports.ts": "c397d1132329fbe82213dda80059c86acb99f0fe243e59615f615a86069c6fb1",
+    "src/rules/no-array-filter-map.test.ts": "0c35d1511fb023632033db1810fb16e7e44cded2fe97f557f6e922ea54cf0629",
+    "src/rules/no-array-filter-map.ts": "528bba857b84712c038e35e59079cc1e6c78a0421c65bb3c6117c9d412a2f28a",
+    "src/rules/no-chained-type-assertions.test.ts": "53d18a7bde98b2d9c093cce3f4fc45b10b385cf5723202ed6a32ba877cc928bf",
+    "src/rules/no-chained-type-assertions.ts": "72f8e981520f94adac0ffbdab8f8e84e5f2a4595f14e4a6471be917a85a20a15",
+    "src/rules/no-conditional-empty-object-spread.test.ts": "90a9ef53dc175e8d0dc2e2cdf82d3d5b99fd01a60cc0092f5d16b7ebe941fe28",
+    "src/rules/no-conditional-empty-object-spread.ts": "33f044030d208fcc10be73bb19c8172c275c5229df4b0ca8ec10f069bbe60062",
+    "src/rules/no-module-mocking.test.ts": "060aefb314e17ffb371046e6fe162d38d9cb35a055645d0c42deceb0379e9250",
+    "src/rules/no-module-mocking.ts": "90cfc166a28e78544a934e4a000811330c1ea6d33d90cb309b1bed27e51e79f3",
+    "src/rules/no-reduce-accumulator-copy.test.ts": "5570fe8512bb71dbd5b446454297ec9e234fb1cb06ded87590593a37c4cccccf",
+    "src/rules/no-reduce-accumulator-copy.ts": "dce4b08ee7ac4bbedfe743f6fa4a3d423cde50b37691130b899cc4573c05d2ae",
+    "src/rules/no-reflect-apply.test.ts": "33a3f9860703103c28209087afb86eb1a5039cd31187bfb41281c91d94532fe8",
+    "src/rules/no-reflect-apply.ts": "f7920a332106252d6a24cdc917a2c1a433eb438792996ccceb5a25cd6e591dbb",
+    "src/rules/no-reflect-get.test.ts": "8b56643be6604702d546c017ca4a010c26dc04c27f92cf4363398cc3e8bbb9f7",
+    "src/rules/no-reflect-get.ts": "95c5aa0f8e23b10d9345b1776082e08704ec6590298176a8ede8dfdb6e7cb56f",
+    "src/rules/no-shape-in-symbol-names.test.ts": "08caeb868927ca7f748209ab8db5226594e9cc662f312d4640917d8480fc6d22",
+    "src/rules/no-shape-in-symbol-names.ts": "4e5edcb5ed083de77970a2e4f64e4b2090ba6c4588e9fc6bcb1f01900ae905b7",
+    "src/shared/array-method.ts": "e360557253c56ab7c256623f3338415743e5027e9d999f801fb79d98240d217b",
+    "src/shared/function-parameters.ts": "ad80a650ea14847736ab9ee4c872dc89cc7d527bf60e7de20112bcb8f679545c",
+    "src/shared/reflect-method.ts": "318f56b17d9063134860fe4c51c2e22cb0a55e7f421a0ff4ccedb5a9e9c2b2d9"
+  }
+}

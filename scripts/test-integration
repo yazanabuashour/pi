@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+[[ $# -eq 4 ]] || {
+  printf 'Usage: %s PI_EXECUTABLE PERSONAL_PACKAGE WEB_PACKAGE BROWSER_PACKAGE\n' "${0##*/}" >&2
+  exit 2
+}
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+resolve_path() {
+  node -e 'console.log(require("node:fs").realpathSync(process.argv[1]))' "$1"
+}
+pi="$(resolve_path "$1")"
+package="$(resolve_path "$2")"
+web="$(resolve_path "$3")"
+browser="$(resolve_path "$4")"
+[[ -x $pi ]]
+for path in "$package/package.json" "$web/package.json" "$browser/skills/agent-browser/SKILL.md"; do
+  [[ -r $path ]] || {
+    printf 'Missing package integration input: %s\n' "$path" >&2
+    exit 1
+  }
+done
+prefix="$(dirname "$(dirname "$package")")"
+[[ $package == "$prefix/node_modules/yazan-pi-setup" ]] || {
+  printf 'Expected an installed package at PREFIX/node_modules/yazan-pi-setup: %s\n' "$package" >&2
+  exit 2
+}
+
+# This is an explicit integration test, never installation or runtime admission.
+# Copy the fixture outside the checkout so its SDK imports cannot use dev deps.
+temporary="$(mktemp -d)"
+trap 'rm -rf -- "$temporary"' EXIT
+mkdir -p "$temporary/home/.pi/agent" "$temporary/probe" "$temporary/config" \
+  "$temporary/data" "$temporary/state" "$temporary/cache" "$temporary/run"
+chmod 700 "$temporary/run"
+# Exercise the stable registration path with its production dependency ancestry.
+current="$temporary/home/.local/share/dotfiles-pi-package/current"
+mkdir -p "$(dirname "$current")"
+ln -s "$prefix" "$current"
+cp "$ROOT/runtime-probes/package-probe.ts" "$temporary/probe/index.ts"
+cp "$ROOT/runtime-probes/package-probe-receipts.ts" "$temporary/probe/"
+printf '%s\n' '{"name":"dotfiles-package-probe","pi":{"extensions":["./index.ts"]}}' \
+  >"$temporary/probe/package.json"
+jq -n --arg package "$current/node_modules/yazan-pi-setup" \
+  --arg web "$web" --arg browser "$browser" --arg probe "$temporary/probe" '{
+    packages: [$package, $web, {
+      source: $browser, extensions: [], skills: ["skills/agent-browser/SKILL.md"],
+      prompts: [], themes: []
+    }, $probe],
+    compaction: {enabled: false}, retry: {enabled: false}
+  }' >"$temporary/home/.pi/agent/settings.json"
+
+run_probe() {
+  : >"$temporary/hooks"
+  (cd "$temporary/home" &&
+    env -i PATH="$PATH" PI_OFFLINE=1 HOME="$temporary/home" \
+      PI_CODING_AGENT_DIR="$temporary/home/.pi/agent" \
+      XDG_CONFIG_HOME="$temporary/config" XDG_DATA_HOME="$temporary/data" \
+      XDG_STATE_HOME="$temporary/state" XDG_CACHE_HOME="$temporary/cache" \
+      XDG_RUNTIME_DIR="$temporary/run" \
+      DOTFILES_PI_PROBE_BROWSER_SKILL="$browser/skills/agent-browser/SKILL.md" \
+      DOTFILES_PI_PROBE_EVENTS="$temporary/hooks" \
+      PI_AUTOMATION_TELEMETRY_PATH="$1" PI_AUTOMATION_NAME=package-probe \
+      PI_AUTOMATION_RUN_ID=offline \
+      "$pi" --mode json --no-session --no-context-files --no-approve \
+      --model dotfiles-package-probe/probe --thinking off \
+      '/skill:workflow-authoring run the offline package integration probe.' \
+      >"$temporary/events.jsonl" 2>"$temporary/stderr") || {
+    printf 'Package integration process failed. Synthetic diagnostics:\n' >&2
+    cat "$temporary/stderr" "$temporary/events.jsonl" >&2
+    return 1
+  }
+  jq -s -e '
+    any(.[]; .type == "session")
+    and any(.[]; .type == "agent_settled")
+    and ([.[] | select(.type == "message_end" and .message.role == "assistant")]
+      | last | .message.stopReason == "stop"
+        and .message.content == [{type:"text",text:"dotfiles-package-probe-ok"}])
+  ' "$temporary/events.jsonl" >/dev/null || {
+    cat "$temporary/stderr" "$temporary/events.jsonl" >&2
+    return 1
+  }
+  # One parent and one normally loaded child. The worker is a separate process,
+  # not an agent session; its completed tool result is checked by the provider.
+  jq -s -e '
+    group_by(.sessionId) | length == 2
+    and all(.[];
+      .[0].type == "session_start" and .[-1].type == "session_shutdown"
+      and if .[0].mode == "json" then
+        map(.type) == ["session_start",
+          "tool_execution_start", "tool_execution_end",
+          "tool_execution_start", "tool_execution_end",
+          "tool_execution_start", "tool_execution_end",
+          "tool_execution_start", "tool_execution_end",
+          "agent_settled", "session_shutdown"]
+        and ([.[] | select(.type == "tool_execution_start") | .toolName]
+          == ["package_probe", "workflow", "swarm_spawn", "swarm_wait"])
+        and ([.[] | select(.type == "tool_execution_end") | .toolName]
+          == ["package_probe", "workflow", "swarm_spawn", "swarm_wait"])
+        and all(.[] | select(.type == "tool_execution_end"); .isError == false)
+      else
+        .[0].mode == "print"
+        and map(.type) == ["session_start", "tool_execution_start",
+          "tool_execution_end", "agent_settled", "session_shutdown"]
+        and ([.[] | select(.type == "tool_execution_start") | .toolName] == ["swarm_send"])
+        and all(.[] | select(.type == "tool_execution_end"); .isError == false)
+      end)
+    and ([.[] | .[0].mode] | sort == ["json", "print"])
+  ' "$temporary/hooks" >/dev/null || {
+    cat "$temporary/stderr" "$temporary/events.jsonl" "$temporary/hooks" >&2
+    return 1
+  }
+  printf 'Completed worker fixture, received pushed swarm progress, and awaited swarm agent; parent/child settled and shut down; native process exited.\n'
+}
+
+run_probe "$temporary/telemetry.jsonl"
+jq -s -e '
+  all(.[]; .schema == "pi-automation-telemetry/v1")
+  and .[0].event == "session_start"
+  and ([.[] | select(.event == "session_start")] | length == 1)
+  and ([.[] | select(.event == "summary")] | length == 1)
+  and ([.[] | select(.event == "tool_start") | .toolName]
+    == ["package_probe", "workflow", "swarm_spawn", "swarm_wait"])
+  and ([.[] | select(.event == "tool_end") | .toolName]
+    == ["package_probe", "workflow", "swarm_spawn", "swarm_wait"])
+  and all(.[] | select(.event == "tool_end"); .isError == false and .orphanEnd == false)
+  and any(.[]; .event == "agent_settled")
+  and .[-1].event == "summary" and .[-1].settled == true
+  and .[-1].calls == 4 and .[-1].errors == 0 and .[-1].orphanedTools == 0
+' "$temporary/telemetry.jsonl" >/dev/null
+
+# A directory is an intentionally invalid diagnostic destination.
+run_probe "$temporary"
+grep -Fq 'pi-telemetry-open-failed:' "$temporary/stderr"
+printf 'Installed package discovery, native SDK imports, worker execution, awaited swarm agent, tool lifecycle, and optional telemetry passed.\n'
