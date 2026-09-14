@@ -14,8 +14,8 @@ Documentation covers these tasks and contracts:
 - [Package ownership and delivery](docs/architecture.md)
 - [Integrate automation callers](AUTOMATIONS.md)
 
-TypeScript checks use vendored copies of `typescript-config-policy` and
-`typescript-lint-policy`. Their provenance is recorded under `tools/`.
+TypeScript checks use commit-pinned Git sources of `typescript-config-policy`
+and `typescript-lint-policy`, locked in `package-lock.json`.
 
 [Contributing](CONTRIBUTING.md) · [Security policy](SECURITY.md) · [MIT license](LICENSE)
 

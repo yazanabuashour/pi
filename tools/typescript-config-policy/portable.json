@@ -1,8 +1,0 @@
-{
-  "extends": "./base.json",
-  "compilerOptions": {
-    "erasableSyntaxOnly": true,
-    "isolatedModules": true,
-    "verbatimModuleSyntax": true
-  }
-}
