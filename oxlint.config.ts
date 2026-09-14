@@ -3,7 +3,6 @@ import { defineConfig } from "oxlint";
 
 export default defineConfig({
   extends: [policy, effectConfig],
-  ignorePatterns: ["tools/typescript-lint-policy"],
   rules: {
     "project/no-global-process-runtime": [
       "error",

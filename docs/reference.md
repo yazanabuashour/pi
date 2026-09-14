@@ -73,13 +73,17 @@ whether a business action completed.
 The local configuration adds this package's target, library, types, and source paths.
 
 `oxlint.config.ts` extends both the default policy and `effectConfig` from
-`@yazanabuashour/oxlint-config`. The development dependency resolves to
-`tools/typescript-lint-policy`, exported from
-[yazanabuashour/typescript-lint-policy](https://github.com/yazanabuashour/typescript-lint-policy).
-The local configuration exempts `extensions/shared/host-runtime.ts` from the
+`@yazanabuashour/oxlint-config`. The development dependency is a commit-pinned
+Git source from
+[yazanabuashour/typescript-lint-policy](https://github.com/yazanabuashour/typescript-lint-policy),
+locked in `package-lock.json`; it is not published to the npm registry. The
+repository `.npmrc` sets `allow-git=root` because npm disables Git fetches by
+default. The local configuration exempts `extensions/shared/host-runtime.ts` from the
 `project/no-global-process-runtime` rule.
 
-These are vendored exports, not links to sibling checkouts. Each policy directory
-contains a `SOURCE.json` provenance record. Upstream changes do not update these
-copies automatically. The policies support development checks and are not included
+The TypeScript configuration profiles are vendored exports under
+`tools/typescript-config-policy`, not links to sibling checkouts; the directory
+contains a `SOURCE.json` provenance record and upstream changes do not update
+the copy automatically. The lint policy instead resolves to its Git source at
+the locked commit. Both policies support development checks and are not included
 in the installed package.
