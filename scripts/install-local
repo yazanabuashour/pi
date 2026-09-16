@@ -9,7 +9,7 @@ if [[ $# -ne 0 ]]; then
   exit 2
 fi
 
-for command_name in node npm; do
+for command_name in node npm tar; do
   command -v "$command_name" >/dev/null 2>&1 || {
     printf 'Missing required command: %s\n' "$command_name" >&2
     exit 1
@@ -23,13 +23,18 @@ fi
 temporary="$(mktemp -d)"
 trap 'rm -rf "$temporary"' EXIT
 cd "$ROOT"
-npm ci --ignore-scripts --include=dev --legacy-peer-deps --no-audit --no-fund
 npm pack --ignore-scripts --pack-destination "$temporary" >/dev/null
 
 mkdir -p "$INSTALL_ROOT"
 prefix="$(mktemp -d "$INSTALL_ROOT/install.XXXXXX")"
-npm install --prefix "$prefix" --omit=dev --legacy-peer-deps --ignore-scripts \
-  --no-audit --no-fund "$temporary"/*.tgz
+package="$prefix/node_modules/yazan-pi-setup"
+mkdir -p "$package"
+tar -xzf "$temporary"/*.tgz --strip-components=1 -C "$package"
+# npm does not publish package-lock.json or honor it inside a dependency tarball.
+# Install the packaged resources as a project so npm ci enforces the source lock.
+cp "$ROOT/package-lock.json" "$package/package-lock.json"
+npm ci --prefix "$package" --omit=dev --legacy-peer-deps --ignore-scripts \
+  --no-audit --no-fund
 ln -s "$prefix" "$prefix/.current"
 # Replace the link atomically without removing resources used by running sessions.
 node -e 'require("node:fs").renameSync(process.argv[1], process.argv[2])' \

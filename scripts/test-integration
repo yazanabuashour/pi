@@ -26,6 +26,33 @@ prefix="$(dirname "$(dirname "$package")")"
   exit 2
 }
 
+# The installed root uses the source lock's layout, not a consumer's hoisted tree.
+cmp "$ROOT/package-lock.json" "$package/package-lock.json"
+jq -e --slurpfile locked "$ROOT/package-lock.json" '
+  .packages as $installed | $locked[0].packages as $expected
+  | all($installed | to_entries[]; . as $entry
+      | $expected[$entry.key] as $source
+      | $source != null and ($source.dev != true) and ($source.peer != true)
+        and ([$entry.value.version, $entry.value.resolved, $entry.value.integrity]
+          == [$source.version, $source.resolved, $source.integrity]))
+    and all($expected | to_entries[]
+      | select(.key != "" and (.value | .dev != true and .peer != true
+          and .optional != true and .devOptional != true));
+      .key as $path | $installed | has($path))
+' "$package/node_modules/.package-lock.json" >/dev/null || {
+  printf 'Installed production dependencies differ from package-lock.json.\n' >&2
+  exit 1
+}
+while IFS=$'\t' read -r path version; do
+  jq -e --arg version "$version" '.version == $version' \
+    "$package/$path/package.json" >/dev/null || {
+    printf 'Installed dependency %s does not match locked version %s.\n' "$path" "$version" >&2
+    exit 1
+  }
+done < <(jq -r '.packages | to_entries[] | [.key, .value.version] | @tsv' \
+  "$package/node_modules/.package-lock.json")
+printf 'Installed production dependency versions and npm integrity records match the source lock.\n'
+
 # This is an explicit integration test, never installation or runtime admission.
 # Copy the fixture outside the checkout so its SDK imports cannot use dev deps.
 temporary="$(mktemp -d)"
@@ -33,7 +60,7 @@ trap 'rm -rf -- "$temporary"' EXIT
 mkdir -p "$temporary/home/.pi/agent" "$temporary/probe" "$temporary/config" \
   "$temporary/data" "$temporary/state" "$temporary/cache" "$temporary/run"
 chmod 700 "$temporary/run"
-# Exercise the stable registration path with its production dependency ancestry.
+# Exercise the stable registration path with its installed production dependencies.
 current="$temporary/home/.local/share/dotfiles-pi-package/current"
 mkdir -p "$(dirname "$current")"
 ln -s "$prefix" "$current"

@@ -14,7 +14,7 @@ pi install "$HOME/.local/share/dotfiles-pi-package/current/node_modules/yazan-pi
 ```
 
 Register the full `current/node_modules/yazan-pi-setup` path, not a leaf-directory
-alias. Pi needs that path to resolve sibling production dependencies.
+alias. Pi needs the package root to resolve its production dependencies.
 
 Start a new Pi session. Check for startup errors and confirm your model with
 `/model`. Existing sessions keep their loaded extensions.

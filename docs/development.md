@@ -1,6 +1,6 @@
 # Develop and validate changes
 
-Use Node 24 or newer, npm, Git, jq, ShellCheck, and shfmt. For documentation work,
+Use Node 24 or newer, npm, Git, tar, jq, ShellCheck, and shfmt. For documentation work,
 read the [technical-writing skill](../skills/technical-writing/SKILL.md) first.
 Keep the root README below 25 lines; `npm run check` enforces that limit.
 
@@ -41,8 +41,11 @@ Use native Pi and installed copies of `pi-web-access` and `agent-browser`:
 )
 ```
 
-Confirm that the command exits successfully and reports installed package
-discovery, native imports, worker execution, swarm completion, and telemetry.
+Confirm that the command exits successfully and reports locked production
+dependencies, installed package discovery, native imports, worker execution,
+swarm completion, and telemetry. The dependency check compares the installed
+lockfile, npm integrity records, and package versions with the source lock;
+platform-specific optional dependencies may be absent.
 This test uses a temporary HOME and a synthetic provider. For real provider or
 browser changes, obtain authorization before testing the account integration.
 
