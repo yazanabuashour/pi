@@ -51,23 +51,8 @@ function center(text: string, width: number) {
 }
 
 function columns(left: string, right: string, width: number) {
-  if (!right) return truncateToWidth(left, width);
-
-  const naturalGap = width - visibleWidth(left) - visibleWidth(right);
-  if (naturalGap >= 1) return `${left}${" ".repeat(naturalGap)}${right}`;
-
-  const leftWidth = Math.max(1, Math.floor(width * 0.45));
-  const rightWidth = Math.max(1, width - leftWidth - 1);
-  const fittedLeft = truncateToWidth(left, leftWidth);
-  const fittedRight = truncateToWidth(right, rightWidth);
-  const gap = Math.max(
-    1,
-    width - visibleWidth(fittedLeft) - visibleWidth(fittedRight),
-  );
-  return truncateToWidth(
-    `${fittedLeft}${" ".repeat(gap)}${fittedRight}`,
-    width,
-  );
+  const gap = width - visibleWidth(left) - visibleWidth(right);
+  return `${left}${" ".repeat(gap)}${right}`;
 }
 
 interface UiState {
@@ -81,9 +66,11 @@ function renderGit(gitInfo: UiState["gitInfo"]) {
   if (gitInfo.unavailable !== null)
     return sanitizeTerminalLabel(gitInfo.unavailable);
   const fileLabel = gitInfo.changedFiles === 1 ? "file" : "files";
-  let git = gitInfo.branch
-    ? `${gitInfo.branch} · ${gitInfo.changedFiles} ${fileLabel} changed`
-    : "";
+  const changes =
+    gitInfo.changedFiles === 0
+      ? "clean"
+      : `${gitInfo.changedFiles} ${fileLabel} changed`;
+  let git = gitInfo.branch ? `${gitInfo.branch} · ${changes}` : "";
   if (gitInfo.pullRequest) {
     const prLabel = `PR #${gitInfo.pullRequest.number}`;
     const linkedPr = getCapabilities().hyperlinks
@@ -111,22 +98,19 @@ function renderFooter(
     state.modelInfo.contextWindow > 0
       ? formatTokens(state.modelInfo.contextWindow)
       : "?";
-  const tps =
-    state.modelInfo.tokensPerSecond === null
-      ? "— tok/s"
-      : `~${Math.round(state.modelInfo.tokensPerSecond)} tok/s`;
-  const usage = `${contextPercent}%/${contextWindow} · branch assistant est. $${state.modelInfo.cost.toFixed(2)} · ${tps}`;
+  const usage = `${contextPercent}%/${contextWindow} · ~$${state.modelInfo.cost.toFixed(2)}`;
+  const location = git ? `${directory} · ${theme.fg("muted", git)}` : directory;
   const model = state.modelInfo.provider
     ? `${state.modelInfo.provider}/${state.modelInfo.modelId} · ${state.modelInfo.thinking}`
     : state.modelInfo.modelId;
   const lines = [
-    columns(directory, theme.fg("muted", model), width),
-    ...(visibleWidth(usage) + visibleWidth(git) + 1 <= width
-      ? [columns(theme.fg("muted", usage), theme.fg("muted", git), width)]
+    ...(visibleWidth(location) + visibleWidth(model) + 1 <= width
+      ? [columns(location, theme.fg("muted", model), width)]
       : [
-          ...wrapTextWithAnsi(theme.fg("muted", usage), width),
-          ...(git ? [truncateToWidth(theme.fg("muted", git), width)] : []),
+          ...wrapTextWithAnsi(location, width),
+          ...wrapTextWithAnsi(theme.fg("muted", model), width),
         ]),
+    ...wrapTextWithAnsi(theme.fg("muted", usage), width),
   ];
   const statuses = footerData.getExtensionStatuses();
   for (const statusLine of Array.from(statuses.entries())

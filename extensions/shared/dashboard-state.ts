@@ -12,7 +12,6 @@ export interface ModelInfoState {
   contextWindow: number;
   contextPercent: number | null;
   cost: number;
-  tokensPerSecond: number | null;
 }
 
 export const pullRequestInfoSchema = Type.Object({
@@ -42,7 +41,6 @@ export function emptyModelInfoState(): ModelInfoState {
     contextWindow: 0,
     contextPercent: null,
     cost: 0,
-    tokensPerSecond: null,
   };
 }
 
@@ -64,7 +62,6 @@ export function isModelInfoState<Input1>(
   const contextWindow = value["contextWindow"];
   const contextPercent = value["contextPercent"];
   const cost = value["cost"];
-  const tokensPerSecond = value["tokensPerSecond"];
 
   return (
     isString(provider) &&
@@ -72,8 +69,7 @@ export function isModelInfoState<Input1>(
     isString(thinking) &&
     isNumber(contextWindow) &&
     isNullableNumber(contextPercent) &&
-    isNumber(cost) &&
-    isNullableNumber(tokensPerSecond)
+    isNumber(cost)
   );
 }
 

@@ -205,7 +205,7 @@ it("successful absence, clean, unborn, closed PR and detached HEAD remain distin
   };
   await f.refresh();
   assert.equal(f.notices.at(-1)?.text, "No open PR found for main");
-  assert.include(f.render(), "0 files changed");
+  assert.include(f.render(), `${f.ctx.cwd} · main · clean`);
   assert.notInclude(f.requests.join(";"), "--short HEAD");
   for (const state of ["CLOSED", "MERGED"]) {
     f.results[prCommand] = { stdout: JSON.stringify({ ...openPr, state }) };
@@ -283,7 +283,7 @@ it("background refresh retains failed PR lookup until existing explicit or branc
   assert.notInclude(f.render(), "PR #7");
 });
 
-it("unavailable state takes precedence and preserves qualified usage at narrow widths", async () => {
+it("unavailable state takes precedence and preserves minimal usage at narrow widths", async () => {
   const f = await fixture();
   assert.equal(isGitInfoState({ unavailable: "" }), false);
   assert.equal(isGitInfoState({}), false);
@@ -291,7 +291,8 @@ it("unavailable state takes precedence and preserves qualified usage at narrow w
   f.bus.emit(MODEL_INFO_CHANNEL, {
     ...emptyModelInfoState(),
     cost: 3.75,
-    tokensPerSecond: 42,
+    contextPercent: 19,
+    contextWindow: 272_000,
   });
   f.bus.emit(GIT_INFO_CHANNEL, {
     unavailable: "Git unavailable: gh pr view failed (exit 4)",
@@ -302,8 +303,7 @@ it("unavailable state takes precedence and preserves qualified usage at narrow w
   for (const width of [20, 32, 40, 60, 80, 120]) {
     const text = f.render(width);
     assert.include(text, "Git unavailable");
-    assert.include(text, "branch assistant est. $3.75");
-    assert.include(text, "~42 tok/s");
-    assert.notMatch(text, /stale|files changed|PR #/);
+    assert.include(text, "19%/272k · ~$3.75");
+    assert.notMatch(text, /stale|files changed|PR #|tok\/s/);
   }
 });
