@@ -1,7 +1,7 @@
 # Run the native delivery regression gate
 
-Use this gate to reproduce the September 12 failure and protect the production
-swarm adapter. Run it from a checkout with the prerequisites in
+Use this gate to detect swarm messages that appear in history but never reach the
+model. Run it from a checkout with the prerequisites in
 [Develop and validate changes](development.md) and an installed candidate.
 The fixture and runner are not included in the package.
 
@@ -14,12 +14,12 @@ package="$HOME/.local/share/dotfiles-pi-package/current/node_modules/yazan-pi-se
 npm run test:delivery -- "$(command -v pi)" "$package" /tmp/pi-delivery-receipts
 ```
 
-The runner rejects an existing receipt directory or an adapter or session owner
-that differs from the checkout. To avoid using your active installation, use the
-candidate produced by the isolated-HOME procedure in the development guide.
-The full `test:integration` gate also runs this focused check. It prints a
-separate delivery receipt directory and retains it after cleanup, including on
-failure.
+To avoid using your active installation, use the candidate from the isolated-HOME
+procedure in the development guide. The runner rejects an existing receipt
+directory or an adapter or session owner that differs from the checkout.
+
+The full `test:integration` gate also runs this check. It prints a separate
+delivery receipt directory and retains it after cleanup, including on failure.
 
 Each case gets an isolated HOME, empty credentials, disabled resource discovery,
 and stdin from `/dev/null`. The offline fake provider makes no model service
@@ -29,7 +29,7 @@ Temporary homes are removed after exit. Receipts remain where you requested.
 
 ## Read the receipts
 
-Check that the command exits successfully and reports these cases:
+Check that the command exits successfully and reports these results:
 
 - `historical`: busy root, direct `deliverAs: "steer"`, and
   `triggerTurn: ctx.isIdle()` (false). Provider request 2 omits the marker even
@@ -41,14 +41,14 @@ Check that the command exits successfully and reports these cases:
   request must contain the marker without a user prompt.
 - `mutant`: a disposable copy of the production adapter changes
   `triggerTurn: true` to `false`. The corrected busy-root schedule must still
-  complete, but the provider-input oracle must reject its missing marker.
+  complete, but the provider-input check must detect the missing marker.
   Neither the checkout nor the installed candidate is modified.
 
 Open each `*.receipt.jsonl` for provider-visible roles and content, submission
 path, tool boundaries, turn ends, and settlement. The runner checks the exact
 selected schedule and the final response before checking marker visibility.
-A mutation that crashes or breaks the schedule does not count as a detected
-lost-message regression. The custom display event is checked separately in
+Do not count a mutation that crashes or changes the schedule as a detected
+lost-message regression. Check the custom display event separately in
 `*.events.jsonl`.
 
 `environment.json` records the native Pi version, source base, installed package,
@@ -62,21 +62,20 @@ SHA-256, installs the candidate under a temporary HOME, and runs `test:delivery`
 CI retains the synthetic receipts as the `native-pi-delivery` artifact. This gate
 does not require the web or browser packages, and it is not part of `npm test`.
 
-On a Pi upgrade, reassess the historical negative case as well as the required
-corrected behavior. If native Pi starts delivering explicit false, the historical
-case and mutation expectation can fail despite improved behavior. Do not weaken
-the corrected provider-input assertion to accommodate that change.
+On a Pi upgrade, reassess the historical and mutant cases. If native Pi starts
+delivering messages with `triggerTurn: false`, those cases can fail despite
+improved behavior. Keep the corrected case's requirement that the marker reaches
+the provider.
 
-## Keep the experiment bounded
+## Check coverage before relying on a pass
 
-The synthetic tool injects a unique child marker before returning its fixed
-result. Native Pi owns the queue, turn end, context conversion, and next provider
-request. The fake provider emits fixed responses with fixed chunking and no
-wall-clock delays. Normalized traces omit timestamps and session identifiers;
-native JSON events retain their metadata.
+Keep the broader installed-package gate for child routing, the full swarm manager,
+and worker processes. This focused gate tests the real adapter and session owner
+with a synthetic tool and a fake provider. Native Pi handles the queue, turn end,
+context conversion, and next provider request.
 
-The positive cases exercise the real adapter and session owner, but not child
-routing or the full swarm manager. Keep the broader installed-package gate for
-that wiring and for worker processes. History is an in-memory observation, not
-a disk-durability claim. Cancellation schedules, the late-queue gap after Pi's
-final queue check, and Mailgate Trial 2 remain separate work.
+Treat history receipts as in-memory observations, not proof of disk persistence.
+Normalized traces omit timestamps and session identifiers; native JSON events
+retain their metadata. The fake provider uses fixed responses and chunking
+without wall-clock delays. This gate does not cover cancellation or messages
+queued after Pi's final queue check.

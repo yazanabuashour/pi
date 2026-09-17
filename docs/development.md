@@ -24,7 +24,8 @@ for the compiler and lint configuration.
 
 ## Test the installed candidate
 
-For package, loader, or process changes, test the candidate before activation.
+For packaging, loader, or process-lifecycle changes, test the installed package
+before updating your working installation.
 Use native Pi and installed copies of `pi-web-access` and `agent-browser`:
 
 ```bash
@@ -41,21 +42,22 @@ Use native Pi and installed copies of `pi-web-access` and `agent-browser`:
 )
 ```
 
-Confirm that the command exits successfully and reports locked production
-dependencies, installed package discovery, native imports, worker execution,
-swarm completion, and telemetry. The dependency check compares the installed
-lockfile, npm integrity records, and package versions with the source lock;
-platform-specific optional dependencies may be absent.
-This test uses a temporary HOME and a synthetic provider. For real provider or
-browser changes, obtain authorization before testing the account integration.
+Confirm that the command exits successfully and reports matching production
+dependencies, package discovery, native imports, worker execution, swarm
+completion, and telemetry. The test compares the installed lockfile, npm integrity
+records, and package versions with the source lockfile. Platform-specific optional
+dependencies may be absent.
+
+The test uses a temporary HOME and a synthetic provider. Before testing real
+provider or browser accounts, obtain authorization.
 
 ## Check native swarm delivery
 
-Use [Run the native delivery regression gate](lost-message-trial.md) to check the
-installed adapter against provider-visible input at a controlled tool boundary.
-The gate also verifies that a disposable historical mutation loses the marker.
-Linux CI runs it with pinned native Pi; `test:integration` includes it after the
-broader package checks.
+Follow [Run the native delivery regression gate](lost-message-trial.md) to verify
+that the installed swarm adapter delivers messages to the provider. The test also
+reintroduces the earlier bug in a disposable copy and confirms that a message is
+lost. Linux CI runs this test with pinned native Pi. `test:integration` runs it
+after the other package checks.
 
 ## Install the checked changes
 
@@ -64,5 +66,5 @@ Compare the changed resources with their installed copies under
 `~/.local/share/dotfiles-pi-package/current/node_modules/yazan-pi-setup`.
 Start a new session to use the changes. Reload an existing session only when asked.
 
-If installation is blocked or deferred, report that the source changes remain
-inactive. Keep installation directories while running processes use them.
+If installation is blocked or deferred, report that the changes are not installed.
+Keep installation directories while running processes use them.

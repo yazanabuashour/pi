@@ -23,9 +23,9 @@ network. The separate process is not a security sandbox.
 ## Execution and model selection
 
 The parent prepares metadata. The worker compiles the prepared source as an async
-function body with `agent`, `parallel`, `phase`, and JSON-decoded frozen `args`.
+function body with `agent`, `parallel`, `phase`, and frozen, JSON-decoded `args`.
 Static imports are not valid function-body syntax; dynamic imports are supported.
-Compilation rejects stray wrapper-closing source before dispatch.
+Compilation rejects source that closes the function wrapper before execution.
 
 Each `agent()` inherits the calling session's complete model and effort captured
 at workflow launch. The `effort` option overrides reasoning effort. Neither agent
@@ -33,34 +33,37 @@ options nor worker inter-process communication (IPC) exposes model selection.
 Unsupported options are ignored. A missing parent model fails before session
 creation rather than selecting a configured model.
 
-`agent()` is lazy; repeated consumption dispatches once. `parallel()` preserves
-input order and bounds fanout. A return with unconsumed or in-flight calls fails
-accounting.
+`agent()` starts when its result is awaited or used through `then()`, `catch()`,
+or `finally()`. Reusing that result does not rerun the agent. `parallel()` limits
+concurrency and returns results in input order. A script fails if it returns with
+unused or unfinished agent calls.
 
 ## Run ownership
 
-`WorkflowRun.start()` owns script admission, the active-run registry entry, agent
-execution, and final persistence. Callers observe snapshots through `details`,
-await `completion`, or request cancellation with `abort()`. The tool adapter
-formats results and delivers background completions; it does not mutate run state.
+`WorkflowRun.start()` validates and records the script, registers the run,
+executes agents, and persists the final state. Callers read snapshots through
+`details`, await `completion`, or request cancellation with `abort()`. The tool
+adapter formats results and delivers background completions; it does not change
+run state.
 
 Normal completion and forced interruption use the same finalization path. The run
-ignores late updates before writing terminal artifacts and lifecycle entries.
-Persistence failures mark the run failed, and terminal progress reflects that
-failure. Forced interruption records the terminal state without claiming that
-uncooperative work has settled; `completion` still tracks execution cleanup.
+ignores late updates before writing final artifacts and lifecycle entries.
+Persistence failures mark the run failed and appear in final progress.
+Forced interruption records the final state without claiming that work which
+ignores cancellation has stopped;
+`completion` still tracks execution cleanup.
 
-`runAgent()` owns each child's fresh resource snapshot, session setup, prompt, and
-teardown. Its caller supplies the task and inherited model and trust context, not
-SDK loaders or settings managers. Swarm sessions remain separate because they
-support steering and reuse rather than one-shot execution.
+`runAgent()` loads each child's resources, creates the session, sends the prompt,
+and cleans up. Its caller supplies the task, inherited model, and trust context,
+not SDK loaders or settings managers. Swarm sessions remain separate because they
+support steering and reuse rather than a single task.
 
 ## Cancellation and settlement
 
-Pre-abort rejects before spawn. Every terminal path stops dispatch, aborts active
-invocations, terminates the worker, and waits for child `close`. The TERM-to-KILL
-grace period clears after close. IPC sends observe errors. Late agent outcomes
-cannot send replies into a stopped worker.
+An already-aborted signal rejects the run before worker creation. Every exit path
+stops new agent calls, aborts active calls, terminates the worker, and waits for the
+child's `close` event. The SIGTERM-to-SIGKILL timer clears after `close`. IPC send
+errors fail the run. Late agent results cannot send replies to a stopped worker.
 
 `RunController` owns agent tasks and their bounded settlement wait. The worker
 does not wait indefinitely for agents that ignore abort. Neither a workflow nor

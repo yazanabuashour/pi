@@ -6,7 +6,7 @@ Provider choices, credentials, and other private settings stay on each machine.
 The package provides background terminals, swarm agents, workflows, structured
 questions, and interface tools. Browser and web tools are separate packages.
 
-Documentation covers these tasks and contracts:
+Use these guides to install, configure, and develop the package:
 
 - [Install the package](docs/install.md)
 - [Develop and validate changes](docs/development.md)
@@ -14,9 +14,6 @@ Documentation covers these tasks and contracts:
 - [Package ownership and delivery](docs/architecture.md)
 - [Integrate automation callers](AUTOMATIONS.md)
 
-TypeScript checks use commit-pinned Git sources of `typescript-config-policy`
-and `typescript-lint-policy`, locked in `package-lock.json`.
-
 [Contributing](CONTRIBUTING.md) · [Security policy](SECURITY.md) · [MIT license](LICENSE)
 
-Linux is validated locally; macOS validation runs in CI.
+CI checks the source on Linux and macOS and tests native swarm delivery on Linux.

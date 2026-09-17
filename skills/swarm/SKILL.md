@@ -5,17 +5,16 @@ description: Delegate self-contained tasks to background Pi agents and coordinat
 
 # Coordinate a swarm
 
-A swarm has one manager owned by the root Pi session. Address that session as
-`root`. Child IDs such as `sa-1` are opaque and stable; obtain them from tool
-results or `swarm_list`, rather than guessing or deriving ancestry from them.
+Address the root Pi session as `root`. Get stable child IDs such as `sa-1` from
+tool results or `swarm_list`. Do not guess IDs or infer ancestry from them.
 
 ## Delegate a task
 
 Call `swarm_spawn` with a self-contained `prompt` and a short `name`. Include
-needed context, paths, ownership boundaries, constraints, and the expected
-report. Children do not receive the calling conversation.
+context, paths, file ownership, constraints, and the expected report. Children
+do not receive the calling conversation.
 
-Optional fields:
+Use these optional fields when needed:
 
 - `working_dir`: trusted working directory; defaults to the caller's directory.
 - `reasoning_effort`: overrides effort; omission inherits the caller's effort.
@@ -23,10 +22,11 @@ Optional fields:
   child needs to delegate. That child must explicitly permit spawning again
   for any of its own children that need to delegate.
 
-Children inherit the caller's complete Pi model; there is no model, provider,
-or harness selector. They use normal host permissions and trust-gated resources.
-This is not a sandbox and creates no worktree or file isolation. Assign disjoint
-file ownership or coordinate edits explicitly before working in shared files.
+Children inherit the caller's Pi model; you cannot select another model,
+provider, or harness. They use normal host permissions and resources allowed
+by project trust. They share the filesystem, with no sandbox or separate
+worktree. Assign separate files to each agent, or coordinate edits before
+changing shared files.
 
 Keep working after spawning. Completion goes automatically to `root`, and is
 forwarded to the direct parent unless that branch was canceled. If forwarding
@@ -40,39 +40,39 @@ Every swarm agent can call `swarm_send(to, message)`, `swarm_list`, and
 Use explicit messages to report progress, share findings, request information,
 or resolve shared-file ownership.
 
-`swarm_send` requests attention rather than passive mailbox storage: a reply
-can resume an agent that reported a blocker and finished. Success confirms
-submission, not model consumption. Root delivery uses Pi's asynchronous message
-API; Pi reports later delivery failures. Running recipients receive steering at Pi
-turn/tool boundaries. Waking an idle child requires free capacity; otherwise
-the send fails rather than waiting for a slot. This uses Pi message queues, not
-native `response.steer`. Errors surface; there are no
-implicit retries. Do not silently retry failures or assume a submitted message
-has been acted on.
+Use `swarm_send` to resume an agent that reported a blocker and finished.
+Success confirms submission, not that the model read the message. Pi reports
+later failures to deliver messages to root. Running recipients receive queued
+steering between turns or tool calls. If no capacity is free, a send to an idle
+child fails instead of waiting. Failed sends are not retried automatically.
+Do not silently retry failures or assume the recipient acted on a submitted
+message.
 
 Only root can restart a canceled agent; peers cannot restart canceled agents
 by messaging them.
 
 ## Handle results and blockers
 
+Use the tools available to your session:
+
 - Root has `swarm_wait(ids)` and `swarm_cancel(ids)`. Wait only when a result
   blocks useful progress. Canceling a parent stops its descendant branch.
-- Children have no blocking wait or cancel tools. A child blocked on another
-  agent should send its blocker and finish rather than poll or wait indefinitely.
-  Explicit messages and automatic descendant completion can wake it later.
+- Children have no blocking wait or cancel tools. If another agent blocks your
+  work as a child, report the blocker and finish instead of polling or waiting.
+  Messages and descendant completion reports can wake you later.
 - `swarm_check(id)` inspects status and recent activity without consuming a
   result. `swarm_list` discovers model-visible agents.
 - Inspect errors and report incomplete work. Retained transcripts do not mean
   canceled work completed or can be restarted by a peer.
 
-The existing shared capacity remains four running children, including `/btw`.
+Swarm agents and `/btw` share capacity for four running children.
 Do not spawn redundant work or rely on polling for capacity.
 
 ## Keep private questions and workflows separate
 
-`/swarm` opens the human management view. `/btw` remains a private side question:
+Use `/swarm` to open the management view. Keep `/btw` for private side questions:
 it is invisible to model tools and receives no swarm tools.
 
-Workflows are unchanged. Workflow leaf agents receive no swarm tools; swarm
-children cannot invoke workflows or ask the user. Do not route workflow work
-through swarm APIs or treat a skill as permission to bypass tool availability.
+Workflow agents receive no swarm tools. Swarm children cannot invoke workflows
+or ask the user. Do not route workflow work through swarm APIs or treat a skill
+as permission to bypass tool availability.

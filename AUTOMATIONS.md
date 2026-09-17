@@ -20,8 +20,9 @@ workers, and agents with the same account are not a security sandbox.
 1. Await every task-critical agent and process. A successful launch is not a
    completed result.
 2. Wait for the Pi process to exit. Keep application locks until owned work settles.
-3. Validate the output against the application's contract. Reject failed,
-   truncated, unfinished, or unbound results before commit or delivery.
+3. Validate the output against the application's contract. Before commit or
+   delivery, reject failed, truncated, or unfinished results and results that
+   cannot be tied to the requested task.
 4. If the caller requires `agent_settled`, check that event explicitly. Do not treat
    `agent_end` alone as proof that background work finished.
 5. Before retrying an uncertain external action, inspect the result and apply the
@@ -30,10 +31,10 @@ workers, and agents with the same account are not a security sandbox.
 ## Add diagnostics and deploy
 
 To record diagnostics, configure the [telemetry variables](docs/reference.md#automation-telemetry).
-Continue to check business postconditions when telemetry fails; telemetry cannot
+Check the action's expected result even when telemetry fails. Telemetry cannot
 prove that an action completed.
 
 Before you change a launcher, prompt, validator, or deployment, run synthetic tests
-without real accounts. Preserve schedules and private state. Obtain explicit
-authorization before running a real or dry scheduled job against live systems.
+without real accounts. Preserve schedules and private state. Before running a
+scheduled job against live systems, obtain explicit authorization, even for a dry run.
 Package installation does not deploy callers or reload existing Pi sessions.
