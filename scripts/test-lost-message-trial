@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+[[ $# -eq 2 ]] || {
+  printf 'Usage: %s PI_EXECUTABLE NEW_RECEIPT_DIRECTORY\n' "${0##*/}" >&2
+  exit 2
+}
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+pi="$(realpath "$1")"
+[[ -x $pi ]]
+mkdir -- "$2"
+output="$(realpath "$2")"
+temporary="$(mktemp -d)"
+trap 'rm -rf -- "$temporary"' EXIT
+# Native Pi must resolve its own SDK, never the checkout's development SDK.
+cp "$ROOT/runtime-probes/lost-message-trial.ts" "$temporary/probe.ts"
+jq -n --arg pi "$pi" --arg version "$("$pi" --version)" \
+  --arg node "$(node --version)" --arg date "$(date -u +%FT%TZ)" \
+  --arg source "$(git -C "$ROOT" rev-parse HEAD)" \
+  --arg fixture "$(sha256sum "$ROOT/runtime-probes/lost-message-trial.ts" | cut -d ' ' -f 1)" \
+  --arg runner "$(sha256sum "$ROOT/scripts/test-lost-message-trial" | cut -d ' ' -f 1)" \
+  '{pi: $pi, version: $version, node: $node, date: $date, sourceBase: $source,
+    fixtureSha256: $fixture, runnerSha256: $runner}' >"$output/environment.json"
+
+for mode in historical corrected idle; do
+  home="$temporary/$mode"
+  mkdir -p "$home/.pi/agent" "$home/run"
+  chmod 700 "$home/run"
+  printf '%s\n' '{"compaction":{"enabled":false},"retry":{"enabled":false}}' \
+    >"$home/.pi/agent/settings.json"
+  prompt='Run the synthetic pending tool.'
+  [[ $mode != idle ]] || prompt='/trial-idle'
+  if ! (cd "$home" &&
+    env -i PATH="$PATH" HOME="$home" PI_OFFLINE=1 \
+      PI_CODING_AGENT_DIR="$home/.pi/agent" \
+      XDG_CONFIG_HOME="$home/config" XDG_DATA_HOME="$home/data" \
+      XDG_STATE_HOME="$home/state" XDG_CACHE_HOME="$home/cache" \
+      XDG_RUNTIME_DIR="$home/run" \
+      PI_TRIAL_MODE="$mode" PI_TRIAL_RECEIPT="$output/$mode.receipt.jsonl" \
+      "$pi" --mode json --no-session --no-context-files --no-approve \
+      --no-extensions --no-skills --no-prompt-templates --no-themes \
+      -e "$temporary/probe.ts" --tools trial_pending_tool \
+      --model pi-lost-message-trial/faux-1 --thinking off \
+      --system-prompt 'Synthetic delivery trial.' "$prompt" \
+      </dev/null >"$output/$mode.events.jsonl" 2>"$output/$mode.stderr"); then
+    printf 'Native Pi failed in %s; diagnostics: %s\n' "$mode" "$output" >&2
+    exit 1
+  fi
+
+  jq -s -e --arg mode "$mode" '
+    .[0].marker as $marker
+    | map(.event) == (if $mode == "idle" then
+        ["session_start", "submit", "provider_request", "turn_end",
+         "agent_settled", "session_shutdown"]
+      else
+        ["session_start", "provider_request", "tool_pending", "submit",
+         "tool_release", "tool_execution_end", "turn_end", "provider_request",
+         "turn_end", "agent_settled", "session_shutdown"]
+      end)
+    and .[0].isIdle == true
+    and ([.[] | select(.event == "submit")] == [{event: "submit",
+      isIdle: ($mode == "idle"), deliverAs: "steer", triggerTurn: ($mode != "historical")}])
+    and all(.[] | select(.event == "tool_execution_end"); .isError == false)
+    and all(.[] | select(.event == "agent_settled" or .event == "session_shutdown");
+      .isIdle == true and .historyHasMarker == true)
+    and ([.[] | select(.event == "provider_request")] as $requests
+      | ($requests | length) == (if $mode == "idle" then 1 else 2 end)
+      and ($requests[-1].messages | tostring | contains($marker)) == ($mode != "historical")
+      and $requests[-1].historyHasMarker == true
+      and (if $mode == "idle" then true else
+        ($requests[0].messages | tostring | contains($marker) | not)
+        and $requests[0].historyHasMarker == false
+        and any($requests[-1].messages[];
+          .role == "toolResult" and .content == [{type: "text", text: "tool-completed"}])
+        end))
+  ' "$output/$mode.receipt.jsonl" >/dev/null || {
+    printf 'Trial oracle or schedule failed in %s: %s\n' "$mode" "$output" >&2
+    exit 1
+  }
+  jq -s -e --slurpfile receipt "$output/$mode.receipt.jsonl" '
+    any(.[]; .type == "message_end" and .message.role == "custom"
+      and .message.content == $receipt[0].marker and .message.display == true)
+    and ([.[] | select(.type == "message_end" and .message.role == "assistant")]
+      | last | .message.stopReason == "stop"
+        and .message.content == [{type: "text", text: "pi-lost-message-trial-ok"}])
+  ' "$output/$mode.events.jsonl" >/dev/null || {
+    printf 'Trial UI event or final response failed in %s: %s\n' "$mode" "$output" >&2
+    exit 1
+  }
+  printf '%s: provider oracle, history, UI events, schedule, and settlement passed.\n' "$mode"
+done
+printf 'Trial 1 receipts: %s\n' "$output"
