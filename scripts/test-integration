@@ -92,7 +92,7 @@ run_probe() {
       "$pi" --mode json --no-session --no-context-files --no-approve \
       --model dotfiles-package-probe/probe --thinking off \
       '/skill:workflow-authoring run the offline package integration probe.' \
-      >"$temporary/events.jsonl" 2>"$temporary/stderr") || {
+      </dev/null >"$temporary/events.jsonl" 2>"$temporary/stderr") || {
     printf 'Package integration process failed. Synthetic diagnostics:\n' >&2
     cat "$temporary/stderr" "$temporary/events.jsonl" >&2
     return 1
@@ -160,3 +160,7 @@ jq -s -e '
 run_probe "$temporary"
 grep -Fq 'pi-telemetry-open-failed:' "$temporary/stderr"
 printf 'Installed package discovery, native SDK imports, worker execution, awaited swarm agent, tool lifecycle, and optional telemetry passed.\n'
+# Keep delivery receipts outside the HOME cleanup tree, including on failure.
+delivery_receipts="$(mktemp -d)"
+printf 'Retained delivery receipt directory: %s/delivery\n' "$delivery_receipts"
+bash "$ROOT/scripts/test-lost-message-trial" "$pi" "$package" "$delivery_receipts/delivery"

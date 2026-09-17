@@ -49,11 +49,13 @@ platform-specific optional dependencies may be absent.
 This test uses a temporary HOME and a synthetic provider. For real provider or
 browser changes, obtain authorization before testing the account integration.
 
-## Replay the lost-message incident
+## Check native swarm delivery
 
-Use [Run the lost-message trial](lost-message-trial.md) to compare historical
-and corrected delivery options against provider-visible input on native Pi.
-This focused trial complements the installed-package gate; it does not replace it.
+Use [Run the native delivery regression gate](lost-message-trial.md) to check the
+installed adapter against provider-visible input at a controlled tool boundary.
+The gate also verifies that a disposable historical mutation loses the marker.
+Linux CI runs it with pinned native Pi; `test:integration` includes it after the
+broader package checks.
 
 ## Install the checked changes
 

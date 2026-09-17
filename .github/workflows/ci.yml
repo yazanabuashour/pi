@@ -40,3 +40,36 @@ jobs:
       - run: npm run check
       - run: npm test
       - run: npm pack --dry-run --ignore-scripts
+      - name: Obtain pinned native Pi
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          destination="$RUNNER_TEMP/native-pi-0.85.1"
+          mkdir -p "$destination"
+          curl --fail --silent --show-error --location \
+            https://github.com/earendil-works/pi/releases/download/v0.85.1/pi-linux-x64.tar.gz \
+            --output "$destination/pi-linux-x64.tar.gz"
+          printf '%s  %s\n' \
+            494e498f47d74d21f40b3386f6a5e921a3d49531a169cab55bbdaca0ea1fe25a \
+            "$destination/pi-linux-x64.tar.gz" | sha256sum --check -
+          tar -xzf "$destination/pi-linux-x64.tar.gz" -C "$destination"
+          test "$("$destination/pi/pi" --version)" = 0.85.1
+      - name: Check installed native swarm delivery
+        id: delivery
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage="$RUNNER_TEMP/pi-delivery-home"
+          npm_cache="$(npm config get cache)"
+          HOME="$stage" npm_config_cache="$npm_cache" npm run install:local
+          npm run test:delivery -- "$RUNNER_TEMP/native-pi-0.85.1/pi/pi" \
+            "$stage/.local/share/dotfiles-pi-package/current/node_modules/yazan-pi-setup" \
+            "$RUNNER_TEMP/pi-delivery-receipts"
+      - name: Retain native delivery receipts
+        if: always() && runner.os == 'Linux' && steps.delivery.outcome != 'skipped'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: native-pi-delivery
+          path: ${{ runner.temp }}/pi-delivery-receipts

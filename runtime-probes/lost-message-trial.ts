@@ -12,6 +12,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { Type, type Static } from "typebox";
 import { Parse } from "typebox/value";
+import { SwarmExtensionSession } from "../extensions/swarm/src/extension-session.ts";
 
 const marker = "pi-trial1-child-progress-7e38932d";
 const configuration = Type.Object({
@@ -33,8 +34,7 @@ type TrialReceipt =
   | {
       event: "submit";
       isIdle: boolean;
-      deliverAs: "steer";
-      triggerTurn: boolean;
+      path: "historical-options" | "installed-adapter";
     }
   | {
       event: "session_start";
@@ -63,15 +63,32 @@ function send(
   pi: ExtensionAPI,
   mode: Static<typeof configuration>["mode"],
   ctx: ExtensionContext,
+  owner: SwarmExtensionSession,
   record: (entry: TrialReceipt) => void,
 ) {
   const isIdle = ctx.isIdle();
-  const triggerTurn = mode === "historical" ? isIdle : true;
-  record({ event: "submit", isIdle, deliverAs: "steer", triggerTurn });
-  pi.sendMessage(
-    { customType: "swarm-message", content: marker, display: true },
-    { deliverAs: "steer", triggerTurn },
-  );
+  record({
+    event: "submit",
+    isIdle,
+    path: mode === "historical" ? "historical-options" : "installed-adapter",
+  });
+  if (mode === "historical") {
+    pi.sendMessage(
+      { customType: "swarm-message", content: marker, display: true },
+      { deliverAs: "steer", triggerTurn: isIdle },
+    );
+  } else {
+    owner.messages.receive(
+      {
+        schemaVersion: 1,
+        id: "trial-message",
+        from: "trial-child",
+        to: "root",
+        text: marker,
+      },
+      marker,
+    );
+  }
 }
 
 export default function (pi: ExtensionAPI) {
@@ -81,6 +98,7 @@ export default function (pi: ExtensionAPI) {
   });
   const record = (entry: TrialReceipt) =>
     NodeFS.appendFileSync(receipt, `${JSON.stringify(entry)}\n`);
+  const owner = new SwarmExtensionSession(pi);
   let currentContext: ExtensionContext | undefined;
   let request = 0;
 
@@ -159,7 +177,7 @@ export default function (pi: ExtensionAPI) {
       record({ event: "tool_pending" });
       // The synthetic child sends while this tool is in flight. Returning the
       // result releases the tool; native Pi owns turn end and continuation.
-      send(pi, mode, ctx, record);
+      send(pi, mode, ctx, owner, record);
       record({ event: "tool_release" });
       return {
         content: [{ type: "text", text: "tool-completed" }],
@@ -170,7 +188,7 @@ export default function (pi: ExtensionAPI) {
   pi.registerCommand("trial-idle", {
     description: "Inject the synthetic child message into an idle root.",
     handler: async (_args, ctx) => {
-      send(pi, mode, ctx, record);
+      send(pi, mode, ctx, owner, record);
       await ctx.waitForIdle();
     },
   });

@@ -79,6 +79,7 @@
     "check": "npm run lint && npm run typecheck && bash scripts/check",
     "install:local": "bash scripts/install-local",
     "test:integration": "bash scripts/test-integration",
+    "test:delivery": "bash scripts/test-lost-message-trial",
     "format": "oxfmt \"extensions/**/*.{ts,cjs}\" \"runtime-probes/**/*.{ts,mjs}\" \"*.{json,ts}\" \"themes/*.json\"",
     "format:check": "oxfmt --check \"extensions/**/*.{ts,cjs}\" \"runtime-probes/**/*.{ts,mjs}\" \"*.{json,ts}\" \"themes/*.json\"",
     "lint": "oxlint --deny-warnings --report-unused-disable-directives .",
