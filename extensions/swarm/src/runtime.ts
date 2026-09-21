@@ -31,6 +31,7 @@ export async function runTool<A, E>(
     interruptMessage?: string | undefined;
   } = {},
 ) {
+  options.signal?.throwIfAborted();
   const exit = await runtime.runPromiseExit(
     effect,
     options.signal ? { signal: options.signal } : undefined,

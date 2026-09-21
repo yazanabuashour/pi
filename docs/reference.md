@@ -42,15 +42,43 @@ The [swarm skill](../skills/swarm/SKILL.md) covers coordination.
 Workers use Pi's runtime and have the account's host permissions. Swarm agents
 share the account's files; neither mechanism is a security sandbox.
 
-At session shutdown, workflows, swarm agents, and background terminals stop their
-owned work. Swarm and terminal results received during active work wait for
-delivery; results received while Pi is idle start a turn. Background workflows
-send completion as a follow-up message. Workflow execution cannot resume after
-its runtime ends.
+Swarm and terminal results received during active work wait for delivery; results
+received while Pi is idle start a turn. Background workflows send completion as a
+follow-up message. Workflow execution cannot resume after its runtime ends.
 
 `ask_user` uses remote procedure call (RPC) dialogs only when Pi starts with
 `--ask-user-rpc`. The flag declares that the client handles `extension_ui_request`.
 Other non-interactive clients receive the fallback instead.
+
+### Cancellation and shutdown
+
+Aborting `swarm_wait` stops the wait, not the agents. Explicit cancellation
+requests a stop; it does not by itself prove that execution stopped. Swarm
+cancellation distinguishes a stop request from an observed interrupted run.
+Background jobs retain their observed exit code or signal even when a stop was
+requested. Process-group signalling does not prove that every descendant exited.
+
+Session shutdown requests cancellation and cleans up owned resources. Swarm and
+background-terminal cleanup waits remain bounded. If execution or cleanup has not
+settled, the owner records the incomplete cleanup and reports the affected IDs
+rather than inventing a successful cancellation. A cleanup failure does not erase
+an already observed execution outcome. Lifecycle entries distinguish
+`cleanup-incomplete` from `settled`; tool results expose the stop request and
+incomplete cleanup separately. Abrupt process termination can bypass shutdown
+hooks entirely.
+
+### Results and log retention
+
+Execution, tracked results, and log files have separate lifetimes. Completed
+background jobs can leave the tracked list during a session; that pruning does
+not delete their spill files. Session shutdown removes the session's temporary
+log directory. Background jobs have no job-age timeout.
+
+`/ps` shows the retained in-memory output tail, not the complete spill files.
+Use the reported log paths for captured output while those files remain available.
+Capture limits or write failures can prevent complete logs from being available.
+Swarm conversations use Pi's saved session files; those files do not preserve
+running agents or their in-memory message queues.
 
 ## Automation telemetry
 

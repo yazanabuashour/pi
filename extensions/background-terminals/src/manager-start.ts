@@ -113,10 +113,11 @@ function createEntry(
       stdoutBuf: buffers.stdoutBuf,
       stderrBuf: buffers.stderrBuf,
       spillStreams,
-      killSignaled: false,
       processErrored: false,
       exited: false,
+      stopRequestedBeforeExit: false,
       stdioClosed: false,
+      stdioCleanupIncomplete: false,
       settling: false,
       exitCleanupStarted: false,
       settled,
@@ -141,20 +142,37 @@ function wireOutput(state: ManagerState, entry: Entry) {
 function wireLifecycle(state: ManagerState, entry: Entry) {
   const { child, snapshot } = entry;
   child.once("error", (error) => {
-    entry.processErrored = true;
     snapshot.errorText ??= boundedError(error);
+    // A spawn error proves no child was started. Other errors (including
+    // failed signals) do not prove that an existing child exited.
+    if (child.pid !== undefined) return;
+    entry.processErrored = true;
     entry.exited = true;
     settleAfterFlush(state, entry);
   });
   child.once("exit", (code, signal) => {
+    entry.stopRequestedBeforeExit = snapshot.stopRequested === true;
     entry.exited = true;
+    if (entry.stdioCleanupIncomplete) {
+      snapshot.cleanupIncomplete =
+        "Process exit observed, but stdio did not close";
+    }
     if (code !== null) snapshot.exitCode = code;
     if (signal !== null) snapshot.signal = signal;
-    scheduleExitCleanup(state, entry);
+    // Bounded cleanup may already have closed the scope without observing exit.
+    if (Deferred.isDoneUnsafe(entry.settled)) settleAfterFlush(state, entry);
+    else scheduleExitCleanup(state, entry);
   });
   child.once("close", (code, signal) => {
+    if (!entry.exited)
+      entry.stopRequestedBeforeExit = snapshot.stopRequested === true;
     entry.exited = true;
     entry.stdioClosed = true;
+    if (entry.stdioCleanupIncomplete) {
+      entry.stdioCleanupIncomplete = false;
+      delete snapshot.cleanupIncomplete;
+      notify(state, snapshot.id);
+    }
     if (!entry.processErrored) {
       if (snapshot.exitCode === undefined && code !== null) {
         snapshot.exitCode = code;
@@ -171,8 +189,14 @@ function forceSettlement(state: ManagerState, entry: Entry) {
   return Effect.gen(function* () {
     if (entry.snapshot.status !== "running" || entry.settling) return;
     if (!entry.stdioClosed) {
+      entry.stdioCleanupIncomplete = true;
+      entry.snapshot.cleanupIncomplete = entry.exited
+        ? "Process exit observed, but stdio did not close; output may be incomplete"
+        : "Process exit was not observed after termination; stdio remains open";
       entry.snapshot.errorText ??=
-        "stdio did not close after termination; output may be incomplete";
+        "Output capture closed before stdio; output may be incomplete";
+      entry.stdoutBuf.spillPath = undefined;
+      entry.stderrBuf.spillPath = undefined;
     }
     entry.settling = true;
     yield* flushSpillStreams(entry);
@@ -186,8 +210,8 @@ function installFinalizer(state: ManagerState, entry: Entry) {
       entry.child,
       () => entry.stdioClosed,
       () => {
-        entry.killSignaled ||=
-          !entry.exited && entry.snapshot.status === "running";
+        entry.snapshot.stopRequested = true;
+        notify(state, entry.snapshot.id);
       },
     );
     if (entry.snapshot.status === "running") {

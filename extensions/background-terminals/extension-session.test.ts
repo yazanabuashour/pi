@@ -6,6 +6,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { BackgroundTerminalSession } from "./src/extension-session.ts";
 import { runTool } from "./src/runtime.ts";
+import type { BackgroundTerminalDetailsV1 } from "./src/domain.ts";
 import { cwd, nodeCmd, pollUntil } from "./manager.test-support.ts";
 
 interface TestEvent {
@@ -82,5 +83,69 @@ NodeTest(
     NodeAssert.deepEqual(sent, [{ deliverAs: "followUp", triggerTurn: true }]);
 
     await shutdown({ reason: "quit" }, context);
+  },
+);
+
+NodeTest(
+  "shutdown persists incomplete resource IDs when runtime disposal fails",
+  async (test) => {
+    const events = new Map<string, EventHandler>();
+    const receipts: BackgroundTerminalDetailsV1[] = [];
+    let rejectSettlement = true;
+    const api: ExtensionAPI = Object.assign(Object.create(null), {
+      appendEntry: (_type: string, details: BackgroundTerminalDetailsV1) => {
+        if (details.event === "settled" && rejectSettlement) {
+          rejectSettlement = false;
+          throw new Error("fixture receipt failure");
+        }
+        receipts.push(details);
+      },
+      on: (event: string, handler: EventHandler) => events.set(event, handler),
+      sendMessage: () => undefined,
+    });
+    const context: ExtensionContext = Object.assign(Object.create(null), {
+      hasUI: false,
+      isIdle: () => false,
+      sessionManager: { getSessionId: () => "shutdown-failure" },
+    });
+    const session = new BackgroundTerminalSession(api);
+    await events.get("session_start")?.({ reason: "startup" }, context);
+    const manager = await session.getManager();
+    const runtime = session.getRuntime();
+    const snapshot = await runTool(
+      runtime,
+      manager.start({ command: nodeCmd(""), title: "disposal failure", cwd }),
+    );
+    NodeAssert.equal(session.recordStart(snapshot), true);
+    NodeAssert.ok(await pollUntil(() => snapshot.status !== "running"));
+    const dispose = runtime.dispose.bind(runtime);
+    test.mock.method(runtime, "dispose", async () => {
+      await dispose();
+      throw new Error("fixture disposal failure");
+    });
+    const shutdown = events.get("session_shutdown");
+    NodeAssert.ok(shutdown);
+    await NodeAssert.rejects(
+      async () => shutdown({ reason: "reload" }, context),
+      /Cleanup incomplete for terminals: bt-1.*fixture disposal failure/,
+    );
+    NodeAssert.deepEqual(
+      receipts.map((receipt) => receipt.event),
+      ["started", "cleanup-incomplete", "settled"],
+    );
+    const receipt = receipts.find(
+      (receipt) => receipt.event === "cleanup-incomplete",
+    );
+    NodeAssert.equal(receipt?.event, "cleanup-incomplete");
+    NodeAssert.equal(receipt?.id, snapshot.id);
+    NodeAssert.equal(receipt?.status, "done");
+    NodeAssert.equal(receipt?.exitCode, 0);
+    NodeAssert.equal(receipt?.outcome, "completed");
+    NodeAssert.match(
+      receipt?.cleanupIncomplete ?? "",
+      /fixture disposal failure/,
+    );
+    // Shutdown stays idempotent after reporting and resetting the old owner.
+    await shutdown({ reason: "reload" }, context);
   },
 );

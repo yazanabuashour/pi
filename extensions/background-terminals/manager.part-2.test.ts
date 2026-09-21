@@ -76,7 +76,7 @@ NodeTest(
 );
 
 NodeTest(
-  "kill terminates the whole process tree (grandchildren die)",
+  "kill terminates descendants that remain in the process group",
   { skip: hostPlatform === "win32" },
   async () => {
     await withManager(async (manager, runtime) => {

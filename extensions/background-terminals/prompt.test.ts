@@ -47,7 +47,7 @@ function snap(overrides: Partial<TerminalSnapshot> = {}): TerminalSnapshot {
     pid: 123,
     status: "done",
     createdAt: Date.now() - 5_000,
-    settledAt: Date.now(),
+
     stdout: view(),
     stderr: view(),
     ...overrides,
@@ -90,7 +90,7 @@ NodeTest(
     NodeAssert.equal(killedLine, 'Killed bt-1 "a" (SIGTERM).');
     NodeAssert.match(
       racedLine,
-      /exited on its own before the kill landed \(exit 0\)/,
+      /exited \(exit 0\); a stop request does not override/,
     );
     NodeAssert.match(settledLine, /was already failed \(exit 1\)/);
   },
@@ -132,6 +132,42 @@ NodeTest(
       "reload",
     );
     NodeAssert.equal(details.outcome, "interrupted");
+    const incomplete = backgroundTerminalDetails(
+      snap({
+        status: "running",
+        stopRequested: true,
+        cleanupIncomplete: "Process exit not observed",
+      }),
+      "cleanup-incomplete",
+      "runtime-1",
+      "reload",
+    );
+    NodeAssert.equal(incomplete.outcome, undefined);
+    NodeAssert.equal(incomplete.settledAt, undefined);
+    NodeAssert.equal(incomplete.stopRequested, true);
+    NodeAssert.match(
+      buildTerminalResultMessage(
+        snap({
+          status: "running",
+          cleanupIncomplete: "Process exit not observed",
+        }),
+      ),
+      /has no observed exit/,
+    );
+    NodeAssert.match(
+      buildKillReport([
+        {
+          id: "bt-1",
+          title: "a",
+          status: "running",
+          wasRunning: true,
+          killed: false,
+          exit: "running",
+          cleanupIncomplete: "Process exit not observed",
+        },
+      ]),
+      /cleanup incomplete/,
+    );
   },
 );
 
@@ -174,5 +210,9 @@ NodeTest(
     NodeAssert.match(completion, /line-100/);
     NodeAssert.match(completion, /stdout truncated/);
     NodeAssert.match(status, /line-1\n/);
+    NodeAssert.match(
+      completion,
+      /Full capture unavailable; \/ps shows only the retained memory tail/,
+    );
   },
 );

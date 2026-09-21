@@ -184,6 +184,9 @@ export interface AgentSnapshot {
   /** Increments whenever this agent starts another run. */
   readonly generation: number;
   readonly status: AgentStatus;
+  readonly stopRequested?: boolean | undefined;
+  readonly cleanupIncomplete?: string | undefined;
+  readonly pendingResources?: ReadonlyArray<string> | undefined;
   readonly outcome?: AgentOutcome | undefined;
   readonly createdAt: number;
   readonly settledAt?: number | undefined;
@@ -208,7 +211,7 @@ export interface AgentSnapshot {
 
 export interface AgentDetails {
   readonly schemaVersion: 1;
-  readonly event: "started" | "snapshot" | "settled";
+  readonly event: "started" | "snapshot" | "settled" | "cleanup-incomplete";
   readonly runtimeId: string;
   readonly id: string;
   readonly parentId: string;
@@ -220,6 +223,9 @@ export interface AgentDetails {
   readonly harness: "pi";
   readonly model?: string | undefined;
   readonly status: AgentStatus;
+  readonly stopRequested?: boolean | undefined;
+  readonly cleanupIncomplete?: string | undefined;
+  readonly pendingResources?: ReadonlyArray<string> | undefined;
   readonly outcome?: AgentOutcome | undefined;
   readonly createdAt: number;
   readonly settledAt?: number | undefined;
@@ -249,6 +255,9 @@ export function agentDetails(
     harness: "pi",
     model: snapshot.meta.modelLabel,
     status: event === "started" ? "running" : snapshot.status,
+    stopRequested: snapshot.stopRequested,
+    cleanupIncomplete: snapshot.cleanupIncomplete,
+    pendingResources: snapshot.pendingResources,
     outcome: event === "started" ? undefined : snapshot.outcome,
     createdAt: snapshot.createdAt,
     settledAt: event === "started" ? undefined : snapshot.settledAt,
@@ -285,6 +294,10 @@ export class SpawnError extends Data.TaggedError("SpawnError")<{
 export class ConcurrencyLimitError extends Data.TaggedError(
   "ConcurrencyLimitError",
 )<{
+  readonly message: string;
+}> {}
+
+export class WaitError extends Data.TaggedError("WaitError")<{
   readonly message: string;
 }> {}
 

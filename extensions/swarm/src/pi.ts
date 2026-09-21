@@ -11,7 +11,7 @@ import {
   bindChildSessionExtensions,
   childToolPolicy,
   createChildResources,
-  shutdownAndDisposeChildSession,
+  shutdownChildSessionReport,
   type ChildResourceOptions,
 } from "../../shared/child-session.ts";
 import { SessionFactory, type WorkerSession } from "./session.ts";
@@ -58,6 +58,11 @@ const createPiSession: CreatePiSession = async (task, signal) => {
   if (task.customTools !== undefined) options.customTools = task.customTools;
   return (await createAgentSession(options)).session;
 };
+
+async function shutdownAndDisposeChildSession(session: AgentSession) {
+  const report = await shutdownChildSessionReport(session);
+  if (report.failures.length > 0) throw new Error(report.failures.join("; "));
+}
 
 function acquireAdapter(
   task: SpawnTask,

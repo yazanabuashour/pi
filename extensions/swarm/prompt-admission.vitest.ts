@@ -1,8 +1,77 @@
 import * as NodeAssert from "node:assert/strict";
-import { Effect, Exit } from "effect";
+import { Effect, Exit, Scope } from "effect";
+import {
+  defineTool,
+  type ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
+import { Type } from "typebox";
+import { SessionFactory } from "./src/session.ts";
+import { PiSessionLayer } from "./src/pi.ts";
 import { it, vi } from "vitest";
 import { PiPromptLifecycle, type PromptSession } from "./src/session.ts";
-import { receipt } from "./pi-session.test-support.ts";
+import { receipt, factoryFixture } from "./pi-session.test-support.ts";
+
+it("keeps ignored raw tool execution owned after SDK prompt abort and bounds disposal honestly", async () => {
+  const raw = receipt();
+  const invoked = receipt();
+  const definition = defineTool({
+    name: "ignored_abort",
+    label: "fixture",
+    description: "fixture",
+    parameters: Type.Object({}),
+    async execute() {
+      invoked.resolve();
+      await raw.promise;
+      return { content: [], details: {} };
+    },
+  });
+  const f = await factoryFixture([definition]);
+  const controller = new AbortController();
+  const scope = Effect.runSync(Scope.make());
+  const child = await Effect.runPromise(
+    Scope.provide(
+      Effect.flatMap(SessionFactory, (factory) => factory(f.task)).pipe(
+        Effect.provide(PiSessionLayer(async () => f.session)),
+      ),
+      scope,
+    ),
+  );
+  const tool = f.session.getToolDefinition("ignored_abort");
+  NodeAssert.ok(tool);
+  vi.mocked(f.session.prompt).mockImplementation(async (_text, options) => {
+    options?.preflightResult?.(true);
+    // SAFETY: this fixture tool does not read its extension context.
+    const context = {} as ExtensionContext;
+    await tool.execute("call-1", {}, controller.signal, undefined, context);
+  });
+  f.session.abort = async () => {
+    controller.abort(new Error("stop requested"));
+  };
+  await Effect.runPromise(child.send("start"));
+  await invoked.promise;
+  let stopped = false;
+  const interrupt = Effect.runPromise(child.interrupt).then(() => {
+    stopped = true;
+  });
+  await Promise.resolve();
+  await Promise.resolve();
+  NodeAssert.equal(stopped, false);
+  NodeAssert.ok(child.pendingResources?.().includes("ignored_abort:call-1"));
+  vi.useFakeTimers();
+  try {
+    const closing = Effect.runPromiseExit(Scope.close(scope, Exit.void));
+    await vi.advanceTimersByTimeAsync(5_001);
+    NodeAssert.ok(Exit.isFailure(await closing));
+    NodeAssert.equal(vi.mocked(f.session.dispose).mock.calls.length, 1);
+    NodeAssert.equal(stopped, false);
+    raw.reject(new Error("late tool rejection"));
+    await interrupt;
+    NodeAssert.deepEqual(child.pendingResources?.(), []);
+  } finally {
+    raw.resolve();
+    vi.useRealTimers();
+  }
+});
 
 it("steering at the SDK idle boundary returns for manager readmission rather than starting a turn", async () => {
   const firstFinished = receipt();

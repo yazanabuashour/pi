@@ -13,16 +13,33 @@ import {
   notify,
   pruneSettled,
   releaseKillInterest,
+  settle,
   type ManagerState,
 } from "./manager-state.ts";
 
 export function killEntry(state: ManagerState, entry: Entry) {
   return Effect.sync(() => {
-    if (entry.snapshot.status !== "running") return;
+    if (entry.snapshot.status !== "running" || entry.snapshot.stopRequested)
+      return;
+    entry.snapshot.stopRequested = true;
+    notify(state, entry.snapshot.id);
     state.runCleanup(
       closeEntryScope(entry).pipe(
         Effect.timeout(STOP_TIMEOUT_MS),
         Effect.ignore,
+        Effect.ensuring(
+          Effect.sync(() => {
+            if (
+              entry.snapshot.status !== "running" ||
+              entry.settling ||
+              Deferred.isDoneUnsafe(entry.settled)
+            )
+              return;
+            entry.snapshot.cleanupIncomplete ??=
+              "Cleanup ended without observing process exit";
+            settle(state, entry);
+          }),
+        ),
       ),
     );
   });
@@ -37,7 +54,11 @@ function killReport(
   return ids.map((id): KillResult => {
     const snapshot = entries.get(id)?.snapshot;
     const history = state.settledHistory.get(id);
-    const status = snapshot?.status ?? history?.status ?? "killed";
+    const known = snapshot ?? history;
+    const status = known?.status ?? "running";
+    const cleanupIncomplete =
+      known?.cleanupIncomplete ??
+      (!known ? "Terminal is no longer tracked; exit is unknown" : undefined);
     const wasRunning = runningIds.includes(id);
     return {
       id,
@@ -45,6 +66,8 @@ function killReport(
       status,
       wasRunning,
       killed: wasRunning && status === "killed",
+      stopRequested: known?.stopRequested,
+      cleanupIncomplete,
       exit: snapshot ? formatExit(snapshot) : (history?.exit ?? "unknown"),
     };
   });
@@ -122,9 +145,7 @@ export function createReadModel(state: ManagerState): TerminalReadModel {
     size: () => state.entries.size,
     beginShutdown: () => {
       state.disposed = true;
-      return [...state.entries.values()].flatMap(({ snapshot }) =>
-        snapshot.status === "running" ? [snapshot] : [],
-      );
+      return [...state.entries.values()].map(({ snapshot }) => snapshot);
     },
     subscribe: (listener) => {
       state.listeners.add(listener);

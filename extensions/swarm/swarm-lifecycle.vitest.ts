@@ -124,12 +124,26 @@ it.live("abort defects fail visibly and still close the owned session", () =>
     yield* Effect.gen(function* () {
       const manager = yield* SwarmManager;
       const child = yield* manager.spawn(task("child"));
-      yield* manager.cancel([child.id]);
+      const report = yield* manager.cancel([child.id]);
       const result = manager.view.get(child.id);
-      NodeAssert.equal(result?.outcome, "failed");
-      NodeAssert.match(result?.errorText ?? "", /fixture abort failure/);
+      NodeAssert.equal(report[0]?.cancelled, false);
+      NodeAssert.equal(report[0]?.stopRequested, true);
+      NodeAssert.equal(result?.status, "running");
+      NodeAssert.equal(result?.outcome, undefined);
+      NodeAssert.equal(result?.settledAt, undefined);
+      NodeAssert.match(
+        result?.cleanupIncomplete ?? "",
+        /fixture abort failure/,
+      );
+      NodeAssert.deepEqual(
+        manager.view.cleanupFailures().map((snapshot) => snapshot.id),
+        [child.id],
+      );
       NodeAssert.equal(manager.view.canAct(child.id), false);
       NodeAssert.equal(closed, true);
+      const waitFailure = yield* Effect.flip(manager.waitFor([child.id]));
+      NodeAssert.match(waitFailure.message, /settlement is unconfirmed/);
+      NodeAssert.match(waitFailure.message, new RegExp(child.id));
     }).pipe(Effect.provide(layer));
   }),
 );

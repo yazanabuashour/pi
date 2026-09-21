@@ -103,10 +103,11 @@ export async function harness(
     name: string,
     params: ToolInput = {},
     onUpdate?: Parameters<ToolDefinition["execute"]>[3],
+    signal?: AbortSignal,
   ) => {
     const tool = tools.find((candidate) => candidate.name === name);
     NodeAssert.ok(tool, `Missing ${name}`);
-    return tool.execute("swarm-test", params, undefined, onUpdate, context);
+    return tool.execute("swarm-test", params, signal, onUpdate, context);
   };
   const spawn = async (
     tools: ToolDefinition[],
@@ -120,6 +121,7 @@ export async function harness(
   };
   return {
     session,
+    emit,
     runtime,
     manager,
     root: createSwarmTools(session),

@@ -151,55 +151,72 @@ it("reports accepted-run failure through settlement, not send admission", async 
 
 it("does not turn abort failure into successful interruption or disposal", async () => {
   const f = fixture();
-  f.session.abort.mockRejectedValue(new Error("abort failed"));
+  const finish = receipt();
+  f.session.prompt.mockImplementation(async (_text, options) => {
+    options?.preflightResult?.(true);
+    await finish.promise;
+  });
+  await Effect.runPromise(f.lifecycle.send("start"));
+  f.session.abort.mockImplementation(async () => {
+    finish.resolve();
+    throw new Error("abort failed");
+  });
   await NodeAssert.rejects(
     Effect.runPromise(f.lifecycle.interrupt),
     /Agent interruption failed/,
   );
+  NodeAssert.equal(f.hooks.settled.mock.calls.length, 1);
+  NodeAssert.equal(f.hooks.interrupted.mock.calls.length, 0);
   await NodeAssert.rejects(f.lifecycle.dispose(), /Agent interruption failed/);
 });
 
-it("interrupted SDK settlement retains partial assistant output", async () => {
-  const f = await factoryFixture();
-  const finished = receipt();
-  vi.mocked(f.session.prompt).mockImplementation(async (_text, options) => {
-    options?.preflightResult?.(true);
-    await finished.promise;
-  });
-  f.session.abort = async () => {
-    f.session.agent.state.messages = [
-      fauxAssistantMessage("retained partial answer", {
-        stopReason: "aborted",
-      }),
-    ];
-    finished.resolve();
-  };
-  const scope = Effect.runSync(Scope.make());
-  try {
-    const child = await Effect.runPromise(
-      Scope.provide(
-        acquire(f.task, async () => f.session),
-        scope,
-      ),
-    );
-    await Effect.runPromise(child.send("start"));
-    await Effect.runPromise(child.interrupt);
-    const result = await Effect.runPromise(
-      Stream.runHead(
-        child.events.pipe(
-          Stream.filter((event) => event._tag === "RunSettled"),
-        ),
-      ),
-    );
-    NodeAssert.ok(Option.isSome(result));
-    NodeAssert.deepEqual(result.value, {
-      _tag: "RunSettled",
-      outcome: { _tag: "Interrupted", partialText: "retained partial answer" },
+it.each(["aborted", "stop"] as const)(
+  "SDK settlement preserves %s output when cancellation races completion",
+  async (stopReason) => {
+    const f = await factoryFixture();
+    const finished = receipt();
+    vi.mocked(f.session.prompt).mockImplementation(async (_text, options) => {
+      options?.preflightResult?.(true);
+      await finished.promise;
     });
-  } finally {
-    await Effect.runPromise(Scope.close(scope, Exit.void));
-  }
-});
+    f.session.abort = async () => {
+      f.session.agent.state.messages = [
+        fauxAssistantMessage("retained partial answer", {
+          stopReason,
+        }),
+      ];
+      finished.resolve();
+    };
+    const scope = Effect.runSync(Scope.make());
+    try {
+      const child = await Effect.runPromise(
+        Scope.provide(
+          acquire(f.task, async () => f.session),
+          scope,
+        ),
+      );
+      await Effect.runPromise(child.send("start"));
+      await Effect.runPromise(child.interrupt);
+      const result = await Effect.runPromise(
+        Stream.runHead(
+          child.events.pipe(
+            Stream.filter((event) => event._tag === "RunSettled"),
+          ),
+        ),
+      );
+      NodeAssert.ok(Option.isSome(result));
+      NodeAssert.deepEqual(result.value, {
+        _tag: "RunSettled",
+        outcome:
+          stopReason === "aborted"
+            ? { _tag: "Interrupted", partialText: "retained partial answer" }
+            : { _tag: "Completed", finalText: "retained partial answer" },
+      });
+    } finally {
+      await Effect.runPromise(Scope.close(scope, Exit.void));
+    }
+  },
+);
 
 it("creates an idle adapter and disposes the SDK session on scope close", async () => {
   const f = await factoryFixture();

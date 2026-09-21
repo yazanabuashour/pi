@@ -40,7 +40,8 @@ function registerStart(pi: ExtensionAPI, session: BackgroundTerminalSession) {
         }),
       ),
     }),
-    async execute(_toolCallId, params, _signal, _onUpdate, context) {
+    async execute(_toolCallId, params, signal, _onUpdate, context) {
+      signal?.throwIfAborted();
       const manager = await session.getManager();
       const runtime = session.getRuntime();
       const command = params.command.trim();
@@ -51,6 +52,7 @@ function registerStart(pi: ExtensionAPI, session: BackgroundTerminalSession) {
       }
       const title =
         params.title.replace(/\s+/g, " ").trim().slice(0, 80) || "terminal";
+      signal?.throwIfAborted();
       const snapshot = await runTool(
         runtime,
         manager.start({ command, title, cwd }),
@@ -65,7 +67,7 @@ function registerStart(pi: ExtensionAPI, session: BackgroundTerminalSession) {
           );
         }
         throw new Error(
-          "Background terminal was stopped because its lifecycle receipt could not be persisted.",
+          `Background terminal ${snapshot.id} lifecycle receipt could not be persisted; cleanup was requested. Observed status: ${snapshot.status}${snapshot.cleanupIncomplete ? `; cleanup incomplete: ${snapshot.cleanupIncomplete}` : ""}.`,
         );
       }
       return {
@@ -154,7 +156,11 @@ function registerKill(pi: ExtensionAPI, session: BackgroundTerminalSession) {
         interruptMessage:
           "Kill wait aborted; termination continues in the background.",
       });
-      session.consume(ids);
+      session.consume(
+        report
+          .filter((entry) => entry.status !== "running")
+          .map((entry) => entry.id),
+      );
       return {
         content: [{ type: "text", text: buildKillReport(report) }],
         details: {
@@ -162,15 +168,15 @@ function registerKill(pi: ExtensionAPI, session: BackgroundTerminalSession) {
             const snapshot = manager.view.get(entry.id);
             return snapshot
               ? {
-                  ...session.details(snapshot, "settled"),
+                  ...session.details(
+                    snapshot,
+                    snapshot.status === "running"
+                      ? "cleanup-incomplete"
+                      : "settled",
+                  ),
                   killed: entry.killed,
                 }
-              : {
-                  id: entry.id,
-                  title: entry.title,
-                  status: entry.status,
-                  killed: entry.killed,
-                };
+              : entry;
           }),
         },
       };

@@ -136,21 +136,69 @@ function parentResponse(context: Context) {
   return fauxAssistantMessage("dotfiles-package-probe-ok");
 }
 
+const systemResourcesSchema = Type.Object({
+  role: Type.Literal("system"),
+  content: Type.Union([
+    Type.String(),
+    Type.Array(
+      Type.Object({ type: Type.Literal("text"), text: Type.String() }),
+    ),
+  ]),
+  sections: Type.Optional(
+    Type.Record(Type.String(), Type.Union([Type.String(), Type.Null()])),
+  ),
+  toolsAdded: Type.Optional(
+    Type.Array(
+      Type.Object({ name: Type.String(), parameters: Type.Unknown() }),
+    ),
+  ),
+  toolsRemoved: Type.Optional(Type.Array(Type.Object({ name: Type.String() }))),
+});
+
+/** Pi 0.86 carries provider-visible prompt and tool deltas in system messages. */
+function providerResources(context: Context) {
+  const prompts = [context.systemPrompt ?? ""];
+  const sections = new Map<string, string>();
+  const tools = new Map<string, { name: string; parameters: unknown }>(
+    context.tools?.map((tool) => [tool.name, tool]),
+  );
+  const messages: ReadonlyArray<unknown> = context.messages;
+  for (const message of messages) {
+    if (!Check(systemResourcesSchema, message)) continue;
+    prompts.push(
+      Array.isArray(message.content)
+        ? message.content.map((part) => part.text).join("\n")
+        : message.content,
+    );
+    for (const [name, content] of Object.entries(message.sections ?? {})) {
+      if (content === null) sections.delete(name);
+      else sections.set(name, content);
+    }
+    for (const tool of message.toolsAdded ?? []) tools.set(tool.name, tool);
+    for (const tool of message.toolsRemoved ?? []) tools.delete(tool.name);
+  }
+  return {
+    systemPrompt: [...prompts, ...sections.values()].join("\n"),
+    tools: [...tools.values()],
+  };
+}
+
 function checkResources(
   pi: ExtensionAPI,
   context: Context,
   browserSkillName: string | undefined,
   child: boolean,
 ) {
+  const resources = providerResources(context);
   if (
     !browserSkillName ||
-    !context.systemPrompt?.includes(`<name>${browserSkillName}</name>`)
+    !resources.systemPrompt.includes(`<name>${browserSkillName}</name>`)
   )
     throw new Error("upstream agent-browser skill was not discovered");
-  if (!context.systemPrompt?.includes("<name>swarm</name>"))
+  if (!resources.systemPrompt.includes("<name>swarm</name>"))
     throw new Error("swarm skill was not discovered");
   for (const name of ["workflow-authoring", "technical-writing"]) {
-    if (context.systemPrompt?.includes(`<name>${name}</name>`))
+    if (resources.systemPrompt.includes(`<name>${name}</name>`))
       throw new Error(`manual skill is advertised to the model: ${name}`);
   }
   if (
@@ -162,7 +210,7 @@ function checkResources(
     throw new Error("manual workflow skill command is missing");
   if (!child && !pi.getCommands().some((command) => command.name === "swarm"))
     throw new Error("swarm management command is missing");
-  const spawn = context.tools?.find((tool) => tool.name === "swarm_spawn");
+  const spawn = resources.tools.find((tool) => tool.name === "swarm_spawn");
   if (spawn) {
     if (
       !Check(
@@ -176,7 +224,7 @@ function checkResources(
         throw new Error(`swarm_spawn still advertises ${field}`);
     }
   }
-  const names = new Set(context.tools?.map((tool) => tool.name));
+  const names = new Set(resources.tools.map((tool) => tool.name));
   const parentOnly = new Set([
     "ask_user",
     "swarm_spawn",

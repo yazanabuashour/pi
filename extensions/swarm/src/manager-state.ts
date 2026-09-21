@@ -1,7 +1,8 @@
-import { Effect, Exit, Fiber, Scope } from "effect";
+import { Cause, Effect, Exit, Fiber, Scope } from "effect";
 import {
   FINAL_TEXT_MAX_LENGTH,
   MAX_TRACKED,
+  STOP_TIMEOUT_MS,
   bounded,
   type Entry,
 } from "./manager-contract.ts";
@@ -13,6 +14,8 @@ export interface ManagerState {
   readonly listeners: Set<() => void>;
   readonly idListeners: Map<string, Set<() => void>>;
   readonly cleanups: Set<Fiber.Fiber<unknown>>;
+  readonly cleanupFailures: Map<string, AgentSnapshot>;
+  onCleanupIncomplete: ((snapshot: AgentSnapshot) => void) | undefined;
   readonly runDetached: (effect: Effect.Effect<void>) => Fiber.Fiber<unknown>;
   changeWaiters: Array<() => void>;
   modelCounter: number;
@@ -32,6 +35,8 @@ export function createManagerState(
     listeners: new Set(),
     idListeners: new Map(),
     cleanups: new Set(),
+    cleanupFailures: new Map(),
+    onCleanupIncomplete: undefined,
     runDetached,
     changeWaiters: [],
     modelCounter: 0,
@@ -109,8 +114,40 @@ export function releaseInterest(
   }
 }
 
+export function recordCleanupIncomplete(
+  state: ManagerState,
+  entry: Entry,
+  message: string,
+) {
+  entry.snapshot.cleanupIncomplete = bounded(message);
+  entry.snapshot.pendingResources = entry.session.pendingResources?.() ?? [];
+  state.cleanupFailures.set(entry.snapshot.id, entry.snapshot);
+  state.onCleanupIncomplete?.(entry.snapshot);
+  notify(state, entry.snapshot.id);
+}
+
 export function closeEntryScope(entry: Entry) {
-  return Scope.close(entry.scope, Exit.void).pipe(Effect.ignore);
+  return Effect.promise(
+    () =>
+      (entry.cleanup ??= Effect.runPromise(
+        Scope.close(entry.scope, Exit.void),
+      )),
+  );
+}
+
+export function closeEntryBounded(state: ManagerState, entry: Entry) {
+  return Effect.gen(function* () {
+    const result = yield* closeEntryScope(entry).pipe(
+      Effect.timeout(STOP_TIMEOUT_MS),
+      Effect.exit,
+    );
+    if (Exit.isFailure(result))
+      recordCleanupIncomplete(
+        state,
+        entry,
+        `Session cleanup failed or is still pending: ${Cause.pretty(result.cause)}`,
+      );
+  });
 }
 
 export function pruneSettled(state: ManagerState) {
@@ -133,7 +170,7 @@ export function pruneSettled(state: ManagerState) {
   for (const entry of candidates) {
     if (state.entries.size <= MAX_TRACKED) break;
     state.entries.delete(entry.snapshot.id);
-    const fiber = state.runDetached(closeEntryScope(entry));
+    const fiber = state.runDetached(closeEntryBounded(state, entry));
     state.cleanups.add(fiber);
     fiber.addObserver(() => state.cleanups.delete(fiber));
   }

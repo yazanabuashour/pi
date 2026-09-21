@@ -16,6 +16,8 @@ export interface WorkerSession {
   steer(text: string): Effect.Effect<boolean, SendError>;
   /** Clear queued work and await owned prompt/abort settlement; failures are defects. */
   readonly interrupt: Effect.Effect<void>;
+  /** Raw work can outlive the SDK prompt and its timeout wrapper. */
+  readonly pendingResources?: (() => ReadonlyArray<string>) | undefined;
 }
 
 /** Create an idle scoped session. Only the manager dispatches the initial prompt after publication. */
@@ -55,13 +57,27 @@ export class PiPromptLifecycle {
   private disposal: Promise<void> | undefined;
   private stopGeneration = 0;
   private closed = false;
+  private settledRun: { failure?: SendError | undefined } | undefined;
 
   private readonly session: PromptSession;
   private readonly hooks: PromptHooks;
+  private readonly settleTools: () => Promise<void>;
 
-  constructor(session: PromptSession, hooks: PromptHooks) {
+  constructor(
+    session: PromptSession,
+    hooks: PromptHooks,
+    settleTools: () => Promise<void> = async () => {},
+  ) {
     this.session = session;
     this.hooks = hooks;
+    this.settleTools = settleTools;
+  }
+
+  pendingResources(): string[] {
+    return [
+      ...(this.prompts.size > 0 ? ["prompt"] : []),
+      ...(this.stopping ? ["interrupt"] : []),
+    ];
   }
 
   get active() {
@@ -85,6 +101,7 @@ export class PiPromptLifecycle {
           await this.session.steer(text);
           return true;
         }
+        this.settledRun = undefined;
         this.hooks.started();
         await this.session.prompt(text, {
           expandPromptTemplates: false,
@@ -144,6 +161,9 @@ export class PiPromptLifecycle {
         await Promise.all(this.steering);
         continue;
       }
+      // Timeout wrappers can finish before the underlying tool promises do.
+      await this.settleTools();
+      if (this.steering.size > 0) continue;
       if (this.stopping || this.closed || generation !== this.stopGeneration)
         break;
       if (this.session.isStreaming) {
@@ -180,6 +200,7 @@ export class PiPromptLifecycle {
     }
     // No await between the final queue check and releasing this reservation.
     this.run = undefined;
+    this.settledRun = { failure };
     if (!this.stopping && !this.closed) this.hooks.settled(failure);
   }
 
@@ -227,6 +248,7 @@ export class PiPromptLifecycle {
         abort,
         ...this.prompts,
       ]);
+      await this.settleTools();
       // A pending steer may have queued after the first clear.
       this.session.clearQueue();
       const failures = [
@@ -235,8 +257,11 @@ export class PiPromptLifecycle {
           result.status === "rejected" ? [result.reason] : [],
         ),
       ];
-      if (failures.length > 0)
+      if (failures.length > 0) {
+        if (!this.closed && this.settledRun)
+          this.hooks.settled(this.settledRun.failure);
         throw new AggregateError(failures, "Agent interruption failed.");
+      }
       if (!this.closed) this.hooks.interrupted();
       this.stopping = undefined;
     })();

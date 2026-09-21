@@ -56,7 +56,10 @@ by messaging them.
 Use the tools available to your session:
 
 - Root has `swarm_wait(ids)` and `swarm_cancel(ids)`. Wait only when a result
-  blocks useful progress. Canceling a parent stops its descendant branch.
+  blocks useful progress. Aborting `swarm_wait` leaves the agents running.
+Canceling a parent requests cancellation of its descendant branch. Inspect the
+result: a stop request is not proof of interruption, and incomplete cleanup does
+not mean the worker stopped.
 - Children have no blocking wait or cancel tools. If another agent blocks your
   work as a child, report the blocker and finish instead of polling or waiting.
   Messages and descendant completion reports can wake you later.

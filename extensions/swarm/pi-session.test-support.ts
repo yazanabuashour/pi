@@ -11,6 +11,7 @@ import {
   SessionManager,
   SettingsManager,
   type AgentSession,
+  type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 import { vi } from "vitest";
 import type { SendError, SpawnTask } from "./src/domain.ts";
@@ -54,7 +55,7 @@ export function fixture() {
 }
 
 /** An offline SDK session with controllable prompt admission and observable disposal. */
-export async function factoryFixture() {
+export async function factoryFixture(customTools: ToolDefinition[] = []) {
   const modelRuntime = await ModelRuntime.create({
     credentials: new InMemoryCredentialStore(),
     modelsStore: new InMemoryModelsStore(),
@@ -91,7 +92,8 @@ export async function factoryFixture() {
     resourceLoader: loader,
     settingsManager,
     sessionManager: SessionManager.inMemory(),
-    noTools: "all",
+    noTools: "builtin",
+    customTools,
   });
   session.prompt = vi.fn<AgentSession["prompt"]>();
   session.bindExtensions = vi.fn(session.bindExtensions.bind(session));

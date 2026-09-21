@@ -34,6 +34,7 @@ export async function runWithToolCallTimeout<T>(
   signal: AbortSignal | undefined,
   execute: (signal: AbortSignal) => Promise<T>,
 ) {
+  signal?.throwIfAborted();
   const timeoutController = new AbortController();
   const executionSignal = signal
     ? AbortSignal.any([signal, timeoutController.signal])
@@ -51,11 +52,7 @@ export async function runWithToolCallTimeout<T>(
   const aborted = new Promise<never>((_resolve, reject) => {
     if (!signal) return;
     const onAbort = () => {
-      reject(
-        signal.reason instanceof Error
-          ? signal.reason
-          : new Error(`Tool call "${toolName}" was aborted.`),
-      );
+      reject(signal.reason);
     };
     if (signal.aborted) {
       onAbort();
@@ -81,6 +78,7 @@ export function createToolCallTimeoutGuard(
   timeoutMs = CHILD_TOOL_CALL_TIMEOUT_MS,
 ) {
   const wrapped = new WeakSet<ToolDefinition>();
+  const pending = new Map<Promise<unknown>, string>();
 
   const wrap = (definition: ToolDefinition) => {
     if (wrapped.has(definition)) return;
@@ -88,12 +86,33 @@ export function createToolCallTimeoutGuard(
 
     const execute = definition.execute;
     definition.execute = async (toolCallId, params, signal, onUpdate, ctx) =>
-      runWithToolCallTimeout(definition.name, timeoutMs, signal, (signal) =>
-        execute.call(definition, toolCallId, params, signal, onUpdate, ctx),
-      );
+      runWithToolCallTimeout(definition.name, timeoutMs, signal, (signal) => {
+        const operation = Promise.resolve().then(() => {
+          signal.throwIfAborted();
+          return execute.call(
+            definition,
+            toolCallId,
+            params,
+            signal,
+            onUpdate,
+            ctx,
+          );
+        });
+        pending.set(operation, `${definition.name}:${toolCallId}`);
+        // The caller's timeout is not a receipt that the raw tool has stopped.
+        void operation.then(
+          () => pending.delete(operation),
+          () => pending.delete(operation),
+        );
+        return operation;
+      });
   };
 
   return {
+    pendingResources: () => [...pending.values()],
+    async settled() {
+      while (pending.size > 0) await Promise.allSettled(pending.keys());
+    },
     apply(session: ToolRegistry) {
       for (const { name } of session.getAllTools()) {
         const definition = session.getToolDefinition(name);

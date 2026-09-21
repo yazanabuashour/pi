@@ -75,7 +75,7 @@ export function rootControls(session: SwarmExtensionSession) {
               text: report
                 .map(
                   (entry) =>
-                    `${entry.id}: ${entry.cancelled ? "cancelled" : entry.status}`,
+                    `${entry.id}: ${entry.cancelled ? "cancelled" : entry.status}${entry.cleanupIncomplete ? `; cleanup incomplete: ${entry.cleanupIncomplete}` : ""}`,
                 )
                 .join("\n"),
             },

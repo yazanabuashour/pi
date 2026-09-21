@@ -104,6 +104,8 @@ function startPump(state: ManagerState, entry: Entry) {
       Effect.sync(() => {
         if (
           state.entries.get(entry.snapshot.id) === entry &&
+          !state.disposed &&
+          !entry.stopping &&
           entry.snapshot.status === "running"
         ) {
           settle(state, entry, {

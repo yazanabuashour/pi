@@ -127,7 +127,13 @@ it.live("cancel interrupts a running stub agent", () =>
       const snap = yield* manager.spawn(task("Long running task"));
       const report = yield* manager.cancel([snap.id]);
       NodeAssert.deepEqual(report, [
-        { id: snap.id, title: "test", status: "error", cancelled: true },
+        {
+          id: snap.id,
+          title: "test",
+          status: "error",
+          cancelled: true,
+          stopRequested: true,
+        },
       ]);
       NodeAssert.equal(manager.view.get(snap.id)?.errorText, "Run was aborted");
       NodeAssert.equal(manager.view.get(snap.id)?.outcome, "interrupted");

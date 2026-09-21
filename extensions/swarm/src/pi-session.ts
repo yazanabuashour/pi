@@ -40,6 +40,7 @@ export class PiSessionAdapter {
   private unsubscribe: (() => void) | undefined;
   private readonly lifecycle: PiPromptLifecycle;
   private disposal: Promise<void> | undefined;
+  private startingAssistant: AssistantMessage | undefined;
   private readonly session: AgentSession;
   private readonly registry: ModelRegistry;
   private readonly events: Queue.Queue<AgentEvent, Cause.Done>;
@@ -53,27 +54,43 @@ export class PiSessionAdapter {
     this.registry = registry;
     this.events = events;
     this.toolTimeout.apply(session);
-    this.lifecycle = new PiPromptLifecycle(session, {
-      started: () => {
-        this.state.runError = undefined;
-        this.state.settled = false;
+    this.lifecycle = new PiPromptLifecycle(
+      session,
+      {
+        started: () => {
+          this.state.runError = undefined;
+          this.state.settled = false;
+          this.startingAssistant = lastAssistantMessage(this.session);
+        },
+        settled: (error) => {
+          this.state.runError = error?.message;
+          this.settle();
+        },
+        interrupted: () => {
+          if (this.state.settled) return;
+          const last = lastAssistantMessage(this.session);
+          if (
+            last &&
+            last !== this.startingAssistant &&
+            (last.stopReason === "stop" ||
+              last.stopReason === "length" ||
+              last.stopReason === "error")
+          ) {
+            this.settle();
+            return;
+          }
+          this.state.settled = true;
+          this.emit({
+            _tag: "RunSettled",
+            outcome: {
+              _tag: "Interrupted",
+              partialText: finalOutput(this.session) || undefined,
+            },
+          });
+        },
       },
-      settled: (error) => {
-        this.state.runError = error?.message;
-        this.settle();
-      },
-      interrupted: () => {
-        if (this.state.settled) return;
-        this.state.settled = true;
-        this.emit({
-          _tag: "RunSettled",
-          outcome: {
-            _tag: "Interrupted",
-            partialText: finalOutput(this.session) || undefined,
-          },
-        });
-      },
-    });
+      () => this.toolTimeout.settled(),
+    );
   }
 
   install() {
@@ -250,13 +267,23 @@ export class PiSessionAdapter {
     if (this.disposal) return this.disposal;
     this.state.closed = true;
     this.unsubscribe?.();
-    this.disposal = this.lifecycle.dispose().finally(async () => {
+    this.disposal = (async () => {
+      const failures: unknown[] = [];
+      try {
+        await this.lifecycle.dispose();
+      } catch (error) {
+        failures.push(error);
+      }
       try {
         await shutdown(this.session);
+      } catch (error) {
+        failures.push(error);
       } finally {
         Queue.endUnsafe(this.events);
       }
-    });
+      if (failures.length > 0)
+        throw new AggregateError(failures, failures.map(String).join("; "));
+    })();
     return this.disposal;
   }
 
@@ -267,6 +294,10 @@ export class PiSessionAdapter {
       send: this.lifecycle.send,
       steer: this.lifecycle.steer,
       interrupt: this.lifecycle.interrupt,
+      pendingResources: () => [
+        ...this.lifecycle.pendingResources(),
+        ...this.toolTimeout.pendingResources(),
+      ],
     };
   }
 }

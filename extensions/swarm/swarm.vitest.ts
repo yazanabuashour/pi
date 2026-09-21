@@ -1,6 +1,8 @@
 import * as NodeAssert from "node:assert/strict";
 import { Value } from "typebox/value";
 import { expect, it } from "vitest";
+import { Effect } from "effect";
+import { spawnStubSession } from "./manager.test-support.ts";
 import { createSwarmTools } from "./src/extension-tools.ts";
 import { sendSwarmMessage } from "./src/swarm-routing.ts";
 import { harness } from "./swarm.test-support.ts";
@@ -156,11 +158,78 @@ it("cancels a delegated branch without cancelling an unrelated sibling", async (
   const child = await h.spawn(h.toolsFor("parent"), "child", true);
   const grandchild = await h.spawn(h.toolsFor("child"), "grandchild");
   const sibling = await h.spawn(h.root, "sibling");
+  await expect(
+    h.call(
+      h.root,
+      "swarm_cancel",
+      { ids: [parent.id] },
+      undefined,
+      AbortSignal.abort(new Error("pre-aborted")),
+    ),
+  ).rejects.toThrow("pre-aborted");
+  expect(h.manager.view.canAct(parent.id)).toBe(true);
+  expect(h.manager.view.canAct(child.id)).toBe(true);
   await h.call(h.root, "swarm_cancel", { ids: [parent.id] });
   for (const agent of [parent, child, grandchild]) {
     expect(h.manager.view.get(agent.id)?.outcome).toBe("interrupted");
   }
   expect(h.manager.view.canAct(sibling.id)).toBe(true);
+});
+
+it("persists shutdown cleanup failures without fabricating or replacing execution outcomes", async () => {
+  const h = await harness((task) =>
+    Effect.gen(function* () {
+      const child = yield* spawnStubSession(task);
+      yield* Effect.addFinalizer(() =>
+        Effect.die(new Error(`cleanup failed: ${task.title}`)),
+      );
+      return task.title === "unconfirmed"
+        ? { ...child, interrupt: Effect.die(new Error("abort failed")) }
+        : child;
+    }),
+  );
+  const completed = await h.spawn(h.root, "completed");
+  await h.runtime.runPromise(h.manager.waitFor([completed.id]));
+  const unconfirmed = await h.spawn(h.root, "unconfirmed");
+  const report = await h.call(h.root, "swarm_cancel", {
+    ids: [unconfirmed.id],
+  });
+  expect(report.details).toMatchObject({
+    results: [
+      {
+        cancelled: false,
+        stopRequested: true,
+        cleanupIncomplete: expect.any(String),
+      },
+    ],
+  });
+  await expect(
+    h.emit({ type: "session_shutdown", reason: "quit" }),
+  ).rejects.toThrow(new RegExp(`${completed.id}|${unconfirmed.id}`));
+  expect(h.appendEntry).toHaveBeenCalledWith(
+    "swarm-lifecycle",
+    expect.objectContaining({
+      id: unconfirmed.id,
+      event: "cleanup-incomplete",
+      status: "running",
+      outcome: undefined,
+      settledAt: undefined,
+    }),
+  );
+  expect(h.appendEntry).not.toHaveBeenCalledWith(
+    "swarm-lifecycle",
+    expect.objectContaining({ id: unconfirmed.id, event: "settled" }),
+  );
+  expect(h.appendEntry).toHaveBeenCalledWith(
+    "swarm-lifecycle",
+    expect.objectContaining({
+      id: completed.id,
+      event: "cleanup-incomplete",
+      status: "done",
+      outcome: "completed",
+      cleanupIncomplete: expect.stringContaining("cleanup failed"),
+    }),
+  );
 });
 
 it("delivers completion to root and the direct parent, not a peer", async () => {

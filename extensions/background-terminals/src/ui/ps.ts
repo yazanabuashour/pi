@@ -45,19 +45,6 @@ function statusGlyph(snap: TerminalSnapshot, theme: Theme) {
   }
 }
 
-function statusWord(snap: TerminalSnapshot, theme: Theme) {
-  switch (snap.status) {
-    case "running":
-      return theme.fg("warning", "running");
-    case "done":
-      return theme.fg("success", "done");
-    case "failed":
-      return theme.fg("error", "failed");
-    case "killed":
-      return theme.fg("muted", "killed");
-  }
-}
-
 // --- Entry point ---------------------------------------------------------------
 
 export async function openTerminalPicker(
@@ -332,9 +319,14 @@ class TerminalDashboard implements Component {
       const rightParts = [
         theme.fg("muted", `pid ${snap.pid ?? "?"}`),
         theme.fg("muted", formatElapsed(snap)),
-        snap.status === "running"
-          ? statusWord(snap, theme)
-          : theme.fg("muted", formatExit(snap)),
+        snap.cleanupIncomplete
+          ? theme.fg("warning", "cleanup incomplete")
+          : snap.status === "running"
+            ? theme.fg(
+                "warning",
+                snap.stopRequested ? "stop requested" : "running",
+              )
+            : theme.fg("muted", formatExit(snap)),
       ];
       const right = `${rightParts.join(dot)} `;
 

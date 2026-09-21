@@ -1,6 +1,7 @@
-import { Deferred, Effect, Exit, Scope } from "effect";
+import { Cause, Deferred, Effect, Exit, Scope } from "effect";
 import {
   MAX_SETTLED_HISTORY,
+  bounded,
   MAX_TRACKED,
   SETTLE_GRACE_MS,
   STOP_TIMEOUT_MS,
@@ -18,7 +19,10 @@ export interface ManagerState {
   readonly entries: Map<string, Entry>;
   readonly settledHistory: Map<
     string,
-    Pick<KillResult, "title" | "status" | "exit">
+    Pick<
+      KillResult,
+      "title" | "status" | "exit" | "stopRequested" | "cleanupIncomplete"
+    >
   >;
   readonly killInterest: Map<string, number>;
   readonly listeners: Set<() => void>;
@@ -96,7 +100,16 @@ export function releaseKillInterest(
 }
 
 export function closeEntryScope(entry: Entry) {
-  return Scope.close(entry.scope, Exit.void).pipe(Effect.ignore);
+  return Scope.close(entry.scope, Exit.void).pipe(
+    Effect.catchCause((cause) =>
+      Effect.sync(() => {
+        entry.stdioCleanupIncomplete = false;
+        entry.snapshot.cleanupIncomplete = bounded(
+          `Terminal scope cleanup failed: ${Cause.pretty(cause)}`,
+        );
+      }),
+    ),
+  );
 }
 
 export function pruneSettled(state: ManagerState) {
@@ -125,6 +138,8 @@ function rememberSettlement(state: ManagerState, entry: Entry) {
     title: snapshot.title,
     status: snapshot.status,
     exit: formatExit(snapshot),
+    stopRequested: snapshot.stopRequested,
+    cleanupIncomplete: snapshot.cleanupIncomplete,
   });
   while (state.settledHistory.size > MAX_SETTLED_HISTORY) {
     const oldest = state.settledHistory.keys().next().value;
@@ -136,15 +151,20 @@ function rememberSettlement(state: ManagerState, entry: Entry) {
 export function settle(state: ManagerState, entry: Entry) {
   const snapshot = entry.snapshot;
   if (snapshot.status !== "running") return;
-  snapshot.settledAt = Date.now();
-  snapshot.status = entry.killSignaled
-    ? "killed"
-    : entry.processErrored
+  if (entry.exited) {
+    snapshot.settledAt = Date.now();
+    snapshot.status = entry.processErrored
       ? "failed"
-      : snapshot.exitCode === 0
-        ? "done"
-        : "failed";
-  rememberSettlement(state, entry);
+      : snapshot.exitCode !== undefined
+        ? snapshot.exitCode === 0
+          ? "done"
+          : "failed"
+        : entry.stopRequestedBeforeExit && snapshot.signal
+          ? "killed"
+          : "failed";
+    rememberSettlement(state, entry);
+  }
+  entry.settling = false;
   const consumed = (state.killInterest.get(snapshot.id) ?? 0) > 0;
   Deferred.doneUnsafe(entry.settled, Effect.void);
   notify(state, snapshot.id);

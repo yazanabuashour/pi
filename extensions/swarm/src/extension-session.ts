@@ -79,6 +79,10 @@ export class SwarmExtensionSession {
     const runtime = this.getRuntime();
     this.managerPromise ??= runtime.runPromise(SwarmManager).then((manager) => {
       manager.view.setOnStarted((snapshot) => this.onStarted(snapshot));
+      manager.view.setOnCleanupIncomplete((snapshot) => {
+        if (this.sessionContext)
+          this.lifecycle.record(snapshot, "cleanup-incomplete");
+      });
       manager.view.setOnSettled((snapshot, consumed) =>
         this.onSettled(snapshot, consumed),
       );
@@ -173,7 +177,7 @@ export class SwarmExtensionSession {
         await runTool(this.getRuntime(), manager.cancel(ids), {
           signal: AbortSignal.timeout(SWARM_SHUTDOWN_TIMEOUT_MS),
           interruptMessage:
-            "Swarm shutdown deadline reached; runtime disposal will finish cleanup.",
+            "Swarm shutdown deadline reached; cleanup is still unconfirmed.",
         });
       } catch (error) {
         console.error("swarm: shutdown cancellation failed", error);
@@ -185,26 +189,47 @@ export class SwarmExtensionSession {
   private recordShutdown(
     manager: SwarmManagerService | undefined,
     snapshots: ReadonlyArray<AgentSnapshot>,
+    disposalError?: string,
   ) {
-    for (const initial of snapshots) {
-      if (!this.lifecycle.hasStarted(initial))
-        this.lifecycle.record(initial, "started");
-      const settled = manager?.view.get(initial.id) ?? initial;
-      this.lifecycle.record(
-        settled.status === "running"
-          ? {
-              ...settled,
-              status: "error",
-              outcome: "interrupted",
-              settledAt: settled.settledAt ?? Date.now(),
-              errorText:
-                settled.errorText ?? "Interrupted by Pi session shutdown",
-            }
-          : settled,
-        "settled",
-      );
+    const incomplete = new Set<string>();
+    const all = new Map([
+      ...(disposalError ? (manager?.view.list() ?? []) : []).map(
+        (snapshot) => [snapshot.id, snapshot] as const,
+      ),
+      ...snapshots.map(
+        (snapshot) =>
+          [snapshot.id, manager?.view.get(snapshot.id) ?? snapshot] as const,
+      ),
+      ...(manager?.view.cleanupFailures() ?? []).map(
+        (snapshot) => [snapshot.id, snapshot] as const,
+      ),
+    ]);
+    for (const observed of all.values()) {
+      const snapshot = disposalError
+        ? {
+            ...observed,
+            cleanupIncomplete: observed.cleanupIncomplete ?? disposalError,
+          }
+        : observed;
+      if (!this.lifecycle.hasStarted(snapshot))
+        this.lifecycle.record(snapshot, "started");
+      if (snapshot.status !== "running")
+        this.lifecycle.record(snapshot, "settled");
+      if (snapshot.status === "running" || snapshot.cleanupIncomplete) {
+        incomplete.add(snapshot.id);
+        this.lifecycle.record(
+          {
+            ...snapshot,
+            cleanupIncomplete:
+              snapshot.cleanupIncomplete ??
+              "Execution settlement was not observed before shutdown.",
+          },
+          "cleanup-incomplete",
+        );
+      }
     }
     this.lifecycle.retrySettlements();
+    return [...incomplete];
   }
 
   private resetAfterShutdown() {
@@ -235,14 +260,32 @@ export class SwarmExtensionSession {
     const runtime = this.runtime;
     this.runtime = undefined;
     this.managerPromise = undefined;
-    await runtime?.dispose();
-    await this.messages.settled();
-    this.recordShutdown(manager, snapshots);
-    const unpersisted = this.resetAfterShutdown();
-    if (unpersisted > 0) {
-      throw new Error(
-        `Swarm shutdown left ${unpersisted} lifecycle receipt(s) unpersisted.`,
-      );
+    const failures: unknown[] = [];
+    let disposalError: string | undefined;
+    try {
+      await runtime?.dispose();
+    } catch (error) {
+      disposalError = `Runtime disposal failed: ${String(error)}`;
+      failures.push(error);
     }
+    try {
+      await this.messages.settled();
+    } catch (error) {
+      failures.push(error);
+    }
+    const incomplete = this.recordShutdown(manager, snapshots, disposalError);
+    const unpersisted = this.resetAfterShutdown();
+    if (incomplete.length > 0)
+      failures.push(
+        new Error(`Swarm cleanup incomplete: ${incomplete.join(", ")}.`),
+      );
+    if (unpersisted > 0)
+      failures.push(
+        new Error(
+          `Swarm shutdown left ${unpersisted} lifecycle receipt(s) unpersisted.`,
+        ),
+      );
+    if (failures.length > 0)
+      throw new AggregateError(failures, failures.map(String).join("; "));
   }
 }

@@ -13,19 +13,17 @@ import {
   type BackgroundTerminalDetailsV1,
   type TerminalSnapshot,
 } from "./domain.ts";
-import {
-  TerminalManager,
-  TERMINAL_SHUTDOWN_TIMEOUT_MS,
-  type TerminalManagerService,
-} from "./manager.ts";
+import { TerminalManager, type TerminalManagerService } from "./manager.ts";
 import { buildTerminalResultMessage } from "./prompt.ts";
 import { createDeferredResultDelivery } from "../../shared/result-delivery.ts";
-import {
-  createTerminalRuntime,
-  runTool,
-  type TerminalRuntime,
-} from "./runtime.ts";
+import { createTerminalRuntime, type TerminalRuntime } from "./runtime.ts";
 import { clearRunningWidget, setRunningWidget } from "./widget.ts";
+import {
+  disposeSessionRuntime,
+  reportShutdownFailure,
+  shutdownSnapshot,
+  stopSessionTerminals,
+} from "./session-shutdown.ts";
 
 interface LifecycleEntry {
   sessionId: string;
@@ -66,12 +64,13 @@ export class BackgroundTerminalSession {
     if (this.closing)
       throw new Error("Background terminal session is shutting down.");
     const owningRuntime = this.getRuntime();
+    const runtimeId = this.runtimeId;
     this.managerPromise ??= owningRuntime
       .runPromise(TerminalManager)
       .then((manager) => {
-        manager.view.setOnSettled((snapshot, consumed) =>
-          this.onSettled(snapshot, consumed),
-        );
+        manager.view.setOnSettled((snapshot, consumed) => {
+          if (this.runtimeId === runtimeId) this.onSettled(snapshot, consumed);
+        });
         this.unsubStatus?.();
         this.unsubStatus = manager.view.subscribe(() =>
           this.updateWidget(manager),
@@ -145,13 +144,20 @@ export class BackgroundTerminalSession {
       if (entry.details.event === "settled") {
         this.settledLifecycleIds.add(entry.details.id);
       }
-      this.pendingLifecycleEntries.delete(entry.details.id);
+      this.pendingLifecycleEntries.delete(
+        `${entry.details.id}:${entry.details.event}`,
+      );
       return true;
     } catch (error) {
-      if (entry.details.event === "settled") {
-        this.pendingLifecycleEntries.set(entry.details.id, entry);
+      if (entry.details.event !== "started") {
+        this.pendingLifecycleEntries.set(
+          `${entry.details.id}:${entry.details.event}`,
+          entry,
+        );
       } else {
-        this.pendingLifecycleEntries.delete(entry.details.id);
+        this.pendingLifecycleEntries.delete(
+          `${entry.details.id}:${entry.details.event}`,
+        );
       }
       console.error("background-terminals: failed to append lifecycle", error);
       return false;
@@ -160,7 +166,7 @@ export class BackgroundTerminalSession {
 
   private recordLifecycleSnapshot(
     snapshot: TerminalSnapshot,
-    event: "started" | "settled",
+    event: "started" | "settled" | "cleanup-incomplete",
   ) {
     if (!this.lifecycleSessionId || this.rejectedLifecycleIds.has(snapshot.id))
       return false;
@@ -168,20 +174,27 @@ export class BackgroundTerminalSession {
       sessionId: this.lifecycleSessionId,
       details: this.details(snapshot, event),
     };
-    if (event === "settled" && !this.startedLifecycleIds.has(snapshot.id)) {
-      this.pendingLifecycleEntries.set(snapshot.id, entry);
+    if (event !== "started" && !this.startedLifecycleIds.has(snapshot.id)) {
+      this.pendingLifecycleEntries.set(`${snapshot.id}:${event}`, entry);
       return true;
     }
     const recorded = this.appendLifecycle(entry);
     if (event !== "started") return recorded;
     if (!recorded) {
       this.rejectedLifecycleIds.add(snapshot.id);
-      this.pendingLifecycleEntries.delete(snapshot.id);
+      for (const [key, pending] of this.pendingLifecycleEntries) {
+        if (pending.details.id === snapshot.id)
+          this.pendingLifecycleEntries.delete(key);
+      }
       return false;
     }
     this.startedLifecycleIds.add(snapshot.id);
-    const pending = this.pendingLifecycleEntries.get(snapshot.id);
-    return !pending || this.appendLifecycle(pending);
+    let complete = true;
+    for (const pending of this.pendingLifecycleEntries.values()) {
+      if (pending.details.id === snapshot.id && !this.appendLifecycle(pending))
+        complete = false;
+    }
+    return complete;
   }
 
   private retrySettlements() {
@@ -200,7 +213,10 @@ export class BackgroundTerminalSession {
           customType: "background-terminal-result",
           content: buildTerminalResultMessage(snapshot),
           display: true,
-          details: this.details(snapshot, "settled"),
+          details: this.details(
+            snapshot,
+            snapshot.status === "running" ? "cleanup-incomplete" : "settled",
+          ),
         },
         wakeAgent,
       );
@@ -219,7 +235,10 @@ export class BackgroundTerminalSession {
   }
 
   private onSettled(snapshot: TerminalSnapshot, consumed: boolean) {
-    this.recordLifecycleSnapshot(snapshot, "settled");
+    this.recordLifecycleSnapshot(
+      snapshot,
+      snapshot.status === "running" ? "cleanup-incomplete" : "settled",
+    );
     if (this.closing) return;
     if (consumed) {
       this.resultDelivery.consume([snapshot.id]);
@@ -233,45 +252,27 @@ export class BackgroundTerminalSession {
     if (this.sessionContext?.isIdle()) this.flushResults(true);
   }
 
-  private async stopRunning(manager: TerminalManagerService | undefined) {
-    const snapshots = manager?.view.beginShutdown() ?? [];
-    const ids = snapshots.map((snapshot) => snapshot.id);
-    if (manager && ids.length > 0) {
-      try {
-        await runTool(this.getRuntime(), manager.kill(ids), {
-          signal: AbortSignal.timeout(TERMINAL_SHUTDOWN_TIMEOUT_MS),
-          interruptMessage:
-            "Terminal shutdown deadline reached; runtime disposal will finish cleanup.",
-        });
-      } catch (error) {
-        console.error("background-terminals: shutdown kill failed", error);
-      }
-    }
-    return snapshots;
-  }
-
   private recordShutdown(
     manager: TerminalManagerService | undefined,
     snapshots: ReadonlyArray<TerminalSnapshot>,
+    disposalFailure?: string,
   ) {
+    const incomplete: string[] = [];
     for (const initial of snapshots) {
       if (!this.startedLifecycleIds.has(initial.id))
         this.recordLifecycleSnapshot(initial, "started");
-      const settled = manager?.view.get(initial.id) ?? initial;
+      const snapshot = shutdownSnapshot(
+        manager?.view.get(initial.id) ?? initial,
+        disposalFailure,
+      );
+      if (snapshot.cleanupIncomplete) incomplete.push(snapshot.id);
       this.recordLifecycleSnapshot(
-        settled.status === "running"
-          ? {
-              ...settled,
-              status: "killed",
-              settledAt: settled.settledAt ?? Date.now(),
-              errorText:
-                settled.errorText ?? "Interrupted by Pi session shutdown",
-            }
-          : settled,
-        "settled",
+        snapshot,
+        snapshot.cleanupIncomplete ? "cleanup-incomplete" : "settled",
       );
     }
     this.retrySettlements();
+    return incomplete;
   }
 
   private resetAfterShutdown() {
@@ -305,17 +306,14 @@ export class BackgroundTerminalSession {
     } catch (error) {
       console.error("background-terminals: manager startup failed", error);
     }
-    const snapshots = await this.stopRunning(manager);
+    const snapshots = await stopSessionTerminals(manager, this.runtime);
     const closingRuntime = this.runtime;
     this.runtime = undefined;
     this.managerPromise = undefined;
-    await closingRuntime?.dispose();
-    this.recordShutdown(manager, snapshots);
+    const disposalFailure = await disposeSessionRuntime(closingRuntime);
+    const incomplete = this.recordShutdown(manager, snapshots, disposalFailure);
+    manager?.view.setOnSettled(undefined);
     const unpersisted = this.resetAfterShutdown();
-    if (unpersisted > 0) {
-      throw new Error(
-        `Background terminal shutdown left ${unpersisted} lifecycle receipt(s) unpersisted.`,
-      );
-    }
+    reportShutdownFailure(incomplete, disposalFailure, unpersisted);
   }
 }

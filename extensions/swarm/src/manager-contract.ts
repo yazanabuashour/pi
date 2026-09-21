@@ -9,7 +9,12 @@ import type {
   AgentStatus,
   TranscriptItem,
 } from "./domain.ts";
-import type { ConcurrencyLimitError, SendError, SpawnError } from "./domain.ts";
+import type {
+  ConcurrencyLimitError,
+  SendError,
+  SpawnError,
+  WaitError,
+} from "./domain.ts";
 
 export const MAX_RUNNING = 4;
 export const MAX_TRACKED = 64;
@@ -32,6 +37,9 @@ export function boundedTranscriptText(text: string) {
 export interface MutableSnapshot extends AgentSnapshot {
   generation: number;
   status: AgentStatus;
+  stopRequested?: boolean | undefined;
+  cleanupIncomplete?: string | undefined;
+  pendingResources?: ReadonlyArray<string> | undefined;
   outcome?: AgentOutcome | undefined;
   settledAt?: number | undefined;
   errorText?: string | undefined;
@@ -68,6 +76,7 @@ export interface Entry {
   liveToolMap: Map<string, LiveToolState>;
   restarting?: boolean;
   stopping?: boolean;
+  cleanup?: Promise<void>;
 }
 
 export interface SwarmReadModel {
@@ -76,6 +85,10 @@ export interface SwarmReadModel {
   size(): number;
   canAct(id: string): boolean;
   beginShutdown(): ReadonlyArray<AgentSnapshot>;
+  cleanupFailures(): ReadonlyArray<AgentSnapshot>;
+  setOnCleanupIncomplete(
+    hook: ((snapshot: AgentSnapshot) => void) | undefined,
+  ): void;
   subscribe(listener: () => void): () => void;
   subscribeTo(id: string, listener: () => void): () => void;
   requestSend(id: string, text: string): void;
@@ -91,6 +104,9 @@ export interface CancelResult {
   readonly title: string;
   readonly status: AgentStatus;
   readonly cancelled: boolean;
+  readonly stopRequested: boolean;
+  readonly cleanupIncomplete?: string | undefined;
+  readonly pendingResources?: ReadonlyArray<string> | undefined;
 }
 
 export interface SwarmManagerService {
@@ -101,7 +117,7 @@ export interface SwarmManagerService {
   waitFor(
     ids: ReadonlyArray<string>,
     onPending?: (pending: string[]) => void,
-  ): Effect.Effect<ReadonlyArray<AgentSnapshot>>;
+  ): Effect.Effect<ReadonlyArray<AgentSnapshot>, WaitError>;
   cancel(
     ids: ReadonlyArray<string>,
   ): Effect.Effect<ReadonlyArray<CancelResult>>;

@@ -11,7 +11,7 @@ import { Data } from "effect";
 export type TerminalStatus = "running" | "done" | "failed" | "killed";
 // "done"   = exited with code 0
 // "failed" = exited non-zero, or a spawn-level runtime error after start
-// "killed" = terminated by bg_kill, the /ps UI, or session teardown
+// "killed" = observed signal exit after a stop request; not proof of descendant exit
 
 /** Read-only view over one captured output stream (stdout or stderr). */
 export interface OutputView {
@@ -36,6 +36,10 @@ export interface TerminalSnapshot {
   /** Undefined only if spawn itself failed before a pid was assigned. */
   readonly pid?: number;
   readonly status: TerminalStatus;
+  /** A stop was requested; this is not evidence that the process exited. */
+  readonly stopRequested?: boolean;
+  /** Bounded cleanup ended without confirming all owned resources closed. */
+  readonly cleanupIncomplete?: string;
   /** Date.now() at spawn. */
   readonly createdAt: number;
   /** Date.now() at settle (exit/kill). */
@@ -55,13 +59,15 @@ export type TerminalOutcome = "completed" | "failed" | "interrupted";
 /** Stable machine details for tool results and durable lifecycle entries. */
 export interface BackgroundTerminalDetailsV1 {
   readonly schemaVersion: 1;
-  readonly event: "started" | "snapshot" | "settled";
+  readonly event: "started" | "snapshot" | "settled" | "cleanup-incomplete";
   readonly runtimeId: string;
   readonly id: string;
   readonly title: string;
   readonly cwd: string;
   readonly pid?: number;
   readonly status: TerminalStatus;
+  readonly stopRequested?: boolean;
+  readonly cleanupIncomplete?: string;
   readonly outcome?: TerminalOutcome;
   readonly createdAt: number;
   readonly settledAt?: number;
@@ -104,6 +110,10 @@ export function backgroundTerminalDetails(
   if (snapshot.pid !== undefined) details.pid = snapshot.pid;
   if (outcome !== undefined) details.outcome = outcome;
   if (event !== "started") {
+    if (snapshot.stopRequested !== undefined)
+      details.stopRequested = snapshot.stopRequested;
+    if (snapshot.cleanupIncomplete !== undefined)
+      details.cleanupIncomplete = snapshot.cleanupIncomplete;
     if (snapshot.settledAt !== undefined)
       details.settledAt = snapshot.settledAt;
     if (snapshot.exitCode !== undefined) details.exitCode = snapshot.exitCode;

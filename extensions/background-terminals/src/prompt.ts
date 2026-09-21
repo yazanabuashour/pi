@@ -26,7 +26,7 @@ export const BG_START_TOOL_DESCRIPTION =
   "Start a long-running shell command as a background terminal (executed via the platform shell — sh -c on POSIX, cmd.exe /d /s /c on Windows). " +
   "Fire-and-forget: this returns immediately with an id, and you get a message with the final output when the process exits. " +
   "The process receives NO stdin (immediate EOF) and there is no way to send input later — interactive commands will not work; use bg_kill to stop a stuck one. " +
-  `Terminals are session-scoped: they are killed when the session ends or reloads. Output shown to you is tail-truncated (stdout ${formatSize(STATUS_STDOUT_MAX)}, stderr ${formatSize(STATUS_STDERR_MAX)}); the full logs are captured to files and in the /ps viewer. ` +
+  `Terminals are session-scoped: shutdown or reload requests termination and reports incomplete cleanup. Output shown to you is tail-truncated (stdout ${formatSize(STATUS_STDOUT_MAX)}, stderr ${formatSize(STATUS_STDERR_MAX)}); /ps shows the retained memory tail. Full captures, when available, are session-scoped files removed at shutdown; pruning terminal records leaves those files until shutdown. ` +
   `Max ${MAX_RUNNING} background terminals can run at once.`;
 
 export const BG_START_PROMPT_SNIPPET =
@@ -57,7 +57,7 @@ export const BG_LIST_TOOL_DESCRIPTION =
   "List all background terminals (running and settled) with pid, elapsed time, exit status, and output sizes.";
 
 export const BG_KILL_TOOL_DESCRIPTION =
-  "Stop one or more running background terminals (SIGTERM to the whole process tree, escalating to SIGKILL). Returns each terminal's final state; already-settled ids are reported as such.";
+  "Request termination of background terminals (SIGTERM to the process group on POSIX or taskkill /T on Windows, escalating to SIGKILL or forced taskkill). Returns observed process exit or incomplete cleanup, not proof that every descendant exited. Already-settled ids are reported as such.";
 
 export const BG_KILL_PARAMETER_DESCRIPTIONS = {
   ids: 'Terminal ids to stop, e.g. ["bt-1"]',
@@ -80,6 +80,9 @@ export function describeTerminal(snap: TerminalSnapshot) {
     snap.cwd,
     `stdout ${formatSize(snap.stdout.totalBytes)}, stderr ${formatSize(snap.stderr.totalBytes)}`,
   ];
+  if (snap.stopRequested) details.push("stop requested");
+  if (snap.cleanupIncomplete)
+    details.push(`cleanup incomplete: ${snap.cleanupIncomplete}`);
   return `${snap.id} [${snap.status}] "${snap.title}" (${details.join(", ")})`;
 }
 
@@ -100,7 +103,7 @@ function outputSection(
   if (truncation.truncated || view.truncatedBytes > 0) {
     const where = view.spillPath
       ? `Temporary full log (available until session shutdown): ${view.spillPath}`
-      : "Full output in the /ps viewer";
+      : "Full capture unavailable; /ps shows only the retained memory tail";
     text += `\n[${label} truncated: showing last ${formatSize(shownBytes)} of ${formatSize(view.totalBytes)}. ${where}]`;
   }
   return text;
@@ -117,8 +120,14 @@ export function buildStatusResult(snap: TerminalSnapshot) {
 /** The async completion follow-up injected into the model's context. */
 export function buildTerminalResultMessage(snap: TerminalSnapshot) {
   const how =
-    snap.status === "killed" ? "was killed" : `exited (${formatExit(snap)})`;
+    snap.status === "running"
+      ? "has no observed exit"
+      : snap.status === "killed"
+        ? "was killed"
+        : `exited (${formatExit(snap)})`;
   let text = `Background terminal ${snap.id} "${snap.title}" ${how} after ${formatElapsed(snap)}.`;
+  if (snap.cleanupIncomplete)
+    text += `\nCleanup incomplete: ${snap.cleanupIncomplete}`;
   if (snap.errorText) text += `\nError: ${snap.errorText}`;
   text += `\n\n${outputSection("stdout", snap.stdout, RESULT_STDOUT_MAX, RESULT_STDOUT_MAX_LINES)}`;
   if (snap.stderr.totalBytes > 0) {
@@ -130,12 +139,14 @@ export function buildTerminalResultMessage(snap: TerminalSnapshot) {
 export function buildKillReport(results: ReadonlyArray<KillResult>) {
   return results
     .map((entry) => {
+      if (entry.cleanupIncomplete || entry.status === "running") {
+        return `${entry.id} "${entry.title}" (${entry.exit}): cleanup incomplete. ${entry.cleanupIncomplete ?? "Process exit not observed"}.`;
+      }
       if (entry.killed) {
         return `Killed ${entry.id} "${entry.title}" (${entry.exit}).`;
       }
       if (entry.wasRunning) {
-        // The natural exit won the race with the kill signal.
-        return `${entry.id} "${entry.title}" exited on its own before the kill landed (${entry.exit}).`;
+        return `${entry.id} "${entry.title}" exited (${entry.exit}); a stop request does not override the observed exit.`;
       }
       return `${entry.id} "${entry.title}" was already ${entry.status} (${entry.exit}).`;
     })

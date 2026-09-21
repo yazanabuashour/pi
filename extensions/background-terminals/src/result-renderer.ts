@@ -27,16 +27,23 @@ export function registerResultRenderer(pi: ExtensionAPI) {
     "background-terminal-result",
     (message, { expanded }, theme) => {
       const status = detailString(message.details, "status");
+      const incomplete = detailString(message.details, "cleanupIncomplete");
       const failed = status === "failed";
       const killed = status === "killed";
-      const icon = failed
-        ? theme.fg("error", "x")
-        : killed
-          ? theme.fg("muted", "■")
-          : theme.fg("success", "■");
+      const icon = incomplete
+        ? theme.fg("warning", "■")
+        : failed
+          ? theme.fg("error", "x")
+          : killed
+            ? theme.fg("muted", "■")
+            : theme.fg("success", "■");
       const signal = detailString(message.details, "signal");
       const exitCode = detailNumber(message.details, "exitCode");
-      const how = killed ? "killed" : (signal ?? `exit ${exitCode ?? "?"}`);
+      const how = incomplete
+        ? `cleanup incomplete · ${status === "running" ? "exit unobserved" : (signal ?? `exit ${exitCode ?? "?"}`)}`
+        : killed
+          ? "killed"
+          : (signal ?? `exit ${exitCode ?? "?"}`);
       const id = detailString(message.details, "id") ?? "?";
       const title = detailString(message.details, "title") ?? "";
       const header =

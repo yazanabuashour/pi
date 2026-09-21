@@ -32,6 +32,8 @@ export function boundedError<Input1>(error: Input1) {
 
 export interface MutableSnapshot extends TerminalSnapshot {
   status: TerminalStatus;
+  stopRequested?: boolean;
+  cleanupIncomplete?: string;
   pid?: number;
   settledAt?: number;
   exitCode?: number;
@@ -46,10 +48,11 @@ export interface Entry {
   stdoutBuf: OutputBuffer;
   stderrBuf: OutputBuffer;
   spillStreams: NodeFS.WriteStream[];
-  killSignaled: boolean;
   processErrored: boolean;
   exited: boolean;
+  stopRequestedBeforeExit: boolean;
   stdioClosed: boolean;
+  stdioCleanupIncomplete: boolean;
   settling: boolean;
   exitCleanupStarted: boolean;
   settled: Deferred.Deferred<void>;
@@ -67,6 +70,8 @@ export interface KillResult {
   readonly status: TerminalStatus;
   readonly wasRunning: boolean;
   readonly killed: boolean;
+  readonly stopRequested?: boolean | undefined;
+  readonly cleanupIncomplete?: string | undefined;
   readonly exit: string;
 }
 

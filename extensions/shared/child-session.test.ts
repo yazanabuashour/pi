@@ -21,6 +21,7 @@ import {
   createChildResources,
   resolveStandaloneChildProjectTrust,
   shutdownAndDisposeChildSession,
+  shutdownChildSessionReport,
   type DisposableChildSession,
 } from "./child-session.ts";
 
@@ -58,11 +59,6 @@ function assertChildTools(session: AgentSession, starts: number) {
   NodeAssert.equal(activeTools.has("structured_output"), true);
   for (const denied of CHILD_EXCLUDED_TOOL_NAMES) {
     NodeAssert.equal(allTools.has(denied), false, `${denied} should be denied`);
-    NodeAssert.equal(
-      activeTools.has(denied),
-      false,
-      `${denied} should be inactive`,
-    );
   }
   for (const builtin of ["read", "bash", "edit", "write"]) {
     NodeAssert.equal(
@@ -93,6 +89,7 @@ NodeTest(
             });
             pi.on("session_shutdown", () => {
               shutdowns++;
+              throw new Error("fixture SDK shutdown failure");
             });
             for (const name of [
               "fixture_extension_tool",
@@ -146,6 +143,12 @@ NodeTest(
         shutdownAndDisposeChildSession(session),
       ]);
       NodeAssert.equal(shutdowns, 1);
+      const report = await shutdownChildSessionReport(session);
+      NodeAssert.equal(report.failures.length, 1);
+      NodeAssert.match(
+        report.failures[0] ?? "",
+        /fixture SDK shutdown failure/,
+      );
     });
   },
 );
@@ -281,6 +284,10 @@ NodeTest(
     ]);
     NodeAssert.equal(emits, 1);
     NodeAssert.equal(disposals, 1);
+    NodeAssert.match(
+      (await shutdownChildSessionReport(session)).failures.join("; "),
+      /fixture shutdown failure/,
+    );
   },
 );
 
@@ -298,4 +305,8 @@ NodeTest("shutdown helper bounds a stuck hook before disposal", async () => {
 
   await shutdownAndDisposeChildSession(session, { timeoutMs: 10 });
   NodeAssert.equal(disposals, 1);
+  NodeAssert.match(
+    (await shutdownChildSessionReport(session)).failures.join("; "),
+    /hook settlement is still pending/,
+  );
 });

@@ -2,7 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { AgentDetails, AgentSnapshot } from "./domain.ts";
 import { agentRunId } from "./extension-status.ts";
 
-type LifecycleEvent = "started" | "settled";
+type LifecycleEvent = "started" | "settled" | "cleanup-incomplete";
 interface LifecycleEntry {
   sessionId: string;
   details: AgentDetails;
@@ -46,7 +46,7 @@ export class SwarmLifecycle {
       sessionId: this.sessionId,
       details: this.details(snapshot, event),
     };
-    if (event === "settled" && !this.started.has(id)) return false;
+    if (event !== "started" && !this.started.has(id)) return false;
     const recorded = this.append(entry);
     if (event !== "started") return recorded;
     if (!recorded) {
@@ -60,16 +60,17 @@ export class SwarmLifecycle {
 
   private append(entry: LifecycleEntry) {
     const id = agentRunId(entry.details);
+    const pendingId = `${id}:${entry.details.event}`;
     if (this.sessionId !== entry.sessionId) return false;
     if (entry.details.event === "settled" && this.settled.has(id)) return true;
     try {
       this.pi.appendEntry("swarm-lifecycle", entry.details);
       if (entry.details.event === "settled") this.settled.add(id);
-      this.pending.delete(id);
+      this.pending.delete(pendingId);
       return true;
     } catch (error) {
-      if (entry.details.event === "settled") this.pending.set(id, entry);
-      else this.pending.delete(id);
+      if (entry.details.event !== "started") this.pending.set(pendingId, entry);
+      else this.pending.delete(pendingId);
       console.error("swarm: failed to append lifecycle", error);
       return false;
     }

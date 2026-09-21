@@ -7,11 +7,12 @@ import {
   type MutableSnapshot,
   type SwarmReadModel,
 } from "./manager-contract.ts";
-import { SendError } from "./domain.ts";
+import { SendError, WaitError } from "./domain.ts";
 import {
   addInterest,
   canAct,
-  closeEntryScope,
+  closeEntryBounded,
+  recordCleanupIncomplete,
   nextChange,
   notify,
   pruneSettled,
@@ -35,6 +36,13 @@ export function waitForAgents(
         const pending = unique.filter(
           (id) => state.entries.get(id)?.snapshot.status === "running",
         );
+        const incomplete = pending.filter(
+          (id) => state.entries.get(id)?.snapshot.cleanupIncomplete,
+        );
+        if (incomplete.length > 0)
+          return yield* new WaitError({
+            message: `Execution settlement is unconfirmed after incomplete cleanup: ${incomplete.join(", ")}. Inspect swarm_check; this wait cannot confirm completion.`,
+          });
         if (pending.length === 0) {
           // Wait interest protects these runs only until the finalizer prunes.
           return unique.flatMap((id) => {
@@ -67,21 +75,18 @@ export function abortEntry(state: ManagerState, entry: Entry) {
   return Effect.gen(function* () {
     entry.stopping = true;
     if (entry.snapshot.status !== "running") return;
-    const graceful = yield* entry.session.interrupt.pipe(
-      Effect.timeout(STOP_TIMEOUT_MS),
-      Effect.exit,
-    );
+    entry.snapshot.stopRequested = true;
+    const graceful = yield* Effect.gen(function* () {
+      yield* entry.session.interrupt;
+      while (entry.snapshot.status === "running") yield* nextChange(state);
+    }).pipe(Effect.timeout(STOP_TIMEOUT_MS), Effect.exit);
     if (Exit.isSuccess(graceful)) return;
-    yield* Effect.sync(() => {
-      settle(state, entry, {
-        _tag: "Failed",
-        errorText: `Interruption failed; disposing the session: ${Cause.pretty(graceful.cause)}`,
-      });
-    });
-    yield* closeEntryScope(entry).pipe(
-      Effect.timeout(STOP_TIMEOUT_MS),
-      Effect.ignore,
+    recordCleanupIncomplete(
+      state,
+      entry,
+      `Interruption failed or settlement is still pending: ${Cause.pretty(graceful.cause)}`,
     );
+    yield* closeEntryBounded(state, entry);
   });
 }
 
@@ -113,9 +118,6 @@ export function cancelAgents(state: ManagerState, ids: ReadonlyArray<string>) {
       yield* Effect.forEach(running, (entry) => abortEntry(state, entry), {
         concurrency: "unbounded",
       });
-      while (running.some((entry) => entry.snapshot.status === "running")) {
-        yield* nextChange(state);
-      }
     });
     return work.pipe(
       Effect.ensuring(
@@ -128,12 +130,21 @@ export function cancelAgents(state: ManagerState, ids: ReadonlyArray<string>) {
         (): ReadonlyArray<CancelResult> =>
           unique.map((id) => {
             const snapshot = state.entries.get(id)?.snapshot;
-            return {
+            const result: CancelResult = {
               id,
               title: snapshot?.title ?? "?",
               status: snapshot?.status ?? "error",
-              cancelled: runningIds.includes(id),
+              cancelled:
+                runningIds.includes(id) && snapshot?.outcome === "interrupted",
+              stopRequested: runningIds.includes(id),
             };
+            return snapshot?.cleanupIncomplete
+              ? {
+                  ...result,
+                  cleanupIncomplete: snapshot.cleanupIncomplete,
+                  pendingResources: snapshot.pendingResources,
+                }
+              : result;
           }),
       ),
     );
@@ -142,6 +153,10 @@ export function cancelAgents(state: ManagerState, ids: ReadonlyArray<string>) {
 
 function restartAgent(state: ManagerState, entry: Entry, text: string) {
   const id = entry.snapshot.id;
+  if (entry.cleanup || entry.snapshot.cleanupIncomplete)
+    return new SendError({
+      message: `Swarm agent ${id} has incomplete cleanup or a disposed session; it cannot be restarted.`,
+    });
   if (runningCount(state) + state.reserved >= MAX_RUNNING) {
     return new SendError({
       message: `Max ${MAX_RUNNING} agents can run concurrently; restarting "${id}" would exceed that.`,
@@ -160,6 +175,9 @@ function restartAgent(state: ManagerState, entry: Entry, text: string) {
     outcome: undefined,
     settledAt: undefined,
     errorText: undefined,
+    stopRequested: undefined,
+    cleanupIncomplete: undefined,
+    pendingResources: undefined,
   };
   if (state.onStarted?.(admittedSnapshot) === false) {
     entry.restarting = false;
@@ -231,22 +249,12 @@ export function disposeAgents(state: ManagerState) {
   return Effect.gen(function* () {
     state.disposed = true;
     const all = [...state.entries.values()];
-    state.entries.clear();
-    yield* Effect.forEach(
-      all,
-      (entry) =>
-        closeEntryScope(entry).pipe(
-          Effect.timeout(STOP_TIMEOUT_MS),
-          Effect.ignore,
-        ),
-      { concurrency: "unbounded" },
-    );
-    yield* Effect.forEach(
-      [...state.cleanups],
-      (fiber) =>
-        Fiber.await(fiber).pipe(Effect.timeout(STOP_TIMEOUT_MS), Effect.ignore),
-      { concurrency: "unbounded" },
-    ).pipe(Effect.ignore);
+    yield* Effect.forEach(all, (entry) => closeEntryBounded(state, entry), {
+      concurrency: "unbounded",
+    });
+    yield* Effect.forEach([...state.cleanups], (fiber) => Fiber.await(fiber), {
+      concurrency: "unbounded",
+    });
     yield* Effect.sync(() => notify(state));
   });
 }
@@ -262,6 +270,10 @@ export function createReadModel(state: ManagerState): SwarmReadModel {
       return [...state.entries.values()].flatMap(({ snapshot }) =>
         snapshot.status === "running" ? [snapshot] : [],
       );
+    },
+    cleanupFailures: () => [...state.cleanupFailures.values()],
+    setOnCleanupIncomplete: (hook) => {
+      state.onCleanupIncomplete = hook;
     },
     subscribe: (listener) => {
       state.listeners.add(listener);

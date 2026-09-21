@@ -30,6 +30,7 @@ NodeTest(
       );
 
       const settledIds: string[] = [];
+      let oldestLog: string | undefined;
       for (let i = 0; i < MAX_TRACKED + 4; i++) {
         const snap = await runTool(
           runtime,
@@ -37,6 +38,7 @@ NodeTest(
         );
         settledIds.push(snap.id);
         await settlement(manager, snap.id);
+        if (i === 0) oldestLog = snap.stdout.spillPath;
       }
 
       const oldestId = settledIds[0];
@@ -50,6 +52,12 @@ NodeTest(
       NodeAssert.equal(remaining.includes(keeper.id), true);
       // The earliest settled entries were pruned first.
       NodeAssert.equal(remaining.includes(oldestId), false);
+      NodeAssert.ok(oldestLog);
+      NodeAssert.equal(
+        NodeFS.existsSync(oldestLog),
+        true,
+        "record pruning leaves session log files",
+      );
       // The latest settled entries survive.
       NodeAssert.equal(remaining.includes(latestId), true);
 

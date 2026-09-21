@@ -18,8 +18,18 @@ export function describeAgent(snapshot: AgentSnapshot) {
     formatContextUtilization(snapshot.usage),
     formatElapsed(snapshot),
     snapshot.cwd,
+    snapshot.cleanupIncomplete
+      ? `cleanup incomplete: ${snapshot.cleanupIncomplete}`
+      : undefined,
+    snapshot.pendingResources?.length
+      ? `pending resources: ${snapshot.pendingResources.join(", ")}`
+      : undefined,
   ].filter(Boolean);
-  return `${snapshot.id} [${snapshot.status}] "${snapshot.title}" (${details.join(", ")})`;
+  const status =
+    snapshot.status === "running" && snapshot.cleanupIncomplete
+      ? "settlement unconfirmed"
+      : snapshot.status;
+  return `${snapshot.id} [${status}] "${snapshot.title}" (${details.join(", ")})`;
 }
 
 export function truncatedOutput(

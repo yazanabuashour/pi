@@ -172,6 +172,17 @@ export class TerminalDetailView implements Component {
     );
     const viewport = this.viewportHeight();
     const body: string[] = [];
+    if (snap.cleanupIncomplete) {
+      body.push(
+        truncateToWidth(
+          this.theme.fg(
+            "warning",
+            `cleanup incomplete: ${oneLine(snap.cleanupIncomplete)}`,
+          ),
+          width,
+        ),
+      );
+    }
     if (snap.errorText) {
       body.push(
         truncateToWidth(
@@ -235,7 +246,7 @@ export class TerminalDetailView implements Component {
       theme.fg("accent", theme.bold(`${snap.id} · ${oneLine(snap.title)}`)) +
       theme.fg(
         "muted",
-        ` · ${snap.status} · ${formatElapsed(snap)} · pid ${snap.pid ?? "?"}`,
+        ` · ${snap.status}${snap.stopRequested ? " (stop requested)" : ""} · ${formatElapsed(snap)} · pid ${snap.pid ?? "?"}`,
       ) +
       (snap.status !== "running"
         ? theme.fg("muted", ` · ${formatExit(snap)}`)

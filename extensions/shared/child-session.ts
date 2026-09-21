@@ -6,6 +6,7 @@ import {
   SettingsManager,
   type AgentSession,
   type SessionShutdownEvent,
+  type ExtensionError,
 } from "@earendil-works/pi-coding-agent";
 
 const CHILD_SHUTDOWN_TIMEOUT_MS = 5_000;
@@ -132,6 +133,7 @@ export async function bindChildSessionExtensions(
 interface ChildExtensionRunner {
   hasHandlers(eventType: string): boolean;
   emit(event: SessionShutdownEvent): Promise<void>;
+  onError?(listener: (error: ExtensionError) => void): () => void;
 }
 
 export interface DisposableChildSession {
@@ -139,57 +141,71 @@ export interface DisposableChildSession {
   dispose(): void;
 }
 
-const childShutdowns = new WeakMap<object, Promise<void>>();
-
-export function waitBounded(operation: Promise<unknown>, timeoutMs: number) {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<void>((resolve) => {
-    timer = setTimeout(resolve, timeoutMs);
-  });
-  return Promise.race([
-    operation.then(
-      () => undefined,
-      () => undefined,
-    ),
-    timeout,
-  ])
-    .catch(() => {})
-    .finally(() => {
-      if (timer) clearTimeout(timer);
-    });
+export interface ChildShutdownReport {
+  readonly failures: ReadonlyArray<string>;
 }
+
+const childShutdowns = new WeakMap<object, Promise<ChildShutdownReport>>();
 
 /**
  * Emit child session_shutdown once, then dispose once. Hook failures and a
  * bounded hook deadline never prevent disposal.
  */
-export function shutdownAndDisposeChildSession(
+export async function shutdownAndDisposeChildSession(
   session: DisposableChildSession,
   options: { timeoutMs?: number } = {},
-) {
+): Promise<void> {
+  await shutdownChildSessionReport(session, options);
+}
+
+/** Bounded cleanup facts; returning does not imply a timed-out hook settled. */
+export function shutdownChildSessionReport(
+  session: DisposableChildSession,
+  options: { timeoutMs?: number } = {},
+): Promise<ChildShutdownReport> {
   const existing = childShutdowns.get(session);
   if (existing) return existing;
 
   const shutdown = (async () => {
+    const failures: string[] = [];
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let unsubscribe: (() => void) | undefined;
     try {
+      unsubscribe = session.extensionRunner.onError?.((error) => {
+        if (error.event === "session_shutdown")
+          failures.push(`${error.extensionPath}: ${error.error}`);
+      });
       if (session.extensionRunner.hasHandlers("session_shutdown")) {
-        await waitBounded(
+        await Promise.race([
           session.extensionRunner.emit({
             type: "session_shutdown",
             reason: "quit",
           }),
-          options.timeoutMs ?? CHILD_SHUTDOWN_TIMEOUT_MS,
-        );
+          new Promise<never>((_resolve, reject) => {
+            timer = setTimeout(
+              () =>
+                reject(
+                  new Error(
+                    "session_shutdown hook settlement is still pending",
+                  ),
+                ),
+              options.timeoutMs ?? CHILD_SHUTDOWN_TIMEOUT_MS,
+            );
+          }),
+        ]);
       }
-    } catch {
-      // Extension runner inspection/emission is best-effort during teardown.
+    } catch (error) {
+      failures.push(`session_shutdown: ${String(error)}`);
     } finally {
+      if (timer) clearTimeout(timer);
+      unsubscribe?.();
       try {
         session.dispose();
-      } catch {
-        // Disposal is terminal and must remain idempotent for callers.
+      } catch (error) {
+        failures.push(`session.dispose: ${String(error)}`);
       }
     }
+    return { failures };
   })();
 
   childShutdowns.set(session, shutdown);

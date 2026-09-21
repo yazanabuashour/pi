@@ -21,7 +21,13 @@ export function flushSpillStreams(entry: Entry) {
         const done = () => resume(Effect.void);
         try {
           stream.end(done);
-        } catch {
+        } catch (error) {
+          entry.stdoutBuf.spillPath = undefined;
+          entry.stderrBuf.spillPath = undefined;
+          entry.stdioCleanupIncomplete = false;
+          entry.snapshot.cleanupIncomplete = bounded(
+            `Full-log spill cleanup failed: ${boundedError(error)}`,
+          );
           done();
         }
       }),
@@ -33,7 +39,8 @@ export function flushSpillStreams(entry: Entry) {
         Effect.sync(() => {
           entry.stdoutBuf.spillPath = undefined;
           entry.stderrBuf.spillPath = undefined;
-          entry.snapshot.errorText ??=
+          entry.stdioCleanupIncomplete = false;
+          entry.snapshot.cleanupIncomplete =
             "Full-log spill flush timed out; full output may be incomplete";
         }),
     }),

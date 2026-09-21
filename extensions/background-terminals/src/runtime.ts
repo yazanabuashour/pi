@@ -1,7 +1,7 @@
 /**
  * The async entry-point boundary: one ManagedRuntime shared by every tool
  * handler, disposed on session_shutdown (which runs the manager finalizer →
- * disposeAll → every process tree is killed).
+ * disposeAll → bounded termination attempts and cleanup receipts).
  */
 
 import { Cause, Exit, ManagedRuntime, type Effect } from "effect";
@@ -26,13 +26,20 @@ export async function runTool<A, E>(
     interruptMessage?: string | undefined;
   } = {},
 ) {
+  if (options.signal?.aborted) {
+    throw new Error(options.interruptMessage ?? "Operation was aborted.", {
+      cause: options.signal.reason,
+    });
+  }
   const exit = await runtime.runPromiseExit(
     effect,
     options.signal ? { signal: options.signal } : undefined,
   );
   if (Exit.isSuccess(exit)) return exit.value;
   if (Cause.hasInterruptsOnly(exit.cause)) {
-    throw new Error(options.interruptMessage ?? "Operation was aborted.");
+    throw new Error(options.interruptMessage ?? "Operation was aborted.", {
+      cause: options.signal?.reason ?? exit.cause,
+    });
   }
   const [first] = Cause.prettyErrors(exit.cause);
   throw new Error(first?.message ?? Cause.pretty(exit.cause));
