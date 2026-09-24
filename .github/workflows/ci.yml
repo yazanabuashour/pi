@@ -45,16 +45,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          destination="$RUNNER_TEMP/native-pi-0.85.1"
+          destination="$RUNNER_TEMP/native-pi-0.87.1"
           mkdir -p "$destination"
           curl --fail --silent --show-error --location \
-            https://github.com/earendil-works/pi/releases/download/v0.85.1/pi-linux-x64.tar.gz \
+            https://github.com/earendil-works/pi/releases/download/v0.87.1/pi-linux-x64.tar.gz \
             --output "$destination/pi-linux-x64.tar.gz"
           printf '%s  %s\n' \
-            494e498f47d74d21f40b3386f6a5e921a3d49531a169cab55bbdaca0ea1fe25a \
+            80d78dd62d50049a006b981d994c61255bcc10e730b0c278d4ea0a755909764c \
             "$destination/pi-linux-x64.tar.gz" | sha256sum --check -
           tar -xzf "$destination/pi-linux-x64.tar.gz" -C "$destination"
-          test "$("$destination/pi/pi" --version)" = 0.85.1
+          test "$("$destination/pi/pi" --version)" = 0.87.1
       - name: Check installed native swarm delivery
         id: delivery
         if: runner.os == 'Linux'
@@ -64,7 +64,7 @@ jobs:
           stage="$RUNNER_TEMP/pi-delivery-home"
           npm_cache="$(npm config get cache)"
           HOME="$stage" npm_config_cache="$npm_cache" npm run install:local
-          npm run test:delivery -- "$RUNNER_TEMP/native-pi-0.85.1/pi/pi" \
+          npm run test:delivery -- "$RUNNER_TEMP/native-pi-0.87.1/pi/pi" \
             "$stage/.local/share/dotfiles-pi-package/current/node_modules/yazan-pi-setup" \
             "$RUNNER_TEMP/pi-delivery-receipts"
       - name: Retain native delivery receipts

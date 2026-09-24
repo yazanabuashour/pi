@@ -54,10 +54,10 @@ provider or browser accounts, obtain authorization.
 ## Check native swarm delivery
 
 Follow [Run the native delivery regression gate](lost-message-trial.md) to verify
-that the installed swarm adapter delivers messages to the provider. The test also
-reintroduces the earlier bug in a disposable copy and confirms that a message is
-lost. Linux CI runs this test with pinned native Pi. `test:integration` runs it
-after the other package checks.
+that the installed swarm adapter delivers messages to the provider. A fixture-only
+context-omission control verifies that the test detects a message missing from
+provider input even when history and display retain it. Linux CI runs this test
+with pinned native Pi. `test:integration` runs it after the other package checks.
 
 ## Install the checked changes
 

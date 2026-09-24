@@ -31,41 +31,38 @@ Temporary homes are removed after exit. Receipts remain where you requested.
 
 Check that the command exits successfully and reports these results:
 
-- `historical`: busy root, direct `deliverAs: "steer"`, and
-  `triggerTurn: ctx.isIdle()` (false). Provider request 2 omits the marker even
-  though history and JSON display events contain it.
-- `corrected`: the same busy-root schedule calls the installed
-  `SwarmDelivery.receive` through a real `SwarmExtensionSession`.
+- `busy`: a message arrives while the root's tool is in flight. The fixture calls
+  the installed `SwarmDelivery.receive` through a real `SwarmExtensionSession`.
   Provider request 2 must contain the marker.
 - `idle`: the installed adapter must wake an idle root. Its first provider
   request must contain the marker without a user prompt.
-- `mutant`: a disposable copy of the production adapter changes
-  `triggerTurn: true` to `false`. The corrected busy-root schedule must still
-  complete, but the provider-input check must detect the missing marker.
-  Neither the checkout nor the installed candidate is modified.
+- `omitted-context`: the same installed adapter delivers the message, but a
+  fixture-only `context` hook removes it before the provider request. History
+  and JSON display events must retain the marker; provider request 2 must omit
+  it. This negative control checks the oracle, not a mutation of production code.
 
 Open each `*.receipt.jsonl` for provider-visible roles and content, submission
 path, tool boundaries, turn ends, and settlement. The runner checks the exact
 selected schedule and the final response before checking marker visibility.
-Do not count a mutation that crashes or changes the schedule as a detected
-lost-message regression. Check the custom display event separately in
+Do not count a negative control that crashes or changes the schedule as a
+successful check of the oracle. Check the custom display event separately in
 `*.events.jsonl`.
 
 `environment.json` records the native Pi version, source base, installed package,
-and fixture, runner, and adapter hashes. `mutation.json` records the changed
-adapter hash. Failures retain receipts and `*.stderr` for diagnosis.
+and fixture, runner, and adapter hashes. Failures retain receipts and `*.stderr`
+for diagnosis.
 
 ## Interpret CI failures
 
-The Linux source-check job downloads the native Pi 0.85.1 release with a pinned
+The Linux source-check job downloads the native Pi 0.87.1 release with a pinned
 SHA-256, installs the candidate under a temporary HOME, and runs `test:delivery`.
 CI retains the synthetic receipts as the `native-pi-delivery` artifact. This gate
 does not require the web or browser packages, and it is not part of `npm test`.
 
-On a Pi upgrade, reassess the historical and mutant cases. If native Pi starts
-delivering messages with `triggerTurn: false`, those cases can fail despite
-improved behavior. Keep the corrected case's requirement that the marker reaches
-the provider.
+The gate requires delivery through the installed adapter, not reproduction of
+an old native Pi bug. Pi 0.87.1 delivers the earlier `triggerTurn: false` cases,
+so those cases no longer serve as negative controls. The context-omission control
+keeps provider-input verification distinct from history and display verification.
 
 ## Check coverage before relying on a pass
 

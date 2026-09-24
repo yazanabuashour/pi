@@ -40,7 +40,7 @@ jq -n --arg pi "$pi" --arg version "$("$pi" --version)" \
     adapterSha256: $adapter}' >"$output/environment.json"
 
 run_probe() {
-  local mode="$1" label="$2" home="$temporary/$2" prompt='Run the synthetic pending tool.'
+  local mode="$1" home="$temporary/$1" prompt='Run the synthetic pending tool.'
   mkdir -p "$home/.pi/agent" "$home/run"
   chmod 700 "$home/run"
   printf '%s\n' '{"compaction":{"enabled":false},"retry":{"enabled":false}}' \
@@ -52,14 +52,14 @@ run_probe() {
       XDG_CONFIG_HOME="$home/config" XDG_DATA_HOME="$home/data" \
       XDG_STATE_HOME="$home/state" XDG_CACHE_HOME="$home/cache" \
       XDG_RUNTIME_DIR="$home/run" \
-      PI_TRIAL_MODE="$mode" PI_TRIAL_RECEIPT="$output/$label.receipt.jsonl" \
+      PI_TRIAL_MODE="$mode" PI_TRIAL_RECEIPT="$output/$mode.receipt.jsonl" \
       "$pi" --mode json --no-session --no-context-files --no-approve \
       --no-extensions --no-skills --no-prompt-templates --no-themes \
       -e "$temporary/runtime-probes/lost-message-trial.ts" --tools trial_pending_tool \
       --model pi-lost-message-trial/faux-1 --thinking off \
       --system-prompt 'Synthetic delivery trial.' "$prompt" \
-      </dev/null >"$output/$label.events.jsonl" 2>"$output/$label.stderr"); then
-    printf 'Native Pi failed in %s; diagnostics: %s\n' "$label" "$output" >&2
+      </dev/null >"$output/$mode.events.jsonl" 2>"$output/$mode.stderr"); then
+    printf 'Native Pi failed in %s; diagnostics: %s\n' "$mode" "$output" >&2
     return 1
   fi
 
@@ -74,8 +74,7 @@ run_probe() {
       end)
     and .[0].mode == $mode and .[0].isIdle == true
     and ([.[] | select(.event == "submit")] == [{event: "submit",
-      isIdle: ($mode == "idle"), path: (if $mode == "historical" then
-        "historical-options" else "installed-adapter" end)}])
+      isIdle: ($mode == "idle"), path: "installed-adapter"}])
     and all(.[] | select(.event == "tool_execution_end"); .isError == false)
     and all(.[] | select(.event == "agent_settled" or .event == "session_shutdown");
       .isIdle == true and .historyHasMarker == true)
@@ -88,18 +87,18 @@ run_probe() {
         and any($requests[-1].messages[];
           .role == "toolResult" and .content == [{type: "text", text: "tool-completed"}])
         end))
-  ' "$output/$label.receipt.jsonl" >/dev/null || {
-    printf 'Trial schedule failed in %s: %s\n' "$label" "$output" >&2
+  ' "$output/$mode.receipt.jsonl" >/dev/null || {
+    printf 'Trial schedule failed in %s: %s\n' "$mode" "$output" >&2
     return 1
   }
-  jq -s -e --slurpfile receipt "$output/$label.receipt.jsonl" '
+  jq -s -e --slurpfile receipt "$output/$mode.receipt.jsonl" '
     any(.[]; .type == "message_end" and .message.role == "custom"
       and .message.content == $receipt[0].marker and .message.display == true)
     and ([.[] | select(.type == "message_end" and .message.role == "assistant")]
       | last | .message.stopReason == "stop"
         and .message.content == [{type: "text", text: "pi-lost-message-trial-ok"}])
-  ' "$output/$label.events.jsonl" >/dev/null || {
-    printf 'Trial UI event or final response failed in %s: %s\n' "$label" "$output" >&2
+  ' "$output/$mode.events.jsonl" >/dev/null || {
+    printf 'Trial UI event or final response failed in %s: %s\n' "$mode" "$output" >&2
     return 1
   }
 }
@@ -112,35 +111,21 @@ provider_has_marker() {
   ' "$output/$1.receipt.jsonl" >/dev/null
 }
 
-for mode in historical corrected idle; do
-  run_probe "$mode" "$mode"
-  expected=true
-  [[ $mode != historical ]] || expected=false
-  provider_has_marker "$mode" "$expected" || {
+for mode in busy idle; do
+  run_probe "$mode"
+  provider_has_marker "$mode" true || {
     printf 'Provider-input oracle failed in %s: %s\n' "$mode" "$output" >&2
     exit 1
   }
   printf '%s: provider oracle, history, UI events, schedule, and settlement passed.\n' "$mode"
 done
 
-# Mutate only a disposable copy. Never modify the installed candidate or checkout.
-rm "$temporary/extensions"
-cp -R "$package/extensions" "$temporary/extensions"
-node - "$temporary/$adapter" <<'JS'
-const fs = require('node:fs');
-const path = process.argv[2];
-const source = fs.readFileSync(path, 'utf8');
-const before = '        triggerTurn: true,';
-if (source.split(before).length !== 2) throw new Error('Expected one adapter triggerTurn choice');
-fs.writeFileSync(path, source.replace(before, '        triggerTurn: false,'));
-JS
-jq -n --arg hash "$(hash "$temporary/$adapter")" \
-  '{mutation: "triggerTurn: true -> false", adapterSha256: $hash}' >"$output/mutation.json"
-run_probe corrected mutant
-if provider_has_marker mutant true; then
-  printf 'Regression mutation survived: the provider-input oracle did not reject it.\n' >&2
+# Prove the oracle rejects context loss despite successful history/UI delivery.
+run_probe omitted-context
+if provider_has_marker omitted-context true; then
+  printf 'Negative control failed: the provider-input oracle accepted the omitted message.\n' >&2
   exit 1
 fi
-provider_has_marker mutant false
-printf 'Regression mutation rejected: the real adapter lost the marker at provider request 2; other observations passed.\n'
+provider_has_marker omitted-context false
+printf 'Negative control rejected: provider request 2 omitted the marker; history, UI events, schedule, and settlement passed.\n'
 printf 'Native delivery receipts: %s\n' "$output"

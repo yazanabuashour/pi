@@ -17,9 +17,9 @@ import { SwarmExtensionSession } from "../extensions/swarm/src/extension-session
 const marker = "pi-trial1-child-progress-7e38932d";
 const configuration = Type.Object({
   mode: Type.Union([
-    Type.Literal("historical"),
-    Type.Literal("corrected"),
+    Type.Literal("busy"),
     Type.Literal("idle"),
+    Type.Literal("omitted-context"),
   ]),
   receipt: Type.String({ minLength: 1 }),
 });
@@ -34,7 +34,7 @@ type TrialReceipt =
   | {
       event: "submit";
       isIdle: boolean;
-      path: "historical-options" | "installed-adapter";
+      path: "installed-adapter";
     }
   | {
       event: "session_start";
@@ -60,8 +60,6 @@ function historyHasMarker(ctx: ExtensionContext) {
 }
 
 function send(
-  pi: ExtensionAPI,
-  mode: Static<typeof configuration>["mode"],
   ctx: ExtensionContext,
   owner: SwarmExtensionSession,
   record: (entry: TrialReceipt) => void,
@@ -70,25 +68,28 @@ function send(
   record({
     event: "submit",
     isIdle,
-    path: mode === "historical" ? "historical-options" : "installed-adapter",
+    path: "installed-adapter",
   });
-  if (mode === "historical") {
-    pi.sendMessage(
-      { customType: "swarm-message", content: marker, display: true },
-      { deliverAs: "steer", triggerTurn: isIdle },
-    );
-  } else {
-    owner.messages.receive(
-      {
-        schemaVersion: 1,
-        id: "trial-message",
-        from: "trial-child",
-        to: "root",
-        text: marker,
-      },
-      marker,
-    );
-  }
+  owner.messages.receive(
+    {
+      schemaVersion: 1,
+      id: "trial-message",
+      from: "trial-child",
+      to: "root",
+      text: marker,
+    },
+    marker,
+  );
+}
+
+function omitMarkerFromContext(pi: ExtensionAPI) {
+  // Negative control: keep history and display intact, but omit the message
+  // before native Pi constructs the provider request. Capture stays unchanged.
+  pi.on("context", (event) => ({
+    messages: event.messages.filter(
+      (message) => message.role !== "custom" || message.content !== marker,
+    ),
+  }));
 }
 
 export default function (pi: ExtensionAPI) {
@@ -143,6 +144,8 @@ export default function (pi: ExtensionAPI) {
   );
   pi.registerProvider(faux.provider);
 
+  if (mode === "omitted-context") omitMarkerFromContext(pi);
+
   pi.on("session_start", (_event, ctx) => {
     currentContext = ctx;
     record({ event: "session_start", mode, marker, isIdle: ctx.isIdle() });
@@ -177,7 +180,7 @@ export default function (pi: ExtensionAPI) {
       record({ event: "tool_pending" });
       // The synthetic child sends while this tool is in flight. Returning the
       // result releases the tool; native Pi owns turn end and continuation.
-      send(pi, mode, ctx, owner, record);
+      send(ctx, owner, record);
       record({ event: "tool_release" });
       return {
         content: [{ type: "text", text: "tool-completed" }],
@@ -188,7 +191,7 @@ export default function (pi: ExtensionAPI) {
   pi.registerCommand("trial-idle", {
     description: "Inject the synthetic child message into an idle root.",
     handler: async (_args, ctx) => {
-      send(pi, mode, ctx, owner, record);
+      send(ctx, owner, record);
       await ctx.waitForIdle();
     },
   });
