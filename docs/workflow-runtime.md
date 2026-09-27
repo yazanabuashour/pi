@@ -1,74 +1,67 @@
 # Workflow runtime
 
+For script syntax, see [Write a workflow](../skills/workflow-authoring/SKILL.md).
+
 ## Process and environment
 
-`extensions/workflows/worker-session.ts` launches the adjacent `worker-child.cjs`
-with `process.execPath`. The package includes that CommonJS file. There is no
-interpreter search, system Node dependency, copied runtime, or fallback.
+`extensions/workflows/worker-session.ts` launches the packaged `worker-child.cjs`
+with `process.execPath`: no interpreter search, copied runtime, or fallback.
 
-Native Pi uses embedded Bun with `BUN_BE_BUN=1` in the child environment.
-`--no-env-file` and `--config=<platform null device>` disable dotenv and bunfig
-loading. An isolated probe on Bun 1.3.14 confirmed these flags suppress local and
-global preload fixtures.
+| Pi runtime | Worker controls |
+| --- | --- |
+| Native Pi (embedded Bun) | `BUN_BE_BUN=1`, `--no-env-file`, and `--config=<platform null device>` disable dotenv and bunfig loading. No declared heap or total memory limit. |
+| Node-hosted Pi | `--max-old-space-size=128` and `--stack-size=2048`; neither bounds total process memory. |
 
-Node-hosted Pi uses its existing executable. Node receives
-`--max-old-space-size=128` and `--stack-size=2048`; neither flag bounds total process
-memory. Bun receives neither flag and has no declared heap or total memory limit.
-
-The worker inherits only `PATH` and fixed runtime controls. It does not inherit
-Pi authentication or configuration environment variables. Trusted code still has
-the account's host permissions, including access to its files, processes, and
-network. The separate process is not a security sandbox.
+An isolated Bun 1.3.14 probe confirmed suppression of local and global preload
+fixtures. The worker inherits only `PATH` and fixed runtime controls, not Pi
+authentication or configuration variables. It still has the account's file,
+process, and network permissions; process separation is not a security sandbox.
 
 ## Execution and model selection
 
-The parent prepares metadata. The worker compiles the prepared source as an async
-function body with `agent`, `parallel`, `phase`, and frozen, JSON-decoded `args`.
-Static imports are not valid function-body syntax; dynamic imports are supported.
-Compilation rejects source that closes the function wrapper before execution.
+The prepared script runs as an async function body with `agent`, `parallel`,
+`phase`, and frozen, JSON-decoded `args`. Dynamic imports work; static imports
+and source that closes the function wrapper fail compilation before execution.
 
-Each `agent()` inherits the calling session's complete model and effort captured
-at workflow launch. The `effort` option overrides reasoning effort. Neither agent
-options nor worker inter-process communication (IPC) exposes model selection.
-Unsupported options are ignored. A missing parent model fails before session
-creation rather than selecting a configured model.
+Agents inherit the complete calling model and effort captured at launch. Only
+`effort` can be overridden; unsupported options are ignored. Neither agent options
+nor inter-process communication (IPC) exposes model selection. A missing parent
+model fails before child session creation, with no configured-model fallback.
+Child sessions use trust-aware resource loading, not a host-access restriction.
 
-`agent()` starts when its result is awaited or used through `then()`, `catch()`,
-or `finally()`. Reusing that result does not rerun the agent. `parallel()` limits
-concurrency and returns results in input order. A script fails if it returns with
-unused or unfinished agent calls.
+`agent()` starts on `await`, `then()`, `catch()`, or `finally()`. Reusing its result
+does not rerun it. `parallel()` preserves input order. Returning with unused or
+unfinished agent calls fails the script.
+
+Existing limits come from [controller.ts](../extensions/workflows/controller.ts),
+[runner.ts](../extensions/workflows/runner.ts), and
+[tool-call-timeout.ts](../extensions/shared/tool-call-timeout.ts):
+
+- At most 32 agent calls per workflow, with at most four concurrent.
+- An agent's first assistant response event must arrive within 45 seconds.
+- Each child tool call has a three-minute timeout; expiry produces an error tool result.
+- Neither an agent nor a workflow has an overall deadline.
 
 ## Run ownership
 
-`WorkflowRun.start()` validates and records the script, registers the run,
-executes agents, and persists the final state. Callers read snapshots through
-`details`, await `completion`, or request cancellation with `abort()`. The tool
-adapter formats results and delivers background completions; it does not change
-run state. `background: true` returns after admission regardless of UI mode.
-Completion uses the shared [background wake policy](reference.md#background-wake-policy),
-not UI availability, to decide whether an idle session may start another turn.
+`WorkflowRun.start()` admits and records a run. `details` returns snapshots,
+`completion` tracks execution cleanup, and `abort()` requests cancellation.
+`background: true` returns after admission in any UI mode. Completion delivery
+follows the [background wake policy](reference.md#background-wake-policy).
 
-Normal completion and forced interruption use the same finalization path. The run
-ignores late updates before writing final artifacts and lifecycle entries.
-Persistence failures mark the run failed and appear in final progress.
-Forced interruption records the final state without claiming that work which
-ignores cancellation has stopped;
-`completion` still tracks execution cleanup.
-
-`runAgent()` loads each child's resources, creates the session, sends the prompt,
-and cleans up. Its caller supplies the task, inherited model, and trust context,
-not SDK loaders or settings managers. Swarm sessions remain separate because they
-support steering and reuse rather than a single task.
+Normal completion and forced interruption finalize artifacts and lifecycle state,
+rejecting late updates. Persistence failures mark the run failed and appear in
+final progress. Forced final state does not prove cancellation-ignoring work
+stopped; `completion` still tracks cleanup.
 
 ## Cancellation and settlement
 
-An already-aborted signal rejects the run before worker creation. Every exit path
-stops new agent calls, aborts active calls, terminates the worker, and waits for the
-child's `close` event. The SIGTERM-to-SIGKILL timer clears after `close`. IPC send
-errors fail the run. Late agent results cannot send replies to a stopped worker.
+An already-aborted signal rejects before worker creation. Every exit stops new
+calls, aborts active calls, terminates the worker, and waits for its `close` event.
+The SIGTERM-to-SIGKILL timer clears on `close`. IPC send errors fail the run; late results cannot reply
+to a stopped worker.
 
-`RunController` owns agent tasks and their bounded settlement wait. The worker
-does not wait indefinitely for agents that ignore abort. Neither a workflow nor
-an agent request has an overall deadline. Trusted scripts own their host resources
-and subprocesses. Worker exit neither reverses host effects nor proves that those
-subprocesses have exited.
+`RunController` bounds the wait for agent settlement, including ignored aborts.
+A tool timeout is not proof the underlying work stopped. Trusted scripts own
+their host resources and subprocesses: worker exit neither reverses host effects
+nor proves those subprocesses exited.

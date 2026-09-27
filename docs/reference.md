@@ -2,50 +2,41 @@
 
 ## User configuration
 
-Package installation leaves these settings and files unchanged:
+Installation leaves these settings and files unchanged:
 
 | Owner | Configuration |
 | --- | --- |
-| Pi | `~/.pi/agent/settings.json`: provider, model, thinking level, interface preferences, and package entries and filters |
-| pi-web-access | `~/.pi/web-search.json`: search routing, summary models, page-answer models, and network policy |
-| User or employer | Global and project `AGENTS.md`, approved tools, proxies, and browser profiles |
-| Applications | Credentials, sessions, project trust, browser cookies, caches, and generated state |
+| Pi | `~/.pi/agent/settings.json`: provider, model, thinking level, interface, and package settings |
+| pi-web-access | `~/.pi/web-search.json`: search routing, summary and page-answer models, and network policy |
+| User or employer | `AGENTS.md`, approved tools, proxies, and browser profiles |
+| Applications | Credentials, sessions, project trust, cookies, caches, and generated state |
 
-Pi's agent files follow `PI_CODING_AGENT_DIR` when set. That variable does not
-change the installer's HOME-relative package directory. The web extension owns
-its configuration paths and settings.
+`PI_CODING_AGENT_DIR` relocates Pi's agent files, not the installer's HOME-relative
+package directory. The web extension owns its configuration paths.
 
 ## Models
 
-Swarm agents, `/btw` agents, and workflow agents inherit the calling session's
-model and reasoning effort. Agent tools accept an effort override, but not a
-model or provider override.
+Swarm, `/btw`, and workflow agents inherit the calling session's model and effort.
+Agent tools accept effort overrides, not model or provider overrides.
 
-Search is independent of the coding provider. Copilot authentication does not
-provide Codex-backed OpenAI search. Search queries, hosted extraction, web
-summaries, and page answers can send content to other services. Configuration
-preferences are not security controls.
+Search is independent of the coding provider: Copilot authentication does not
+provide Codex-backed OpenAI search. Search, hosted extraction, summaries, and page
+answers can send content to other services. Preferences are not security controls.
 
 ## Session tools
 
-`/ps` displays background terminals. `/swarm` manages session-owned agents.
-`/btw QUESTION` starts a private side question without the parent conversation;
-model-visible swarm tools cannot see that private agent.
+| Entry point | Purpose |
+| --- | --- |
+| `/ps` | Display background terminals. |
+| `/swarm` | Manage session-owned agents. |
+| `/btw QUESTION` | Ask privately without the parent conversation; model-visible swarm tools cannot see the agent. |
+| `swarm_spawn` | Delegate a self-contained prompt with a name, working directory, and effort. Child delegation requires `allow_spawn`; only root can wait or cancel. |
+| `/skill:workflow-authoring` | Enable the workflow tool. |
 
-`swarm_spawn` accepts a self-contained prompt, name, working directory, and
-reasoning effort. Only the root agent can use `swarm_wait` or cancel agents.
-Child delegation requires `allow_spawn`.
-The [swarm skill](../skills/swarm/SKILL.md) covers coordination.
-
-`/skill:workflow-authoring` enables the workflow tool. The
-[authoring guide](../skills/workflow-authoring/SKILL.md) defines its interface.
-Workers use Pi's runtime and have the account's host permissions. Swarm agents
-share the account's files; neither mechanism is a security sandbox.
-
-Swarm and terminal results received during active work wait for delivery.
-Background workflows submit custom completion messages as follow-ups.
-Execution, message submission, and starting another model turn are separate
-operations. Workflow execution cannot resume after its runtime ends.
+See the [swarm skill](../skills/swarm/SKILL.md) and
+[workflow authoring guide](../skills/workflow-authoring/SKILL.md).
+Agents share the account's files and permissions; workers use Pi's runtime.
+Neither is a security sandbox.
 
 ### Background wake policy
 
@@ -53,100 +44,84 @@ operations. Workflow execution cannot resume after its runtime ends.
 
 | Value | Behavior |
 | --- | --- |
-| `automatic` (default) | Idle completion and addressed swarm messages can start a turn. |
-| `host` | Messages can steer or follow up an active run, but never start an idle run. Idle messages enter Pi's history for the next host-initiated turn. |
+| `automatic` (default) | Idle completions and addressed swarm messages can start a turn. |
+| `host` | Messages can steer or follow up active work, but cannot start an idle run. Idle results wait in history for the next host turn. |
 
-For a host that owns turn scheduling, launch Pi with
-`PI_BACKGROUND_WAKE_POLICY=host pi --mode rpc`. RPC alone does not select this
-policy. Invalid values fail extension initialization rather than selecting a
-fallback. Each extension reads the policy when its runtime is created.
+A host that owns scheduling uses `PI_BACKGROUND_WAKE_POLICY=host pi --mode rpc`.
+RPC alone does not select the policy. Each extension reads it at runtime creation;
+invalid values fail initialization.
 
-The policy covers swarm results, messages to root, terminal results, and workflow
-completion. It applies to package extensions loaded in the process, including
-background terminals inside child sessions. Manager-directed sends to swarm
-children keep their existing behavior. The policy does not control third-party
-extensions or prevent explicit user or host prompts.
+The policy covers swarm results, root messages, terminal results (including child
+sessions), and workflow completions. It does not change manager-directed sends
+to swarm children, control third-party extensions, or block explicit prompts.
+Swarm and terminal results received during active work wait for delivery;
+background workflows submit custom completion messages as follow-ups.
+Execution, submission, and starting another turn are separate operations.
 
 Host-controlled submissions append a `background-delivery` entry with
 `event: "submission"`, `wakeRequested: false`, and `consumption: "unconfirmed"`.
-This entry records an attempt, not successful processing. The custom message in
-Pi's history contains the result; an idle result waits for the next host turn.
-A submission receipt alone does not prove that the message reached history or a
-provider request. Pi's session persistence settings still apply; `--no-session`
-does not provide disk durability.
+This receipt records an attempt, not arrival in history, provider visibility, or
+model consumption. The custom message carries the result. Pi's persistence
+settings still apply; `--no-session` provides no disk durability.
 
-Background workflow execution does not require a UI. It remains session-owned:
-a one-shot client can exit and cancel unfinished work. Keep the session alive
-until settlement or use foreground execution. Wake policy does not extend the
-lifetime of agents, terminals, or workers.
+Background workflows need no UI, but remain session-owned. One-shot clients can
+exit and cancel unfinished work. Keep the session alive until settlement or use
+foreground execution. Wake policy extends no resource lifetime; workflows cannot
+resume after their runtime ends.
 
-`ask_user` uses remote procedure call (RPC) dialogs only when Pi starts with
-`--ask-user-rpc`. The flag declares that the client handles `extension_ui_request`.
-Other non-interactive clients receive the fallback instead.
+`ask_user` uses RPC dialogs only with `--ask-user-rpc`, which declares client
+support for `extension_ui_request`. Other non-interactive clients get a fallback.
 
 ### Cancellation and shutdown
 
-Aborting `swarm_wait` stops the wait, not the agents. Explicit cancellation
-requests a stop; it does not by itself prove that execution stopped. Swarm
-cancellation distinguishes a stop request from an observed interrupted run.
-Background jobs retain their observed exit code or signal even when a stop was
-requested. Process-group signalling does not prove that every descendant exited.
+Aborting `swarm_wait` stops only the wait. Explicit cancellation requests a stop;
+it does not prove execution stopped. Swarm distinguishes requested cancellation
+from observed interruption. Terminals retain observed exit codes or signals;
+process-group signalling does not prove every descendant exited.
 
-Session shutdown requests cancellation and cleans up owned resources. Resuming
-conversation history does not restore running work or its in-memory queues.
-Frontend-driven session restarts have the same ownership consequences as quitting
-Pi. Swarm and
-background-terminal cleanup waits remain bounded. If execution or cleanup has not
-settled, the owner records the incomplete cleanup and reports the affected IDs
-rather than inventing a successful cancellation. A cleanup failure does not erase
-an already observed execution outcome. Lifecycle entries distinguish
-`cleanup-incomplete` from `settled`; tool results expose the stop request and
-incomplete cleanup separately. Abrupt process termination can bypass shutdown
-hooks entirely.
+Shutdown and frontend restarts request cancellation and clean up owned resources.
+Restoring history restores neither running work nor in-memory queues. Swarm and
+terminal cleanup waits are bounded: incomplete cleanup reports affected IDs,
+not successful cancellation. It does not erase observed outcomes. Lifecycle
+entries distinguish `cleanup-incomplete` from `settled`; tool results expose stop
+requests and incomplete cleanup separately. Abrupt termination can bypass hooks.
 
 ### Results and log retention
 
-Execution, tracked results, and log files have separate lifetimes. Completed
-background jobs can leave the tracked list during a session; that pruning does
-not delete their spill files. Session shutdown removes the session's temporary
-log directory. Background jobs have no job-age timeout.
+Execution, tracked results, and logs have separate lifetimes. Completed terminals
+can leave the tracked list without deleting spill files. Shutdown removes the
+session's temporary log directory. Background jobs have no age timeout.
 
-`/ps` shows the retained in-memory output tail, not the complete spill files.
-Use the reported log paths for captured output while those files remain available.
-Capture limits or write failures can prevent complete logs from being available.
-Swarm conversations use Pi's saved session files; those files do not preserve
-running agents or their in-memory message queues.
+`/ps` shows retained output tails. Reported log paths hold captured output while
+available; capture limits or write failures can prevent complete logs. Swarm's
+saved Pi sessions preserve conversations, not running agents or message queues.
 
 ## Automation telemetry
 
-`runtime-probes/automation-telemetry.ts` remains inactive unless
-`PI_AUTOMATION_TELEMETRY_PATH` is set. `PI_AUTOMATION_NAME` and
-`PI_AUTOMATION_RUN_ID` identify the caller and run.
+`runtime-probes/automation-telemetry.ts` activates only with
+`PI_AUTOMATION_TELEMETRY_PATH`. `PI_AUTOMATION_NAME` and `PI_AUTOMATION_RUN_ID`
+identify the caller and run. Child sessions exclude it to avoid sharing output.
 
 Telemetry records tool durations, query counts, concurrency, provider status,
-rate-limit indications, lifecycle events, and a shutdown summary. It excludes
-tool arguments and results. Missing reasoning metadata stays unknown. Child
-sessions exclude this extension to avoid sharing the parent's output file.
-
-Open, write, and close failures produce diagnostics without stopping valid work.
-Rate-limit indications do not prove throttling. Telemetry does not establish
-whether a business action completed.
+rate-limit indications, lifecycle events, and a shutdown summary—not tool
+arguments or results. Missing reasoning metadata stays unknown. File failures
+produce diagnostics without stopping valid work. Rate-limit indications do not
+prove throttling; telemetry does not establish business-action completion.
 
 ## Development policies
 
-`tsconfig.json` extends `node-ts-source.json` from the commit-pinned Git source
-[yazanabuashour/typescript-config-policy](https://github.com/yazanabuashour/typescript-config-policy),
-locked in `package-lock.json`. The local configuration adds this package's
-target, library, types, and source paths.
+Both development policies use commit-pinned Git dependencies locked in
+`package-lock.json`; neither ships in the installed package:
 
-`oxlint.config.ts` extends both the default policy and `effectConfig` from
-`@yazanabuashour/oxlint-config`. The development dependency is a commit-pinned
-Git source from
-[yazanabuashour/typescript-lint-policy](https://github.com/yazanabuashour/typescript-lint-policy),
-locked in `package-lock.json`; it is not published to the npm registry. The
-repository `.npmrc` sets `allow-git=root` because npm disables Git fetches by
-default. The local configuration exempts `extensions/shared/host-runtime.ts` from the
-`project/no-global-process-runtime` rule.
+- `tsconfig.json` extends `node-ts-source.json` from
+  [typescript-config-policy](https://github.com/yazanabuashour/typescript-config-policy),
+  adding local target, library, types, and source paths.
+- `oxlint.config.ts` extends the default and `effectConfig` exports from
+  `@yazanabuashour/oxlint-config`
+  ([typescript-lint-policy](https://github.com/yazanabuashour/typescript-lint-policy)).
+  It exempts `extensions/shared/host-runtime.ts` from
+  `project/no-global-process-runtime`. The policy is not published to npm.
 
-Policy updates require a new pinned commit, a lock regenerated by `npm install`,
-and the project gates. Neither policy is included in the installed package.
+`.npmrc` sets `allow-git=root` because npm disables Git fetches by default.
+Updates require a new pinned commit, a lock regenerated by `npm install`, and
+the project gates.

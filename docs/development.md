@@ -1,12 +1,11 @@
 # Develop and validate changes
 
-Use Node 24 or newer, npm, Git, tar, jq, ShellCheck, and shfmt. For documentation work,
-read the [technical-writing skill](../skills/technical-writing/SKILL.md) first.
-Keep the root README below 25 lines; `npm run check` enforces that limit.
+Use Node 24 or newer, npm, Git, tar, jq, ShellCheck, and shfmt.
+Keep the package installable without another checkout or personal configuration.
 
 ## Check the source
 
-From this checkout, run these commands in order:
+Run from this checkout:
 
 ```bash
 npm ci --ignore-scripts --include=dev --legacy-peer-deps --no-audit --no-fund
@@ -16,17 +15,20 @@ npm test
 npm pack --dry-run --ignore-scripts
 ```
 
-Inspect the packed file list for private or generated state. Check that each
-relative documentation link has a target in the package. Regenerate dependency
-locks with npm; do not edit them by hand. Preserve third-party notices and
-vendored policy files. See [Development policies](reference.md#development-policies)
-for the compiler and lint configuration.
+Keep `package.json`'s file allowlist explicit. Inspect the packed files for private
+or generated state and broken relative documentation links. Regenerate locks with
+npm; never edit them by hand. The checks enforce README length and
+[development policies](reference.md#development-policies).
+
+For cancellation changes, verify pre-abort, mid-flight abort, ignored signals,
+and cleanup. Record evidence that work settled.
 
 ## Test the installed candidate
 
-For packaging, loader, or process-lifecycle changes, test the installed package
-before updating your working installation.
-Use native Pi and installed copies of `pi-web-access` and `agent-browser`:
+For packaging, loader, or process-lifecycle changes, run this gate before updating
+your working installation. Use native Pi and installed copies of `pi-web-access`
+and `agent-browser`. If version-manager shims depend on HOME, put the actual
+Node/npm executables first on PATH.
 
 ```bash
 (
@@ -42,29 +44,21 @@ Use native Pi and installed copies of `pi-web-access` and `agent-browser`:
 )
 ```
 
-Confirm that the command exits successfully and reports matching production
-dependencies, package discovery, native imports, worker execution, swarm
-completion, and telemetry. The test compares the installed lockfile, npm integrity
-records, and package versions with the source lockfile. Platform-specific optional
-dependencies may be absent.
+Require a successful exit. The gate verifies locked production dependencies,
+package discovery, native imports, worker execution, swarm delivery, and telemetry.
+It uses a temporary HOME and synthetic provider; obtain authorization before
+using real provider or browser accounts.
 
-The test uses a temporary HOME and a synthetic provider. Before testing real
-provider or browser accounts, obtain authorization.
-
-## Check native swarm delivery
-
-Follow [Run the native delivery regression gate](lost-message-trial.md) to verify
-that the installed swarm adapter delivers messages to the provider. A fixture-only
-context-omission control verifies that the test detects a message missing from
-provider input even when history and display retain it. Linux CI runs this test
-with pinned native Pi. `test:integration` runs it after the other package checks.
+The gate includes the [native delivery regression](lost-message-trial.md), which
+checks provider input independently of history and display. Linux CI runs that
+regression with pinned native Pi; source checks also run on macOS.
 
 ## Install the checked changes
 
-After checks and required or approved review, run `npm run install:local`.
-Compare the changed resources with their installed copies under
+After checks and any required or approved review pass, run `npm run install:local`.
+Compare changed resources with their installed copies under
 `~/.local/share/dotfiles-pi-package/current/node_modules/yazan-pi-setup`.
-Start a new session to use the changes. Reload an existing session only when asked.
+Report unavailable checks or deferred installation.
 
-If installation is blocked or deferred, report that the changes are not installed.
-Keep installation directories while running processes use them.
+Start a new session to load changes. Do not reload existing sessions without
+asking or remove installation directories still used by running processes.
