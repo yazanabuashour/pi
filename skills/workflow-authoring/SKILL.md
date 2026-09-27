@@ -107,4 +107,4 @@ return {
 }
 ```
 
-Pass the tool's `args` parameter as a JSON string such as `{"files":["src/a.ts","src/b.ts"]}`. To return a run ID immediately and receive a follow-up when the workflow finishes, set `background: true`. Otherwise, use foreground mode to show live progress and wait for completion.
+Pass the tool's `args` parameter as a JSON string such as `{"files":["src/a.ts","src/b.ts"]}`. Set `background: true` to return a run ID immediately and submit a completion message when the workflow finishes. This works without a UI, but the owning session must stay alive. Under `PI_BACKGROUND_WAKE_POLICY=host`, an idle completion waits for the next host-initiated turn instead of waking the agent. Otherwise, use foreground mode to show live progress and wait for completion.

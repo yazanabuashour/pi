@@ -44,7 +44,9 @@ unused or unfinished agent calls.
 executes agents, and persists the final state. Callers read snapshots through
 `details`, await `completion`, or request cancellation with `abort()`. The tool
 adapter formats results and delivers background completions; it does not change
-run state.
+run state. `background: true` returns after admission regardless of UI mode.
+Completion uses the shared [background wake policy](reference.md#background-wake-policy),
+not UI availability, to decide whether an idle session may start another turn.
 
 Normal completion and forced interruption use the same finalization path. The run
 ignores late updates before writing final artifacts and lifecycle entries.

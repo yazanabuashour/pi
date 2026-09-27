@@ -14,11 +14,7 @@ import {
 import { compactToolDetails } from "./workflow-progress.ts";
 import { WorkflowRun } from "./workflow-run.ts";
 
-function startBackground(
-  pi: ExtensionAPI,
-  session: WorkflowExtensionSession,
-  run: WorkflowRun,
-) {
+function startBackground(session: WorkflowExtensionSession, run: WorkflowRun) {
   void run.completion
     .catch((error) => {
       console.error("workflows: background run failed", error);
@@ -27,13 +23,18 @@ function startBackground(
       const details = run.details;
       if (!session.ownsCurrentSession(details)) return;
       try {
-        pi.sendUserMessage(
-          buildBackgroundWorkflowFollowUp({
-            runId: details.runId,
-            status: details.status,
-            result: buildWorkflowResultMessage(details, run.runDir),
-          }),
-          { deliverAs: "followUp" },
+        session.delivery.send(
+          {
+            customType: "workflow-result",
+            content: buildBackgroundWorkflowFollowUp({
+              runId: details.runId,
+              status: details.status,
+              result: buildWorkflowResultMessage(details, run.runDir),
+            }),
+            display: true,
+            details: compactToolDetails(details),
+          },
+          { deliverAs: "followUp", triggerTurn: true },
         );
       } catch (error) {
         console.error("workflows: failed to deliver completion", error);
@@ -43,6 +44,7 @@ function startBackground(
   const launch: Parameters<typeof buildBackgroundWorkflowLaunchResult>[0] = {
     runId: details.runId,
     runDir: run.runDir,
+    wakePolicy: session.delivery.policy,
   };
   if (details.name !== undefined) launch.name = details.name;
   const launchResult = buildBackgroundWorkflowLaunchResult(launch);
@@ -68,7 +70,7 @@ export async function executeWorkflow(
     onUpdate,
     context,
   });
-  if (run.details.background) return startBackground(pi, session, run);
+  if (run.details.background) return startBackground(session, run);
   await run.completion;
   const details = run.details;
   const message = buildWorkflowResultMessage(details, run.runDir);

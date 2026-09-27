@@ -73,7 +73,7 @@ export class WorkflowRun {
     this.state = {
       schemaVersion: 1,
       runId,
-      background: (params.background ?? false) && context.hasUI,
+      background: params.background ?? false,
       status: "running",
       startedAt: Date.now(),
       phases: [...this.prepared.meta.phases],

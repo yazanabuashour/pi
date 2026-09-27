@@ -42,9 +42,43 @@ The [swarm skill](../skills/swarm/SKILL.md) covers coordination.
 Workers use Pi's runtime and have the account's host permissions. Swarm agents
 share the account's files; neither mechanism is a security sandbox.
 
-Swarm and terminal results received during active work wait for delivery; results
-received while Pi is idle start a turn. Background workflows send completion as a
-follow-up message. Workflow execution cannot resume after its runtime ends.
+Swarm and terminal results received during active work wait for delivery.
+Background workflows submit custom completion messages as follow-ups.
+Execution, message submission, and starting another model turn are separate
+operations. Workflow execution cannot resume after its runtime ends.
+
+### Background wake policy
+
+`PI_BACKGROUND_WAKE_POLICY` controls extension-initiated turns:
+
+| Value | Behavior |
+| --- | --- |
+| `automatic` (default) | Idle completion and addressed swarm messages can start a turn. |
+| `host` | Messages can steer or follow up an active run, but never start an idle run. Idle messages enter Pi's history for the next host-initiated turn. |
+
+For a host that owns turn scheduling, launch Pi with
+`PI_BACKGROUND_WAKE_POLICY=host pi --mode rpc`. RPC alone does not select this
+policy. Invalid values fail extension initialization rather than selecting a
+fallback. Each extension reads the policy when its runtime is created.
+
+The policy covers swarm results, messages to root, terminal results, and workflow
+completion. It applies to package extensions loaded in the process, including
+background terminals inside child sessions. Manager-directed sends to swarm
+children keep their existing behavior. The policy does not control third-party
+extensions or prevent explicit user or host prompts.
+
+Host-controlled submissions append a `background-delivery` entry with
+`event: "submission"`, `wakeRequested: false`, and `consumption: "unconfirmed"`.
+This entry records an attempt, not successful processing. The custom message in
+Pi's history contains the result; an idle result waits for the next host turn.
+A submission receipt alone does not prove that the message reached history or a
+provider request. Pi's session persistence settings still apply; `--no-session`
+does not provide disk durability.
+
+Background workflow execution does not require a UI. It remains session-owned:
+a one-shot client can exit and cancel unfinished work. Keep the session alive
+until settlement or use foreground execution. Wake policy does not extend the
+lifetime of agents, terminals, or workers.
 
 `ask_user` uses remote procedure call (RPC) dialogs only when Pi starts with
 `--ask-user-rpc`. The flag declares that the client handles `extension_ui_request`.
@@ -58,7 +92,10 @@ cancellation distinguishes a stop request from an observed interrupted run.
 Background jobs retain their observed exit code or signal even when a stop was
 requested. Process-group signalling does not prove that every descendant exited.
 
-Session shutdown requests cancellation and cleans up owned resources. Swarm and
+Session shutdown requests cancellation and cleans up owned resources. Resuming
+conversation history does not restore running work or its in-memory queues.
+Frontend-driven session restarts have the same ownership consequences as quitting
+Pi. Swarm and
 background-terminal cleanup waits remain bounded. If execution or cleanup has not
 settled, the owner records the incomplete cleanup and reports the affected IDs
 rather than inventing a successful cancellation. A cleanup failure does not erase

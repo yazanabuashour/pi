@@ -3,6 +3,7 @@ import type {
   ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { formatActivityStatus } from "../shared/activity-status.ts";
+import { BackgroundDelivery } from "../shared/completion-delivery.ts";
 import type { ActiveWorkflowRun } from "./extension-contract.ts";
 import type { WorkflowDetails } from "./model.ts";
 
@@ -39,9 +40,11 @@ export class WorkflowExtensionSession {
   private completedRuns = 0;
   private failedRuns = 0;
   private readonly pi: ExtensionAPI;
+  readonly delivery: BackgroundDelivery;
 
   constructor(pi: ExtensionAPI) {
     this.pi = pi;
+    this.delivery = new BackgroundDelivery(pi);
     pi.on("session_start", (_event, context) => this.start(context));
     pi.on("session_shutdown", () => this.shutdown());
   }

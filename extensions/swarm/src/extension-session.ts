@@ -5,7 +5,7 @@ import type {
   ExtensionUIContext,
 } from "@earendil-works/pi-coding-agent";
 import {
-  deliverCompletion,
+  BackgroundDelivery,
   registerCompletionFlush,
 } from "../../shared/completion-delivery.ts";
 import {
@@ -43,9 +43,11 @@ export class SwarmExtensionSession {
     createDeferredResultDelivery<AgentSnapshot>(agentRunId);
   private readonly pi: ExtensionAPI;
   readonly messages: SwarmDelivery;
+  readonly delivery: BackgroundDelivery;
 
   constructor(pi: ExtensionAPI) {
     this.pi = pi;
+    this.delivery = new BackgroundDelivery(pi);
     this.messages = new SwarmDelivery(pi, this);
     this.lifecycle = new SwarmLifecycle(pi, (snapshot, event) =>
       this.details(snapshot, event),
@@ -126,8 +128,7 @@ export class SwarmExtensionSession {
 
   private deliverResult(snapshot: AgentSnapshot, wakeAgent: boolean) {
     this.lifecycle.retrySettlements();
-    deliverCompletion(
-      this.pi,
+    this.delivery.completion(
       {
         customType: "swarm-result",
         content: buildAgentCompletionText(snapshot),
@@ -139,8 +140,14 @@ export class SwarmExtensionSession {
   }
 
   private flushResults(wakeAgent: boolean) {
-    for (const snapshot of this.resultDelivery.drain())
-      this.deliverResult(snapshot, wakeAgent);
+    for (const snapshot of this.resultDelivery.drain()) {
+      try {
+        this.deliverResult(snapshot, wakeAgent);
+      } catch (error) {
+        this.resultDelivery.defer(snapshot);
+        console.error("swarm: failed to submit completion", error);
+      }
+    }
   }
 
   private onStarted(snapshot: AgentSnapshot) {

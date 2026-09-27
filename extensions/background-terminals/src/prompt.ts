@@ -24,7 +24,7 @@ const RESULT_STDERR_MAX_LINES = 20;
 
 export const BG_START_TOOL_DESCRIPTION =
   "Start a long-running shell command as a background terminal (executed via the platform shell — sh -c on POSIX, cmd.exe /d /s /c on Windows). " +
-  "Fire-and-forget: this returns immediately with an id, and you get a message with the final output when the process exits. " +
+  "Fire-and-forget: this returns immediately with an id, and a message with the final output is submitted when the process exits. A host-controlled wake policy leaves idle results for the next host turn. " +
   "The process receives NO stdin (immediate EOF) and there is no way to send input later — interactive commands will not work; use bg_kill to stop a stuck one. " +
   `Terminals are session-scoped: shutdown or reload requests termination and reports incomplete cleanup. Output shown to you is tail-truncated (stdout ${formatSize(STATUS_STDOUT_MAX)}, stderr ${formatSize(STATUS_STDERR_MAX)}); /ps shows the retained memory tail. Full captures, when available, are session-scoped files removed at shutdown; pruning terminal records leaves those files until shutdown. ` +
   `Max ${MAX_RUNNING} background terminals can run at once.`;

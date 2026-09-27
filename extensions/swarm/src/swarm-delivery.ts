@@ -38,12 +38,12 @@ export class SwarmDelivery {
 
   receive(details: SwarmMessage | ForwardingFailure, content: string) {
     this.owner.assertCurrent(this.owner.identity);
-    this.pi.sendMessage(
+    this.owner.delivery.send(
       { customType: "swarm-message", content, display: true, details },
       {
         deliverAs: "steer",
-        // Pi 0.85.1 treats explicit false as history-only during an active
-        // loop. True uses the steering queue when busy and wakes an idle root.
+        // The delivery policy can suppress idle wakes without losing active
+        // steering or changing manager-owned sends to child sessions.
         triggerTurn: true,
       },
     );

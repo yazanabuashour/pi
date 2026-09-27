@@ -1,3 +1,4 @@
+import type { BackgroundDelivery } from "../shared/completion-delivery.ts";
 import {
   countStates,
   formatElapsed,
@@ -12,7 +13,7 @@ export const WORKFLOW_PARAMETER_DESCRIPTIONS = {
     "Inline JavaScript orchestration body authored according to the workflow-authoring skill.",
   args: "Optional JSON string exposed to the script as `args`.",
   background:
-    "Return a run id immediately and deliver a follow-up after settlement. Defaults to false for blocking live progress.",
+    "Return a run id immediately and submit a completion message after settlement. The configured wake policy controls idle follow-up turns. Defaults to false for blocking live progress.",
 };
 
 /** Compact capability contract; detailed authoring guidance lives in the on-demand skill. */
@@ -61,7 +62,7 @@ export function buildWorkflowResultMessage(
   return lines.join("\n");
 }
 
-/** Builds the follow-up user message that delivers a settled background workflow to the parent model. */
+/** Builds the custom message that delivers a settled background workflow to the parent model. */
 export function buildBackgroundWorkflowFollowUp(options: {
   runId: string;
   status: WorkflowDetails["status"];
@@ -75,10 +76,13 @@ export function buildBackgroundWorkflowLaunchResult(options: {
   runId: string;
   name?: string;
   runDir: string;
+  wakePolicy: BackgroundDelivery["policy"];
 }) {
   return [
     `Workflow ${options.name ? `"${options.name}"` : options.runId} launched in background (run ${options.runId}).`,
     `Artifacts: ${shortenHome(options.runDir)}`,
-    "You'll receive a follow-up message when it finishes; /workflows shows progress.",
+    options.wakePolicy === "host"
+      ? "Completion enters the conversation without waking an idle agent; start another turn to process it. /workflows shows progress."
+      : "You'll receive a follow-up message when it finishes; /workflows shows progress.",
   ].join("\n");
 }

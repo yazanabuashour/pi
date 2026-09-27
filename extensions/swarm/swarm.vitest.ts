@@ -1,6 +1,6 @@
 import * as NodeAssert from "node:assert/strict";
 import { Value } from "typebox/value";
-import { expect, it } from "vitest";
+import { expect, it, onTestFinished, vi } from "vitest";
 import { Effect } from "effect";
 import { spawnStubSession } from "./manager.test-support.ts";
 import { createSwarmTools } from "./src/extension-tools.ts";
@@ -34,57 +34,76 @@ it("binds child identity and enforces snapshotted delegation grants", async () =
   ).rejects.toThrow(/delegation permission/);
 });
 
-it("routes attributed peer/root messages with submission, not consumption receipts", async () => {
-  const h = await harness();
-  const sender = await h.spawn(h.root, "sender");
-  const peer = await h.spawn(h.root, "peer");
-  const tools = h.toolsFor("sender");
-  const send = tools.find((tool) => tool.name === "swarm_send");
-  NodeAssert.ok(send);
-  const params = {
-    to: peer.id,
-    message: "coordinate",
-    from: "root",
-    runtimeId: "forged",
-  };
-  expect(Value.Check(send.parameters, params)).toBe(false);
-  // Binding also holds when a host skips schema validation.
-  const result = await h.call(tools, "swarm_send", params);
-  expect(result.details).toMatchObject({
-    from: sender.id,
-    to: peer.id,
-    status: "submitted",
-    consumption: "unconfirmed",
-  });
-  expect(h.appendEntry).toHaveBeenCalledWith(
-    "swarm-message",
-    expect.objectContaining({
+it.each(["automatic", "host"])(
+  "routes attributed messages under %s wake policy without claiming consumption",
+  async (policy) => {
+    vi.stubEnv("PI_BACKGROUND_WAKE_POLICY", policy);
+    onTestFinished(() => {
+      vi.unstubAllEnvs();
+    });
+    const h = await harness();
+    const sender = await h.spawn(h.root, "sender");
+    const peer = await h.spawn(h.root, "peer");
+    const tools = h.toolsFor("sender");
+    const send = tools.find((tool) => tool.name === "swarm_send");
+    NodeAssert.ok(send);
+    const params = {
+      to: peer.id,
+      message: "coordinate",
+      from: "root",
+      runtimeId: "forged",
+    };
+    expect(Value.Check(send.parameters, params)).toBe(false);
+    // Binding also holds when a host skips schema validation.
+    const result = await h.call(tools, "swarm_send", params);
+    expect(result.details).toMatchObject({
       from: sender.id,
       to: peer.id,
       status: "submitted",
-    }),
-  );
-  expect(h.sends.at(-1)).toEqual({
-    title: "peer",
-    text: expect.stringContaining(
-      `from ${sender.id} to ${peer.id}:\n\ncoordinate`,
-    ),
-  });
-  h.context.isIdle = () => false;
-  const receipt = await sendSwarmMessage(
-    h.session,
-    { id: sender.id, runtimeId: h.session.identity },
-    "root",
-    "question",
-  );
-  expect(h.messages.at(-1)).toEqual([
-    expect.objectContaining({
-      customType: "swarm-message",
-      content: `Swarm message ${receipt.messageId} from ${sender.id} to root:\n\nquestion`,
-    }),
-    { deliverAs: "steer", triggerTurn: true },
-  ]);
-});
+      consumption: "unconfirmed",
+    });
+    expect(h.appendEntry).toHaveBeenCalledWith(
+      "swarm-message",
+      expect.objectContaining({
+        from: sender.id,
+        to: peer.id,
+        status: "submitted",
+      }),
+    );
+    expect(h.sends.at(-1)).toEqual({
+      title: "peer",
+      text: expect.stringContaining(
+        `from ${sender.id} to ${peer.id}:\n\ncoordinate`,
+      ),
+    });
+    h.context.isIdle = () => false;
+    const receipt = await sendSwarmMessage(
+      h.session,
+      { id: sender.id, runtimeId: h.session.identity },
+      "root",
+      "question",
+    );
+    expect(h.messages.at(-1)).toEqual([
+      expect.objectContaining({
+        customType: "swarm-message",
+        content: `Swarm message ${receipt.messageId} from ${sender.id} to root:\n\nquestion`,
+      }),
+      policy === "automatic"
+        ? { deliverAs: "steer", triggerTurn: true }
+        : { deliverAs: "steer" },
+    ]);
+    if (policy === "host") {
+      expect(h.appendEntry).toHaveBeenCalledWith("background-delivery", {
+        schemaVersion: 1,
+        messageType: "swarm-message",
+        policy: "host",
+        event: "submission",
+        wakeRequested: false,
+        consumption: "unconfirmed",
+      });
+    }
+  },
+);
 
 it("excludes private by-the-way sessions from addressing, inspection, and controls", async () => {
   const h = await harness();
@@ -232,27 +251,39 @@ it("persists shutdown cleanup failures without fabricating or replacing executio
   );
 });
 
-it("delivers completion to root and the direct parent, not a peer", async () => {
-  const h = await harness();
-  const parent = await h.spawn(h.root, "parent", true);
-  const child = await h.spawn(h.toolsFor("parent"), "child");
-  await h.runtime.runPromise(h.manager.waitFor([parent.id]));
-  const peer = await h.spawn(h.root, "peer");
-  await h.resultReceived;
-  await h.session.messages.settled();
-  expect(h.messages).toContainEqual([
-    expect.objectContaining({
-      customType: "swarm-result",
-      details: expect.objectContaining({ id: child.id, outcome: "completed" }),
-    }),
-    { deliverAs: "followUp", triggerTurn: true },
-  ]);
-  expect(h.sends.filter((send) => send.title === "parent")).toEqual([
-    { title: "parent", text: "parent" },
-    { title: "parent", text: expect.stringContaining(child.id) },
-  ]);
-  expect(h.sends.filter((send) => send.title === peer.title)).toEqual([
-    { title: "peer", text: "peer" },
-  ]);
-  await h.runtime.runPromise(h.manager.waitFor([parent.id, peer.id]));
-});
+it.each(["automatic", "host"])(
+  "delivers completion under %s policy without changing direct-parent routing",
+  async (policy) => {
+    vi.stubEnv("PI_BACKGROUND_WAKE_POLICY", policy);
+    onTestFinished(() => {
+      vi.unstubAllEnvs();
+    });
+    const h = await harness();
+    const parent = await h.spawn(h.root, "parent", true);
+    const child = await h.spawn(h.toolsFor("parent"), "child");
+    await h.runtime.runPromise(h.manager.waitFor([parent.id]));
+    const peer = await h.spawn(h.root, "peer");
+    await h.resultReceived;
+    await h.session.messages.settled();
+    expect(h.messages).toContainEqual([
+      expect.objectContaining({
+        customType: "swarm-result",
+        details: expect.objectContaining({
+          id: child.id,
+          outcome: "completed",
+        }),
+      }),
+      policy === "automatic"
+        ? { deliverAs: "followUp", triggerTurn: true }
+        : { deliverAs: "followUp" },
+    ]);
+    expect(h.sends.filter((send) => send.title === "parent")).toEqual([
+      { title: "parent", text: "parent" },
+      { title: "parent", text: expect.stringContaining(child.id) },
+    ]);
+    expect(h.sends.filter((send) => send.title === peer.title)).toEqual([
+      { title: "peer", text: "peer" },
+    ]);
+    await h.runtime.runPromise(h.manager.waitFor([parent.id, peer.id]));
+  },
+);

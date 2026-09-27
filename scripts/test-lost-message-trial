@@ -17,9 +17,12 @@ package="$(resolve_path "$2")"
 [[ -x $pi && $package == */node_modules/yazan-pi-setup ]]
 [[ -d $package/node_modules ]]
 adapter=extensions/swarm/src/swarm-delivery.ts
+owner=extensions/swarm/src/extension-session.ts
+delivery=extensions/shared/completion-delivery.ts
 # Refuse a stale installation: positive cases must exercise this source candidate.
-cmp "$ROOT/$adapter" "$package/$adapter"
-cmp "$ROOT/extensions/swarm/src/extension-session.ts" "$package/extensions/swarm/src/extension-session.ts"
+for source in "$adapter" "$owner" "$delivery"; do
+  cmp "$ROOT/$source" "$package/$source"
+done
 mkdir -- "$3"
 output="$(resolve_path "$3")"
 temporary="$(mktemp -d)"
@@ -35,17 +38,24 @@ jq -n --arg pi "$pi" --arg version "$("$pi" --version)" \
   --arg fixture "$(hash "$ROOT/runtime-probes/lost-message-trial.ts")" \
   --arg runner "$(hash "$ROOT/scripts/test-lost-message-trial")" \
   --arg package "$package" --arg adapter "$(hash "$package/$adapter")" \
+  --arg owner "$(hash "$package/$owner")" --arg delivery "$(hash "$package/$delivery")" \
   '{pi: $pi, version: $version, node: $node, date: $date, sourceBase: $source,
     fixtureSha256: $fixture, runnerSha256: $runner, installedPackage: $package,
-    adapterSha256: $adapter}' >"$output/environment.json"
+    adapterSha256: $adapter, ownerSha256: $owner,
+    deliverySha256: $delivery}' >"$output/environment.json"
 
 run_probe() {
-  local mode="$1" home="$temporary/$1" prompt='Run the synthetic pending tool.'
+  local mode="$1" home="$temporary/$1"
+  local -a prompts=('Run the synthetic pending tool.') policy=()
   mkdir -p "$home/.pi/agent" "$home/run"
   chmod 700 "$home/run"
   printf '%s\n' '{"compaction":{"enabled":false},"retry":{"enabled":false}}' \
     >"$home/.pi/agent/settings.json"
-  [[ $mode != idle ]] || prompt='/trial-idle'
+  case "$mode" in
+    idle) prompts=('/trial-idle') ;;
+    host-idle) prompts=('/trial-idle' 'pi-trial-explicit-host-turn') ;;
+  esac
+  [[ $mode != host-* ]] || policy=(PI_BACKGROUND_WAKE_POLICY=host)
   if ! (cd "$home" &&
     env -i PATH="$PATH" HOME="$home" PI_OFFLINE=1 \
       PI_CODING_AGENT_DIR="$home/.pi/agent" \
@@ -53,18 +63,26 @@ run_probe() {
       XDG_STATE_HOME="$home/state" XDG_CACHE_HOME="$home/cache" \
       XDG_RUNTIME_DIR="$home/run" \
       PI_TRIAL_MODE="$mode" PI_TRIAL_RECEIPT="$output/$mode.receipt.jsonl" \
-      "$pi" --mode json --no-session --no-context-files --no-approve \
+      "${policy[@]}" "$pi" --mode json --no-session --no-context-files --no-approve \
       --no-extensions --no-skills --no-prompt-templates --no-themes \
       -e "$temporary/runtime-probes/lost-message-trial.ts" --tools trial_pending_tool \
       --model pi-lost-message-trial/faux-1 --thinking off \
-      --system-prompt 'Synthetic delivery trial.' "$prompt" \
+      --system-prompt 'Synthetic delivery trial.' "${prompts[@]}" \
       </dev/null >"$output/$mode.events.jsonl" 2>"$output/$mode.stderr"); then
     printf 'Native Pi failed in %s; diagnostics: %s\n' "$mode" "$output" >&2
     return 1
   fi
 
   jq -s -e --arg mode "$mode" '
-    map(.event) == (if $mode == "idle" then
+    ($mode == "idle" or $mode == "host-idle") as $idle
+    | ($mode | startswith("host-")) as $host
+    | (if $host then [{schemaVersion: 1, messageType: "swarm-message",
+        policy: "host", event: "submission", wakeRequested: false,
+        consumption: "unconfirmed"}] else [] end) as $submissions
+    | map(.event) == (if $mode == "host-idle" then
+        ["session_start", "submit", "idle_observed", "host_turn",
+         "provider_request", "turn_end", "agent_settled", "session_shutdown"]
+      elif $idle then
         ["session_start", "submit", "provider_request", "turn_end",
          "agent_settled", "session_shutdown"]
       else
@@ -73,15 +91,27 @@ run_probe() {
          "turn_end", "agent_settled", "session_shutdown"]
       end)
     and .[0].mode == $mode and .[0].isIdle == true
+    and .[0].policy == (if $host then "host" else "automatic" end)
     and ([.[] | select(.event == "submit")] == [{event: "submit",
-      isIdle: ($mode == "idle"), path: "installed-adapter"}])
+      isIdle: $idle, path: "installed-adapter"}])
+    and all(.[] | select(.event == "idle_observed" or .event == "session_shutdown");
+      .submissions == $submissions)
+    and (if $mode == "host-idle" then
+      .[2].isIdle == true and .[2].historyHasMarker == true
+      and .[2].providerRequests == 0 and .[3].providerRequests == 0
+      and .[3].prompt == "pi-trial-explicit-host-turn"
+      else true end)
     and all(.[] | select(.event == "tool_execution_end"); .isError == false)
     and all(.[] | select(.event == "agent_settled" or .event == "session_shutdown");
       .isIdle == true and .historyHasMarker == true)
     and (.[0].marker as $marker | [.[] | select(.event == "provider_request")] as $requests
-      | ($requests | length) == (if $mode == "idle" then 1 else 2 end)
+      | ($requests | length) == (if $idle then 1 else 2 end)
       and $requests[-1].historyHasMarker == true
-      and (if $mode == "idle" then true else
+      and (if $mode == "host-idle" then
+        any($requests[0].messages[]; .role == "user"
+          and (.content | tostring | contains("pi-trial-explicit-host-turn")))
+        else true end)
+      and (if $idle then true else
         ($requests[0].messages | tostring | contains($marker) | not)
         and $requests[0].historyHasMarker == false
         and any($requests[-1].messages[];
@@ -111,13 +141,13 @@ provider_has_marker() {
   ' "$output/$1.receipt.jsonl" >/dev/null
 }
 
-for mode in busy idle; do
+for mode in busy idle host-busy host-idle; do
   run_probe "$mode"
   provider_has_marker "$mode" true || {
     printf 'Provider-input oracle failed in %s: %s\n' "$mode" "$output" >&2
     exit 1
   }
-  printf '%s: provider oracle, history, UI events, schedule, and settlement passed.\n' "$mode"
+  printf '%s: provider oracle, history, submission receipts, UI events, schedule, and settlement passed.\n' "$mode"
 done
 
 # Prove the oracle rejects context loss despite successful history/UI delivery.

@@ -5,7 +5,7 @@ import type {
   ExtensionUIContext,
 } from "@earendil-works/pi-coding-agent";
 import {
-  deliverCompletion,
+  BackgroundDelivery,
   registerCompletionFlush,
 } from "../../shared/completion-delivery.ts";
 import {
@@ -48,9 +48,11 @@ export class BackgroundTerminalSession {
   private readonly resultDelivery =
     createDeferredResultDelivery<TerminalSnapshot>((result) => result.id);
   private readonly pi: ExtensionAPI;
+  private readonly delivery: BackgroundDelivery;
 
   constructor(pi: ExtensionAPI) {
     this.pi = pi;
+    this.delivery = new BackgroundDelivery(pi);
     pi.on("session_start", (_event, context) => this.startSession(context));
     registerCompletionFlush(pi, (wakeAgent) => this.flushResults(wakeAgent));
     pi.on("session_shutdown", (event) => this.shutdown(event.reason));
@@ -207,8 +209,7 @@ export class BackgroundTerminalSession {
   private deliverResult(snapshot: TerminalSnapshot, wakeAgent: boolean) {
     this.retrySettlements();
     try {
-      deliverCompletion(
-        this.pi,
+      this.delivery.completion(
         {
           customType: "background-terminal-result",
           content: buildTerminalResultMessage(snapshot),

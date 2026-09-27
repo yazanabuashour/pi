@@ -1,4 +1,5 @@
 import * as NodeFS from "node:fs";
+import * as NodeTimersPromises from "node:timers/promises";
 
 import {
   fauxAssistantMessage,
@@ -15,10 +16,13 @@ import { Parse } from "typebox/value";
 import { SwarmExtensionSession } from "../extensions/swarm/src/extension-session.ts";
 
 const marker = "pi-trial1-child-progress-7e38932d";
+const hostPrompt = "pi-trial-explicit-host-turn";
 const configuration = Type.Object({
   mode: Type.Union([
     Type.Literal("busy"),
     Type.Literal("idle"),
+    Type.Literal("host-busy"),
+    Type.Literal("host-idle"),
     Type.Literal("omitted-context"),
   ]),
   receipt: Type.String({ minLength: 1 }),
@@ -40,13 +44,22 @@ type TrialReceipt =
       event: "session_start";
       mode: Static<typeof configuration>["mode"];
       marker: string;
+      policy: "automatic" | "host";
       isIdle: boolean;
     }
   | {
-      event: "agent_settled" | "session_shutdown";
+      event: "agent_settled";
       isIdle: boolean;
       historyHasMarker: boolean;
     }
+  | {
+      event: "idle_observed" | "session_shutdown";
+      isIdle: boolean;
+      historyHasMarker: boolean;
+      providerRequests: number;
+      submissions: unknown[];
+    }
+  | { event: "host_turn"; prompt: string; providerRequests: number }
   | { event: "turn_end"; turnIndex: number }
   | { event: "tool_execution_end"; isError: boolean }
   | { event: "tool_pending" | "tool_release" };
@@ -56,6 +69,16 @@ function historyHasMarker(ctx: ExtensionContext) {
     .getEntries()
     .some(
       (entry) => entry.type === "custom_message" && entry.content === marker,
+    );
+}
+
+function backgroundSubmissions(ctx: ExtensionContext) {
+  return ctx.sessionManager
+    .getEntries()
+    .flatMap((entry) =>
+      entry.type === "custom" && entry.customType === "background-delivery"
+        ? [entry.data]
+        : [],
     );
 }
 
@@ -92,32 +115,11 @@ function omitMarkerFromContext(pi: ExtensionAPI) {
   }));
 }
 
-export default function (pi: ExtensionAPI) {
-  const { mode, receipt } = Parse(configuration, {
-    mode: process.env["PI_TRIAL_MODE"],
-    receipt: process.env["PI_TRIAL_RECEIPT"],
-  });
-  const record = (entry: TrialReceipt) =>
-    NodeFS.appendFileSync(receipt, `${JSON.stringify(entry)}\n`);
-  const owner = new SwarmExtensionSession(pi);
-  let currentContext: ExtensionContext | undefined;
-  let request = 0;
-
-  const capture = (context: Context) => {
-    if (!currentContext) throw new Error("Missing trial session context");
-    request += 1;
-    // Capture at the provider boundary, not from Pi's history or context hook.
-    record({
-      event: "provider_request",
-      request,
-      messages: context.messages.map(({ role, content }) => ({
-        role,
-        content,
-      })),
-      historyHasMarker: historyHasMarker(currentContext),
-    });
-  };
-
+function registerTrialProvider(
+  pi: ExtensionAPI,
+  mode: Static<typeof configuration>["mode"],
+  capture: (context: Context) => void,
+) {
   const faux = fauxProvider({
     provider: "pi-lost-message-trial",
     api: "pi-lost-message-trial",
@@ -129,7 +131,7 @@ export default function (pi: ExtensionAPI) {
     return fauxAssistantMessage("pi-lost-message-trial-ok", { timestamp: 0 });
   };
   faux.setResponses(
-    mode === "idle"
+    mode === "idle" || mode === "host-idle"
       ? [finish]
       : [
           (context) => {
@@ -143,12 +145,56 @@ export default function (pi: ExtensionAPI) {
         ],
   );
   pi.registerProvider(faux.provider);
+}
+
+export default function (pi: ExtensionAPI) {
+  const { mode, receipt } = Parse(configuration, {
+    mode: process.env["PI_TRIAL_MODE"],
+    receipt: process.env["PI_TRIAL_RECEIPT"],
+  });
+  const record = (entry: TrialReceipt) =>
+    NodeFS.appendFileSync(receipt, `${JSON.stringify(entry)}\n`);
+  const owner = new SwarmExtensionSession(pi);
+  let currentContext: ExtensionContext | undefined;
+  let request = 0;
+
+  registerTrialProvider(pi, mode, (context) => {
+    if (!currentContext) throw new Error("Missing trial session context");
+    request += 1;
+    // Capture at the provider boundary, not from Pi's history or context hook.
+    record({
+      event: "provider_request",
+      request,
+      messages: context.messages.map(({ role, content }) => ({
+        role,
+        content,
+      })),
+      historyHasMarker: historyHasMarker(currentContext),
+    });
+  });
 
   if (mode === "omitted-context") omitMarkerFromContext(pi);
 
   pi.on("session_start", (_event, ctx) => {
     currentContext = ctx;
-    record({ event: "session_start", mode, marker, isIdle: ctx.isIdle() });
+    record({
+      event: "session_start",
+      mode,
+      marker,
+      policy: owner.delivery.policy,
+      isIdle: ctx.isIdle(),
+    });
+  });
+  pi.on("before_agent_start", (event) => {
+    if (mode === "host-idle") {
+      if (event.prompt !== hostPrompt)
+        throw new Error("Expected the explicit host prompt");
+      record({
+        event: "host_turn",
+        prompt: event.prompt,
+        providerRequests: request,
+      });
+    }
   });
   pi.on("turn_end", (event) => {
     record({ event: "turn_end", turnIndex: event.turnIndex });
@@ -168,6 +214,8 @@ export default function (pi: ExtensionAPI) {
       event: "session_shutdown",
       isIdle: ctx.isIdle(),
       historyHasMarker: historyHasMarker(ctx),
+      providerRequests: request,
+      submissions: backgroundSubmissions(ctx),
     });
   });
 
@@ -193,6 +241,17 @@ export default function (pi: ExtensionAPI) {
     handler: async (_args, ctx) => {
       send(ctx, owner, record);
       await ctx.waitForIdle();
+      if (mode === "host-idle") {
+        // Let queued callbacks run before the CLI supplies its separate prompt.
+        await NodeTimersPromises.setImmediate();
+        record({
+          event: "idle_observed",
+          isIdle: ctx.isIdle(),
+          historyHasMarker: historyHasMarker(ctx),
+          providerRequests: request,
+          submissions: backgroundSubmissions(ctx),
+        });
+      }
     },
   });
 }

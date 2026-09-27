@@ -32,6 +32,9 @@ Keep working after spawning. Completion goes automatically to `root`, and is
 forwarded to the direct parent unless that branch was canceled. If forwarding
 fails (including capacity rejection), root receives the failure; it is not
 retried. Ordinary commentary is not forwarded; use `swarm_send` for progress.
+With `PI_BACKGROUND_WAKE_POLICY=host`, results and messages to an idle root wait
+in Pi's history for the next host-initiated turn. Active delivery and
+manager-directed messages to children remain available.
 
 ## Send an addressed message
 

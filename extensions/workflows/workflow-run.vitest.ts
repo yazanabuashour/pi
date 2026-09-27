@@ -15,6 +15,7 @@ import type { AgentOutcome, RunAgentOptions } from "./runner.ts";
 import * as Serialization from "./serialization.ts";
 import * as Worker from "./worker.ts";
 import { WorkflowRun } from "./workflow-run.ts";
+import { executeWorkflow } from "./workflow-execute.ts";
 
 function receipt<T>() {
   let resolve!: (value: T) => void;
@@ -45,9 +46,11 @@ async function fixture() {
   ) => void | Promise<void>;
   const handlers = new Map<string, Handler>();
   const appendEntry = vi.fn<ExtensionAPI["appendEntry"]>();
+  const sendMessage = vi.fn<ExtensionAPI["sendMessage"]>();
   const pi: ExtensionAPI = Object.assign(Object.create(null), {
     on: (name: string, handler: Handler) => handlers.set(name, handler),
     appendEntry,
+    sendMessage,
     getThinkingLevel: () => "off",
   });
   const context: ExtensionContext = Object.assign(Object.create(null), {
@@ -71,7 +74,15 @@ async function fixture() {
     appendEntry.mock.calls.flatMap(([kind, data]) =>
       kind === "workflow-lifecycle" && isRuntimeRecord(data) ? [data] : [],
     );
-  return { directory, pi, context, session, appendEntry, lifecycle };
+  return {
+    directory,
+    pi,
+    context,
+    session,
+    appendEntry,
+    sendMessage,
+    lifecycle,
+  };
 }
 
 it("persists admission before dispatch and exposes isolated settled snapshots", async () => {
@@ -115,6 +126,57 @@ it("persists admission before dispatch and exposes isolated settled snapshots", 
   expect(run.details.phases).not.toContainEqual({ title: "caller mutation" });
   expect(vi.getTimerCount()).toBe(0);
 });
+
+it.each(["automatic", "host"])(
+  "runs background workflows without a UI under %s wake policy",
+  async (policy) => {
+    vi.stubEnv("PI_BACKGROUND_WAKE_POLICY", policy);
+    const f = await fixture();
+    const finish = receipt<void>();
+    const delivered = receipt<void>();
+    f.sendMessage.mockImplementation(() => delivered.resolve());
+    vi.mocked(Worker.runWorkflowWorker).mockImplementation(async () => {
+      await finish.promise;
+      return "background result";
+    });
+    const launch = await executeWorkflow(
+      f.pi,
+      f.session,
+      {
+        script: 'return "background result";',
+        background: true,
+      },
+      undefined,
+      undefined,
+      f.context,
+    );
+    expect(launch.details).toMatchObject({
+      background: true,
+      status: "running",
+    });
+    expect(f.sendMessage).not.toHaveBeenCalled();
+    if (policy === "host")
+      expect(launch.content[0]?.text).toContain("without waking an idle agent");
+    finish.resolve();
+    await delivered.promise;
+    expect(f.sendMessage).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        customType: "workflow-result",
+        content: expect.stringContaining("background result"),
+        details: expect.objectContaining({ status: "completed" }),
+        display: true,
+      }),
+      policy === "automatic"
+        ? { deliverAs: "followUp", triggerTurn: true }
+        : { deliverAs: "followUp" },
+    );
+    expect(f.session.activeDetails().size).toBe(0);
+    expect(f.lifecycle().map((entry) => entry["event"])).toEqual([
+      "started",
+      "settled",
+    ]);
+  },
+);
 
 it("forces settlement once and rejects late worker and agent updates", async () => {
   const f = await fixture();
