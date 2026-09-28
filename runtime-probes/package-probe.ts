@@ -28,6 +28,7 @@ const requiredTools = [
   "read",
   "edit",
   "write",
+  "web_enable",
   "fetch_content",
   "get_search_content",
   "source_check",
@@ -126,12 +127,14 @@ function parentResponse(context: Context) {
       "swarm agent did not complete with its fixture before shutdown",
     );
   if (
-    !context.messages.some((message) =>
-      JSON.stringify(message.content).includes(progressFixture),
+    !context.messages.some(
+      (message) =>
+        message.role === "user" &&
+        JSON.stringify(message.content).includes(progressFixture),
     )
   )
     throw new Error(
-      "Swarm progress was not delivered to the root model context.",
+      "Invisible swarm progress was not delivered to the root model context.",
     );
   return fauxAssistantMessage("dotfiles-package-probe-ok");
 }
@@ -275,6 +278,7 @@ export default function (pi: ExtensionAPI) {
       (message) =>
         message.role === "user" && Check(childPromptSchema, message.content),
     );
+    if (!toolResult(context, "web_enable")) return callTool("web_enable", {});
     checkResources(pi, context, browserSkillName, child);
     if (!child) return parentResponse(context);
     if (!toolResult(context, "swarm_send"))

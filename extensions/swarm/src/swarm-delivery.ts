@@ -39,7 +39,7 @@ export class SwarmDelivery {
   receive(details: SwarmMessage | ForwardingFailure, content: string) {
     this.owner.assertCurrent(this.owner.identity);
     this.owner.delivery.send(
-      { customType: "swarm-message", content, display: true, details },
+      { customType: "swarm-message", content, display: false, details },
       {
         deliverAs: "steer",
         // The delivery policy can suppress idle wakes without losing active

@@ -3,6 +3,10 @@ import { Type } from "typebox";
 import type { SwarmExtensionSession } from "./extension-session.ts";
 import { buildWaitOutput } from "./extension-output.ts";
 import {
+  renderSwarmToolCall,
+  renderSwarmToolResult,
+} from "./extension-renderers.ts";
+import {
   SWARM_WAIT_TOOL_DESCRIPTION,
   SWARM_CANCEL_TOOL_DESCRIPTION,
 } from "./prompt.ts";
@@ -20,6 +24,15 @@ export function rootControls(session: SwarmExtensionSession) {
       name: "swarm_wait",
       label: "Wait for Swarm Agents",
       description: SWARM_WAIT_TOOL_DESCRIPTION,
+      renderCall: (args, theme, { expanded }) =>
+        renderSwarmToolCall(
+          "swarm_wait",
+          args.ids?.join(", "),
+          args,
+          theme,
+          expanded,
+        ),
+      renderResult: renderSwarmToolResult,
       parameters,
       async execute(_id, params, signal, onUpdate) {
         const access = await swarmAccess(session);

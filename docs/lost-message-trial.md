@@ -36,7 +36,7 @@ Require a successful exit and these case results. Each exercises the installed
 | `idle` | Delivery wakes the idle root; provider request 1 contains the marker without a user prompt. |
 | `host-busy` | Under `PI_BACKGROUND_WAKE_POLICY=host`, native steering reaches provider request 2. |
 | `host-idle` | Under `host`, delivery enters history without a provider request. After native idle and an event-loop checkpoint, only a separate explicit CLI prompt starts request 1, containing both marker and prompt. |
-| `omitted-context` | A fixture-only `context` hook removes the delivered marker from request 2, while history and JSON display events retain it. This negative control tests the oracle without changing production code. |
+| `omitted-context` | A fixture-only `context` hook removes the delivered marker from request 2, while history and hidden JSON message events retain it. This negative control tests the oracle without changing production code. |
 
 `busy` and `idle` leave `PI_BACKGROUND_WAKE_POLICY` unset to test the `automatic`
 default. Inspect these files:
@@ -44,7 +44,8 @@ default. Inspect these files:
 - `*.receipt.jsonl`: provider-visible roles and content, submission path, tool
   boundaries, turn ends, and settlement. Host cases check a `background-delivery`
   submission with `wakeRequested: false` and `consumption: "unconfirmed"`.
-- `*.events.jsonl`: custom display events and final response.
+- `*.events.jsonl`: custom message events with `display: false` and the final response.
+  Hidden presentation does not remove the message from provider input.
 - `environment.json`: native Pi version, source base, installed package, and
   fixture, runner, adapter, session-owner, and shared-delivery hashes.
 - `*.stderr`: diagnostics retained with receipts on failure.
@@ -62,7 +63,7 @@ The gate needs neither web nor browser packages and is separate from `npm test`.
 
 Use native Pi, not the checkout's 0.84.4 development SDK. Pi 0.87.1 delivers the
 earlier `triggerTurn: false` cases, so they are no longer negative controls.
-Context omission keeps provider visibility distinct from history and display.
+Context omission keeps provider visibility distinct from history and message events.
 
 ## Check coverage before relying on a pass
 

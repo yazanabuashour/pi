@@ -106,7 +106,7 @@ function send(
 }
 
 function omitMarkerFromContext(pi: ExtensionAPI) {
-  // Negative control: keep history and display intact, but omit the message
+  // Negative control: keep history and message events intact, but omit the message
   // before native Pi constructs the provider request. Capture stays unchanged.
   pi.on("context", (event) => ({
     messages: event.messages.filter(

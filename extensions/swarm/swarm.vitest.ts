@@ -3,6 +3,7 @@ import { Value } from "typebox/value";
 import { expect, it, onTestFinished, vi } from "vitest";
 import { Effect } from "effect";
 import { spawnStubSession } from "./manager.test-support.ts";
+import { buildAgentCompletionText } from "./src/extension-output.ts";
 import { createSwarmTools } from "./src/extension-tools.ts";
 import { sendSwarmMessage } from "./src/swarm-routing.ts";
 import { harness } from "./swarm.test-support.ts";
@@ -84,10 +85,18 @@ it.each(["automatic", "host"])(
       "question",
     );
     expect(h.messages.at(-1)).toEqual([
-      expect.objectContaining({
+      {
         customType: "swarm-message",
         content: `Swarm message ${receipt.messageId} from ${sender.id} to root:\n\nquestion`,
-      }),
+        display: false,
+        details: {
+          schemaVersion: 1,
+          id: receipt.messageId,
+          from: sender.id,
+          to: "root",
+          text: "question",
+        },
+      },
       policy === "automatic"
         ? { deliverAs: "steer", triggerTurn: true }
         : { deliverAs: "steer" },
@@ -265,21 +274,24 @@ it.each(["automatic", "host"])(
     const peer = await h.spawn(h.root, "peer");
     await h.resultReceived;
     await h.session.messages.settled();
+    const completed = h.manager.view.get(child.id);
+    NodeAssert.ok(completed);
+    expect(completed.outcome).toBe("completed");
+    const content = buildAgentCompletionText(completed);
     expect(h.messages).toContainEqual([
-      expect.objectContaining({
+      {
         customType: "swarm-result",
-        details: expect.objectContaining({
-          id: child.id,
-          outcome: "completed",
-        }),
-      }),
+        content,
+        display: false,
+        details: h.session.details(completed, "settled"),
+      },
       policy === "automatic"
         ? { deliverAs: "followUp", triggerTurn: true }
         : { deliverAs: "followUp" },
     ]);
     expect(h.sends.filter((send) => send.title === "parent")).toEqual([
       { title: "parent", text: "parent" },
-      { title: "parent", text: expect.stringContaining(child.id) },
+      { title: "parent", text: content },
     ]);
     expect(h.sends.filter((send) => send.title === peer.title)).toEqual([
       { title: "peer", text: "peer" },

@@ -123,12 +123,12 @@ run_probe() {
   }
   jq -s -e --slurpfile receipt "$output/$mode.receipt.jsonl" '
     any(.[]; .type == "message_end" and .message.role == "custom"
-      and .message.content == $receipt[0].marker and .message.display == true)
+      and .message.content == $receipt[0].marker and .message.display == false)
     and ([.[] | select(.type == "message_end" and .message.role == "assistant")]
       | last | .message.stopReason == "stop"
         and .message.content == [{type: "text", text: "pi-lost-message-trial-ok"}])
   ' "$output/$mode.events.jsonl" >/dev/null || {
-    printf 'Trial UI event or final response failed in %s: %s\n' "$mode" "$output" >&2
+    printf 'Trial hidden delivery event or final response failed in %s: %s\n' "$mode" "$output" >&2
     return 1
   }
 }
@@ -147,15 +147,15 @@ for mode in busy idle host-busy host-idle; do
     printf 'Provider-input oracle failed in %s: %s\n' "$mode" "$output" >&2
     exit 1
   }
-  printf '%s: provider oracle, history, submission receipts, UI events, schedule, and settlement passed.\n' "$mode"
+  printf '%s: provider oracle, history, submission receipts, hidden delivery events, schedule, and settlement passed.\n' "$mode"
 done
 
-# Prove the oracle rejects context loss despite successful history/UI delivery.
+# Prove the oracle rejects context loss despite successful history/event delivery.
 run_probe omitted-context
 if provider_has_marker omitted-context true; then
   printf 'Negative control failed: the provider-input oracle accepted the omitted message.\n' >&2
   exit 1
 fi
 provider_has_marker omitted-context false
-printf 'Negative control rejected: provider request 2 omitted the marker; history, UI events, schedule, and settlement passed.\n'
+printf 'Negative control rejected: provider request 2 omitted the marker; history, hidden delivery events, schedule, and settlement passed.\n'
 printf 'Native delivery receipts: %s\n' "$output"

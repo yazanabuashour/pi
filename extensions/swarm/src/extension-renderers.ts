@@ -2,6 +2,7 @@ import {
   getMarkdownTheme,
   type ExtensionAPI,
   type Theme,
+  type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 import { Markdown, Text } from "@earendil-works/pi-tui";
 import { isRuntimeRecord, isString } from "../../shared/runtime-values.ts";
@@ -12,6 +13,48 @@ function detailString<Value>(details: Value, key: string) {
     ? details[key]
     : undefined;
 }
+
+export function renderSwarmToolCall<Args extends object>(
+  name: string,
+  target: string | undefined,
+  args: Args,
+  theme: Theme,
+  expanded: boolean,
+) {
+  const header =
+    theme.fg("toolTitle", theme.bold(name)) +
+    (target ? ` ${theme.fg("muted", target)}` : "");
+  return new Text(
+    expanded ? `${header}\n${JSON.stringify(args, null, 2)}` : header,
+    0,
+    0,
+  );
+}
+
+export const renderSwarmToolResult: NonNullable<
+  ToolDefinition["renderResult"]
+> = (result, { expanded, isPartial }, theme, context) => {
+  if (expanded || isPartial || context.isError) {
+    const text = result.content
+      .filter((part) => part.type === "text")
+      .map((part) => part.text)
+      .join("\n");
+    return new Text(
+      theme.fg(context.isError ? "error" : "toolOutput", text),
+      0,
+      0,
+    );
+  }
+  const id = detailString(result.details, "id");
+  return new Text(
+    theme.fg(
+      "dim",
+      `${id ? `${id} · ` : ""}Details in /swarm · expand to inspect`,
+    ),
+    0,
+    0,
+  );
+};
 
 function renderResultBody(
   header: string,
@@ -55,7 +98,9 @@ export function registerSwarmRenderers(pi: ExtensionAPI) {
       theme.fg("muted", ` · ${title} · ${failed ? "failed" : "finished"}`);
     const content = isString(message.content) ? message.content : "";
     const body = content.split("\n").slice(1).join("\n").trim();
-    return renderResultBody(header, body, expanded, theme);
+    return expanded
+      ? renderResultBody(header, body, true, theme)
+      : new Text(header + theme.fg("dim", " · /swarm"), 0, 0);
   });
 
   pi.registerEntryRenderer<BtwResultData>(

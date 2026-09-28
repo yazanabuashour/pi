@@ -12,6 +12,10 @@ import { latestText, REASONING_EFFORTS } from "./domain.ts";
 import { resolveStandaloneChildProjectTrust } from "../../shared/child-session.ts";
 import { describeAgent } from "./extension-output.ts";
 import { rootControls } from "./swarm-controls.ts";
+import {
+  renderSwarmToolCall,
+  renderSwarmToolResult,
+} from "./extension-renderers.ts";
 import type { SwarmExtensionSession } from "./extension-session.ts";
 import {
   buildAgentSpawnResult,
@@ -36,6 +40,9 @@ function spawnTool(session: SwarmExtensionSession, actor?: SwarmActor) {
     description: SWARM_SPAWN_TOOL_DESCRIPTION,
     promptSnippet: SWARM_SPAWN_PROMPT_SNIPPET,
     promptGuidelines: SWARM_SPAWN_PROMPT_GUIDELINES,
+    renderCall: (args, theme, { expanded }) =>
+      renderSwarmToolCall("swarm_spawn", args.name, args, theme, expanded),
+    renderResult: renderSwarmToolResult,
     parameters: Type.Object(
       {
         prompt: Type.String({
@@ -126,8 +133,11 @@ function messagingTool(session: SwarmExtensionSession, actor?: SwarmActor) {
   return defineTool({
     name: "swarm_send",
     label: "Message Swarm Agent",
+    renderCall: (args, theme, { expanded }) =>
+      renderSwarmToolCall("swarm_send", args.to, args, theme, expanded),
+    renderResult: renderSwarmToolResult,
     description:
-      "Send an addressed message to root or a swarm agent id. Use it for progress, questions, peer coordination, or more work. Running recipients receive queued steering; idle recipients start a turn, subject to shared capacity. Submission is not proof the model consumed it. Do not blindly retry an interrupted submission. Only root may restart a cancelled agent.",
+      "Send an addressed message to root or a swarm agent id. Use it for actionable findings, blockers, questions, ownership changes, or more work; avoid routine acknowledgments and duplicate final reports. Running recipients receive queued steering; idle recipients start a turn, subject to shared capacity. Submission is not proof the model consumed it. Do not blindly retry an interrupted submission. Only root may restart a cancelled agent.",
     parameters: Type.Object(
       {
         to: Type.String({
@@ -164,6 +174,9 @@ function inspectionTools(session: SwarmExtensionSession, actor?: SwarmActor) {
       name: "swarm_check",
       label: "Check Swarm Agent",
       description: SWARM_CHECK_TOOL_DESCRIPTION,
+      renderCall: (args, theme, { expanded }) =>
+        renderSwarmToolCall("swarm_check", args.id, args, theme, expanded),
+      renderResult: renderSwarmToolResult,
       parameters: Type.Object(
         { id: Type.String() },
         { additionalProperties: false },
@@ -193,6 +206,9 @@ function inspectionTools(session: SwarmExtensionSession, actor?: SwarmActor) {
       name: "swarm_list",
       label: "List Swarm Agents",
       description: SWARM_LIST_TOOL_DESCRIPTION,
+      renderCall: (args, theme, { expanded }) =>
+        renderSwarmToolCall("swarm_list", undefined, args, theme, expanded),
+      renderResult: renderSwarmToolResult,
       parameters: Type.Object({}, { additionalProperties: false }),
       async execute() {
         const access = await swarmAccess(session, actor);

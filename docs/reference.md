@@ -38,6 +38,24 @@ See the [swarm skill](../skills/swarm/SKILL.md) and
 Agents share the account's files and permissions; workers use Pi's runtime.
 Neither is a security sandbox.
 
+### Swarm presentation and handoff
+
+Swarm messages and automatic results enter model context and session history
+without displaying their bodies in the main transcript. Swarm tool rows show
+compact calls and expandable details; tool errors and wait progress remain
+visible. Cancellation reports remain visible. The footer shows activity counts,
+and `/swarm` opens agent status and transcripts. Private `/btw` presentation is
+unchanged.
+
+The model guidance requires root to join outstanding task-critical workers before
+final handoff, including required descendants, then integrate their results and
+finish validation. Private `/btw` and explicitly detached work do not block that
+handoff. This guidance does not impose a runtime barrier or change background
+execution, routing, or wake policy.
+
+See [swarm orchestration design](swarm-orchestration.md) for the rationale and
+Codex comparison.
+
 ### Background wake policy
 
 `PI_BACKGROUND_WAKE_POLICY` controls extension-initiated turns:

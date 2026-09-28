@@ -132,7 +132,7 @@ export class SwarmExtensionSession {
       {
         customType: "swarm-result",
         content: buildAgentCompletionText(snapshot),
-        display: true,
+        display: false,
         details: this.details(snapshot, "settled"),
       },
       wakeAgent,

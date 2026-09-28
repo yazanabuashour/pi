@@ -119,17 +119,19 @@ run_probe() {
           "tool_execution_start", "tool_execution_end",
           "tool_execution_start", "tool_execution_end",
           "tool_execution_start", "tool_execution_end",
+          "tool_execution_start", "tool_execution_end",
           "agent_settled", "session_shutdown"]
         and ([.[] | select(.type == "tool_execution_start") | .toolName]
-          == ["package_probe", "workflow", "swarm_spawn", "swarm_wait"])
+          == ["web_enable", "package_probe", "workflow", "swarm_spawn", "swarm_wait"])
         and ([.[] | select(.type == "tool_execution_end") | .toolName]
-          == ["package_probe", "workflow", "swarm_spawn", "swarm_wait"])
+          == ["web_enable", "package_probe", "workflow", "swarm_spawn", "swarm_wait"])
         and all(.[] | select(.type == "tool_execution_end"); .isError == false)
       else
         .[0].mode == "print"
         and map(.type) == ["session_start", "tool_execution_start",
-          "tool_execution_end", "agent_settled", "session_shutdown"]
-        and ([.[] | select(.type == "tool_execution_start") | .toolName] == ["swarm_send"])
+          "tool_execution_end", "tool_execution_start", "tool_execution_end",
+          "agent_settled", "session_shutdown"]
+        and ([.[] | select(.type == "tool_execution_start") | .toolName] == ["web_enable", "swarm_send"])
         and all(.[] | select(.type == "tool_execution_end"); .isError == false)
       end)
     and ([.[] | .[0].mode] | sort == ["json", "print"])
@@ -147,13 +149,13 @@ jq -s -e '
   and ([.[] | select(.event == "session_start")] | length == 1)
   and ([.[] | select(.event == "summary")] | length == 1)
   and ([.[] | select(.event == "tool_start") | .toolName]
-    == ["package_probe", "workflow", "swarm_spawn", "swarm_wait"])
+    == ["web_enable", "package_probe", "workflow", "swarm_spawn", "swarm_wait"])
   and ([.[] | select(.event == "tool_end") | .toolName]
-    == ["package_probe", "workflow", "swarm_spawn", "swarm_wait"])
+    == ["web_enable", "package_probe", "workflow", "swarm_spawn", "swarm_wait"])
   and all(.[] | select(.event == "tool_end"); .isError == false and .orphanEnd == false)
   and any(.[]; .event == "agent_settled")
   and .[-1].event == "summary" and .[-1].settled == true
-  and .[-1].calls == 4 and .[-1].errors == 0 and .[-1].orphanedTools == 0
+  and .[-1].calls == 5 and .[-1].errors == 0 and .[-1].orphanedTools == 0
 ' "$temporary/telemetry.jsonl" >/dev/null
 
 # A directory is an intentionally invalid diagnostic destination.

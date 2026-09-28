@@ -11,6 +11,11 @@ import {
   deliverBtwResult,
 } from "./src/extension-status.ts";
 import { formatActivityStatus } from "../shared/activity-status.ts";
+import { visibleWidth } from "@earendil-works/pi-tui";
+import {
+  renderSwarmToolCall,
+  renderSwarmToolResult,
+} from "./src/extension-renderers.ts";
 
 NodeTest(
   "private results stay out of model messages and link to swarm navigation",
@@ -65,6 +70,59 @@ NodeTest(
       notification,
       /^by the way .* failed — reopen it with \/swarm$/,
     );
+  },
+);
+
+NodeTest(
+  "swarm rows hide routine bodies but preserve expansion and errors",
+  () => {
+    const theme: Theme = Object.assign(Object.create(null), {
+      fg: (_color: string, text: string) => text,
+      bold: (text: string) => text,
+    });
+    const args = { name: "worker", prompt: "private-prompt" };
+    const call = (expanded: boolean) =>
+      renderSwarmToolCall("swarm_spawn", args.name, args, theme, expanded);
+    NodeAssert.doesNotMatch(
+      call(false).render(80).join("\n"),
+      /private-prompt/,
+    );
+    NodeAssert.match(call(true).render(80).join("\n"), /private-prompt/);
+
+    const context: Parameters<typeof renderSwarmToolResult>[3] = Object.assign(
+      Object.create(null),
+      {
+        isError: false,
+      },
+    );
+    const result = {
+      content: [{ type: "text" as const, text: "worker-result" }],
+      details: { id: "sa-1" },
+    };
+    const collapsed = renderSwarmToolResult(
+      result,
+      { expanded: false, isPartial: false },
+      theme,
+      context,
+    );
+    NodeAssert.match(collapsed.render(80).join("\n"), /sa-1.*\/swarm/);
+    NodeAssert.doesNotMatch(collapsed.render(80).join("\n"), /worker-result/);
+    for (const options of [
+      { expanded: true, isPartial: false, isError: false },
+      { expanded: false, isPartial: true, isError: false },
+      { expanded: false, isPartial: false, isError: true },
+    ]) {
+      context.isError = options.isError;
+      const rendered = renderSwarmToolResult(result, options, theme, context);
+      NodeAssert.match(rendered.render(80).join("\n"), /worker-result/);
+    }
+    for (const component of [call(false), call(true), collapsed]) {
+      for (const width of [20, 80]) {
+        NodeAssert.ok(
+          component.render(width).every((line) => visibleWidth(line) <= width),
+        );
+      }
+    }
   },
 );
 
