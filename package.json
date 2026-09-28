@@ -32,10 +32,10 @@
     ]
   },
   "dependencies": {
-    "@effect/platform-node": "4.0.0-rc.111",
-    "@effect/platform-node-shared": "4.0.0-rc.111",
+    "@effect/platform-node": "4.0.0-rc.117",
+    "@effect/platform-node-shared": "4.0.0-rc.117",
     "acorn": "^8.17.0",
-    "effect": "4.0.0-rc.111"
+    "effect": "4.0.0-rc.117"
   },
   "peerDependencies": {
     "@earendil-works/pi-ai": "*",
@@ -47,7 +47,7 @@
     "@earendil-works/pi-ai": "0.84.4",
     "@earendil-works/pi-coding-agent": "0.84.4",
     "@earendil-works/pi-tui": "0.84.4",
-    "@effect/vitest": "4.0.0-rc.111",
+    "@effect/vitest": "4.0.0-rc.117",
     "@oxlint/plugins": "1.85.0",
     "@types/node": "22.19.19",
     "@yazanabuashour/oxlint-config": "github:yazanabuashour/typescript-lint-policy#7f3e73ef13e465e1ebacde064ee66c43d88ce618",
