@@ -5,6 +5,17 @@ concurrently while root continues independent work. Root joins outstanding work
 needed for the current request when those results become the remaining dependency,
 then integrates the results and answers the user.
 
+## Running-agent capacity
+
+Each session's swarm admits eight running children, including private `/btw`
+sessions. Spawn reservations and idle-agent restarts share that limit.
+
+The demand receipt is three actual spawn rejections at the previous limit of
+four: two during Firesale work on September 2–3, 2026, and one during the
+multi-repository policy rollout on September 28. The user selected eight after
+reviewing those incidents. This is demand evidence, not a provider-throughput
+or memory benchmark; remeasure if healthy work reaches the new limit.
+
 ## Separate presentation from delivery
 
 Routine worker messages and automatic results use `display: false`. Their content,

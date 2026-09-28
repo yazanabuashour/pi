@@ -185,6 +185,10 @@ it.live("the global concurrency cap includes by-the-way sessions", () =>
         task("Task 2"),
         task("Task 3"),
         task("Task 4"),
+        task("Task 5"),
+        task("Task 6"),
+        task("Task 7"),
+        task("Task 8"),
       ];
 
       const spawns = yield* Effect.forEach(
@@ -195,7 +199,7 @@ it.live("the global concurrency cap includes by-the-way sessions", () =>
         },
       );
 
-      NodeAssert.equal(spawns.length, 4);
+      NodeAssert.equal(spawns.length, 8);
 
       const error = yield* Effect.flip(
         manager.spawn({
@@ -204,13 +208,13 @@ it.live("the global concurrency cap includes by-the-way sessions", () =>
         }),
       );
 
-      NodeAssert.match(String(error), /Max 4 agents/);
+      NodeAssert.match(String(error), /Max 8 agents/);
     }),
   ),
 );
 
 it.live(
-  "failed spawns release capacity; a fifth running agent is rejected",
+  "failed spawns release capacity; a ninth running agent is rejected",
   () =>
     withManager((manager) =>
       Effect.gen(function* () {
@@ -218,16 +222,16 @@ it.live(
         NodeAssert.match(String(failure), /Scripted spawn failure/);
 
         const spawns = yield* Effect.forEach(
-          [1, 2, 3, 4],
+          [1, 2, 3, 4, 5, 6, 7, 8],
           (n) => manager.spawn(task(`Task ${n}`)),
           {
             concurrency: "unbounded",
           },
         );
 
-        NodeAssert.equal(spawns.length, 4);
-        const error = yield* Effect.flip(manager.spawn(task("Task 5")));
-        NodeAssert.match(String(error), /Max 4 agents/);
+        NodeAssert.equal(spawns.length, 8);
+        const error = yield* Effect.flip(manager.spawn(task("Task 9")));
+        NodeAssert.match(String(error), /Max 8 agents/);
       }),
     ),
 );
@@ -267,19 +271,19 @@ it.live(
 it.live("idle restarts respect the concurrency cap", () =>
   withManager((manager) =>
     Effect.gen(function* () {
-      // Settle one agent, then fill all four slots with running ones.
+      // Settle one agent, then fill all eight slots with running ones.
       const settled = yield* manager.spawn(task("early finisher"));
       yield* manager.waitFor([settled.id]);
       yield* Effect.forEach(
-        [1, 2, 3, 4],
+        [1, 2, 3, 4, 5, 6, 7, 8],
         (n) => manager.spawn(task(`Task ${n}`)),
         {
           concurrency: "unbounded",
         },
       );
-      // Restarting the settled one would be a fifth concurrent run.
+      // Restarting the settled one would be a ninth concurrent run.
       const error = yield* Effect.flip(manager.send(settled.id, "go again"));
-      NodeAssert.match(String(error), /Max 4 agents/);
+      NodeAssert.match(String(error), /Max 8 agents/);
       NodeAssert.equal(manager.view.get(settled.id)?.status, "done");
     }),
   ),

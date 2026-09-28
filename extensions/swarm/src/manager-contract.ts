@@ -16,7 +16,7 @@ import type {
   WaitError,
 } from "./domain.ts";
 
-export const MAX_RUNNING = 4;
+export const MAX_RUNNING = 8;
 
 export const MAX_TRACKED = 64;
 
