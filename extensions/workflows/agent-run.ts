@@ -64,6 +64,7 @@ class AgentRun {
     this.modelId = sessionModel?.id ?? this.modelId;
     this.contextWindow = sessionModel?.contextWindow ?? this.contextWindow;
     const context = this.session.getContextUsage();
+
     if (
       isNumber(context?.tokens) &&
       Number.isFinite(context.tokens) &&
@@ -71,30 +72,38 @@ class AgentRun {
     ) {
       this.usage.contextTokens = context.tokens;
     }
+
     if (
       isNumber(context?.contextWindow) &&
       Number.isFinite(context.contextWindow) &&
       context.contextWindow > 0
     )
       this.contextWindow = context.contextWindow;
+
     for (let index = messages.length - 1; index >= 0; index--) {
       const message = messages[index];
+
       if (!message || message.role !== "assistant") continue;
+
       const responseMatchesSession =
         !sessionModel ||
         (message.provider === sessionModel.provider &&
           message.model === sessionModel.id);
+
       const reported = responseMatchesSession
         ? this.options.modelRegistry.find(
             message.provider,
             message.responseModel ?? message.model,
           )
         : undefined;
+
       if (reported) {
         this.modelId = reported.id;
         this.contextWindow = reported.contextWindow;
       }
+
       if (message.stopReason) this.stopReason = message.stopReason;
+
       if (message.errorMessage) this.errorMessage = message.errorMessage;
       break;
     }
@@ -102,6 +111,7 @@ class AgentRun {
 
   private handleEvent = (event: AgentSessionEvent) => {
     if (isAssistantResponseEvent(event)) this.markFirstResponse();
+
     if (
       event.type === "tool_execution_start" ||
       event.type === "tool_execution_end"
@@ -138,11 +148,13 @@ class AgentRun {
         timer.unref?.();
       }),
     ]);
+
     if (timer) clearTimeout(timer);
   }
 
   async execute(): Promise<AgentOutcome> {
     const unsubscribe = this.session.subscribe(this.handleEvent);
+
     if (this.options.signal?.aborted) this.onAbort();
     else
       this.options.signal?.addEventListener("abort", this.onAbort, {
@@ -150,6 +162,7 @@ class AgentRun {
       });
     let output = "";
     let transcript = transcriptFromMessages([], this.toolTimings);
+
     try {
       await this.prompt();
     } catch (error) {
@@ -158,7 +171,9 @@ class AgentRun {
     } finally {
       this.options.signal?.removeEventListener("abort", this.onAbort);
       await this.waitForAbort();
+
       if (this.aborted) await shutdownAndDisposeChildSession(this.session);
+
       for (const pending of [this.abortPromise, this.promptPromise])
         pending?.catch(() => {});
       unsubscribe();
@@ -172,15 +187,18 @@ class AgentRun {
         this.toolTimings,
       );
     }
+
     return this.outcome(output, transcript);
   }
 
   private async prompt() {
     if (this.aborted) return;
+
     const watchdog = createFirstResponseWatchdog(() => this.session.abort(), {
       timeoutMs: this.options.firstResponseTimeoutMs,
       model: this.modelId,
     });
+
     this.markFirstResponse = watchdog.markResponse;
     this.promptPromise = watchdog.waitFor(
       this.session.prompt(this.options.prompt),
@@ -200,6 +218,7 @@ class AgentRun {
       contextWindow: this.contextWindow,
       transcript,
     };
+
     if (this.aborted || this.stopReason === "aborted") {
       return {
         ...common,
@@ -209,6 +228,7 @@ class AgentRun {
         aborted: true,
       };
     }
+
     if (this.stopReason === "error" || this.errorMessage !== undefined) {
       return {
         ...common,
@@ -218,6 +238,7 @@ class AgentRun {
         aborted: false,
       };
     }
+
     if (this.options.schema !== undefined && this.structured() === undefined) {
       return {
         ...common,
@@ -227,6 +248,7 @@ class AgentRun {
         aborted: false,
       };
     }
+
     return {
       ...common,
       ok: true,
@@ -241,13 +263,16 @@ export async function runAgent(
 ): Promise<AgentOutcome> {
   let structured: RuntimeValue | undefined;
   let outcome: AgentOutcome | undefined;
+
   const exit = await Effect.runPromiseExit(
     Effect.scoped(
       Effect.gen(function* () {
         const { session } = yield* createWorkflowSession(options, (value) => {
           structured = value;
         });
+
         const run = new AgentRun(options, session, () => structured);
+
         return yield* Effect.callback<AgentOutcome>((resume) => {
           const settled = run.execute().then(
             (result) => {
@@ -256,6 +281,7 @@ export async function runAgent(
             },
             (error) => resume(Effect.die(error)),
           );
+
           // Keep the existing prompt abort/grace policy, but never release the
           // session while its execution owner is still collecting the outcome.
           return Effect.promise(() => settled);
@@ -264,10 +290,13 @@ export async function runAgent(
     ),
     options.signal ? { signal: options.signal } : undefined,
   );
+
   if (Exit.isSuccess(exit)) return exit.value;
+
   if (outcome && Cause.hasInterruptsOnly(exit.cause)) return outcome;
   const aborted = options.signal?.aborted ?? false;
   const [failure] = Cause.prettyErrors(exit.cause);
+
   return {
     ok: false,
     output: "",

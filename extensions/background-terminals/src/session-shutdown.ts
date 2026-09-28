@@ -18,6 +18,7 @@ export function shutdownSnapshot(
   ]
     .filter(Boolean)
     .join("; ");
+
   return cleanupIncomplete ? { ...snapshot, cleanupIncomplete } : snapshot;
 }
 
@@ -35,6 +36,7 @@ export function reportShutdownFailure(
       ? `${unpersisted} lifecycle receipt(s) unpersisted.`
       : undefined,
   ].filter(Boolean);
+
   if (failures.length > 0)
     throw new Error(`Background terminal shutdown: ${failures.join(" ")}`);
 }
@@ -44,9 +46,11 @@ export async function stopSessionTerminals(
   runtime: TerminalRuntime | undefined,
 ) {
   const snapshots = manager?.view.beginShutdown() ?? [];
+
   const ids = snapshots
     .filter((snapshot) => snapshot.status === "running")
     .map((snapshot) => snapshot.id);
+
   if (manager && runtime && ids.length > 0) {
     try {
       await runTool(runtime, manager.kill(ids), {
@@ -58,6 +62,7 @@ export async function stopSessionTerminals(
       console.error("background-terminals: shutdown kill failed", error);
     }
   }
+
   return snapshots;
 }
 
@@ -66,6 +71,7 @@ export async function disposeSessionRuntime(
 ) {
   if (!runtime) return undefined;
   let deadline: ReturnType<typeof setTimeout> | undefined;
+
   try {
     // Promise.race retains a rejection observer if disposal outlives the wait.
     await Promise.race([
@@ -82,6 +88,7 @@ export async function disposeSessionRuntime(
         );
       }),
     ]);
+
     return undefined;
   } catch (error) {
     return `Runtime disposal failed: ${error instanceof Error ? error.message : String(error)}`;

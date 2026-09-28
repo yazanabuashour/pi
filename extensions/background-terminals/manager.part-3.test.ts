@@ -16,7 +16,7 @@ import {
 import { MAX_RUNNING, TerminalManager } from "./src/manager.ts";
 import { createTerminalRuntime, runTool } from "./src/runtime.ts";
 
-NodeTest(
+await NodeTest(
   "kill preserves a natural exit observed before the signal point",
   { skip: hostPlatform === "win32" },
   async () => {
@@ -29,14 +29,17 @@ NodeTest(
           cwd,
         }),
       );
+
       NodeAssert.ok(
         await pollUntil(() =>
           (manager.view.get(snap.id)?.stdout.text ?? "").includes("child:"),
         ),
       );
+
       const match = /child:(\d+)/.exec(
         manager.view.get(snap.id)?.stdout.text ?? "",
       );
+
       NodeAssert.ok(match);
       const grandchild = Number(match[1]);
       const pid = snap.pid;
@@ -55,7 +58,7 @@ NodeTest(
   },
 );
 
-NodeTest(
+await NodeTest(
   "concurrency cap rejects an extra start; a failed spawn releases its slot",
   async () => {
     await withManager(async (manager, runtime) => {
@@ -72,6 +75,7 @@ NodeTest(
           { concurrency: "unbounded" },
         ),
       );
+
       NodeAssert.equal(spawns.length, MAX_RUNNING);
       await NodeAssert.rejects(
         runTool(
@@ -86,6 +90,7 @@ NodeTest(
       const firstSpawn = spawns[0];
       NodeAssert.ok(firstSpawn);
       await runTool(runtime, manager.kill([firstSpawn.id]));
+
       const bogus = await runTool(
         runtime,
         manager.start({
@@ -94,8 +99,10 @@ NodeTest(
           cwd,
         }),
       );
+
       const { snap: settled } = await settlement(manager, bogus.id);
       NodeAssert.equal(settled.status, "failed");
+
       // The settled bogus entry does not occupy a running slot.
       const again = await runTool(
         runtime,
@@ -105,12 +112,13 @@ NodeTest(
           cwd,
         }),
       );
+
       NodeAssert.equal(again.status, "running");
     });
   },
 );
 
-NodeTest(
+await NodeTest(
   "a settle during an in-flight kill reports consumed: true",
   async () => {
     await withManager(async (manager, runtime) => {
@@ -118,6 +126,7 @@ NodeTest(
       manager.view.setOnSettled((snap, consumed) =>
         settled.push({ id: snap.id, consumed }),
       );
+
       const snap = await runTool(
         runtime,
         manager.start({
@@ -126,37 +135,44 @@ NodeTest(
           cwd,
         }),
       );
+
       await runTool(runtime, manager.kill([snap.id]));
       NodeAssert.deepEqual(settled, [{ id: snap.id, consumed: true }]);
     });
   },
 );
 
-NodeTest("UI requestKill settles as killed and is NOT consumed", async () => {
-  await withManager(async (manager, runtime) => {
-    const settled: Array<{ id: string; status: string; consumed: boolean }> =
-      [];
-    manager.view.setOnSettled((snap, consumed) =>
-      settled.push({ id: snap.id, status: snap.status, consumed }),
-    );
-    const snap = await runTool(
-      runtime,
-      manager.start({
-        command: nodeCmd("setInterval(() => {}, 1000)"),
-        title: "ui-kill",
-        cwd,
-      }),
-    );
-    manager.view.requestKill(snap.id);
-    const { snap: after } = await settlement(manager, snap.id);
-    NodeAssert.equal(after.status, "killed");
-    NodeAssert.deepEqual(settled, [
-      { id: snap.id, status: "killed", consumed: false },
-    ]);
-  });
-});
+await NodeTest(
+  "UI requestKill settles as killed and is NOT consumed",
+  async () => {
+    await withManager(async (manager, runtime) => {
+      const settled: Array<{ id: string; status: string; consumed: boolean }> =
+        [];
 
-NodeTest(
+      manager.view.setOnSettled((snap, consumed) =>
+        settled.push({ id: snap.id, status: snap.status, consumed }),
+      );
+
+      const snap = await runTool(
+        runtime,
+        manager.start({
+          command: nodeCmd("setInterval(() => {}, 1000)"),
+          title: "ui-kill",
+          cwd,
+        }),
+      );
+
+      manager.view.requestKill(snap.id);
+      const { snap: after } = await settlement(manager, snap.id);
+      NodeAssert.equal(after.status, "killed");
+      NodeAssert.deepEqual(settled, [
+        { id: snap.id, status: "killed", consumed: false },
+      ]);
+    });
+  },
+);
+
+await NodeTest(
   "beginShutdown closes admission and returns every running terminal",
   async () => {
     await withManager(async (manager, runtime) => {
@@ -184,7 +200,7 @@ NodeTest(
   },
 );
 
-NodeTest(
+await NodeTest(
   "runtime.dispose kills running processes; no settle hook fires after dispose",
   async () => {
     const runtime = createTerminalRuntime();
@@ -200,6 +216,7 @@ NodeTest(
         cwd,
       }),
     );
+
     const pid = snap.pid;
     NodeAssert.ok(pid);
 

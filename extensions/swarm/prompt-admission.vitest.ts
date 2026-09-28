@@ -14,6 +14,7 @@ import { receipt, factoryFixture } from "./pi-session.test-support.ts";
 it("keeps ignored raw tool execution owned after SDK prompt abort and bounds disposal honestly", async () => {
   const raw = receipt();
   const invoked = receipt();
+
   const definition = defineTool({
     name: "ignored_abort",
     label: "fixture",
@@ -22,12 +23,15 @@ it("keeps ignored raw tool execution owned after SDK prompt abort and bounds dis
     async execute() {
       invoked.resolve();
       await raw.promise;
+
       return { content: [], details: {} };
     },
   });
+
   const f = await factoryFixture([definition]);
   const controller = new AbortController();
   const scope = Effect.runSync(Scope.make());
+
   const child = await Effect.runPromise(
     Scope.provide(
       Effect.flatMap(SessionFactory, (factory) => factory(f.task)).pipe(
@@ -36,9 +40,10 @@ it("keeps ignored raw tool execution owned after SDK prompt abort and bounds dis
       scope,
     ),
   );
+
   const tool = f.session.getToolDefinition("ignored_abort");
   NodeAssert.ok(tool);
-  vi.mocked(f.session.prompt).mockImplementation(async (_text, options) => {
+  f.mocks.prompt.mockImplementation(async (_text, options) => {
     options?.preflightResult?.(true);
     // SAFETY: this fixture tool does not read its extension context.
     const context = {} as ExtensionContext;
@@ -47,22 +52,26 @@ it("keeps ignored raw tool execution owned after SDK prompt abort and bounds dis
   f.session.abort = async () => {
     controller.abort(new Error("stop requested"));
   };
+
   await Effect.runPromise(child.send("start"));
   await invoked.promise;
   let stopped = false;
+
   const interrupt = Effect.runPromise(child.interrupt).then(() => {
     stopped = true;
   });
+
   await Promise.resolve();
   await Promise.resolve();
   NodeAssert.equal(stopped, false);
   NodeAssert.ok(child.pendingResources?.().includes("ignored_abort:call-1"));
   vi.useFakeTimers();
+
   try {
     const closing = Effect.runPromiseExit(Scope.close(scope, Exit.void));
     await vi.advanceTimersByTimeAsync(5_001);
     NodeAssert.ok(Exit.isFailure(await closing));
-    NodeAssert.equal(vi.mocked(f.session.dispose).mock.calls.length, 1);
+    NodeAssert.equal(f.mocks.dispose.mock.calls.length, 1);
     NodeAssert.equal(stopped, false);
     raw.reject(new Error("late tool rejection"));
     await interrupt;
@@ -82,6 +91,7 @@ it("steering at the SDK idle boundary returns for manager readmission rather tha
   const drainFinished = receipt();
   let queued = true;
   let streaming = false;
+
   const session: PromptSession = {
     get isStreaming() {
       return streaming;
@@ -103,6 +113,7 @@ it("steering at the SDK idle boundary returns for manager readmission rather tha
     }),
     prompt: vi.fn(async (text, options) => {
       options?.preflightResult?.(true);
+
       if (text === "first") await firstFinished.promise;
       else {
         secondStarted.resolve();
@@ -113,17 +124,22 @@ it("steering at the SDK idle boundary returns for manager readmission rather tha
     clearQueue: () => ({ steering: [], followUp: [] }),
     abort: async () => {},
   };
+
   const lifecycle = new PiPromptLifecycle(session, {
     started() {},
     settled() {},
     interrupted() {},
   });
+
   await Effect.runPromise(lifecycle.send("first"));
   let returnedToManager = false;
+
   const steer = Effect.runPromise(lifecycle.steer("second")).then((result) => {
     returnedToManager = true;
+
     return result;
   });
+
   firstFinished.resolve();
   await drainStarted.promise;
   NodeAssert.equal(returnedToManager, false);
@@ -145,6 +161,7 @@ it("steering at the SDK idle boundary returns for manager readmission rather tha
 it("cancelling a pending peer steer observes it without aborting the recipient", async () => {
   const steerStarted = receipt();
   const steerFinished = receipt();
+
   const session: PromptSession = {
     isStreaming: true,
     waitForIdle: async () => {},
@@ -159,15 +176,19 @@ it("cancelling a pending peer steer observes it without aborting the recipient",
     clearQueue: () => ({ steering: [], followUp: [] }),
     abort: vi.fn(async () => {}),
   };
+
   const lifecycle = new PiPromptLifecycle(session, {
     started() {},
     settled() {},
     interrupted() {},
   });
+
   const controller = new AbortController();
+
   const send = Effect.runPromiseExit(lifecycle.steer("peer update"), {
     signal: controller.signal,
   });
+
   await steerStarted.promise;
   controller.abort(new Error("sender cancelled"));
   steerFinished.resolve();

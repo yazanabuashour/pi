@@ -93,10 +93,13 @@ export class SwarmExtensionSession {
         this.updateStatus(manager),
       );
       this.updateStatus(manager);
+
       return manager;
     });
     const manager = await this.managerPromise;
+
     if (this.closing) throw new Error("Swarm session is shutting down.");
+
     return manager;
   }
 
@@ -114,11 +117,13 @@ export class SwarmExtensionSession {
     this.shutdownReason = undefined;
     this.sessionContext = context;
     this.lifecycle.start(context.sessionManager.getSessionId());
+
     if (context.hasUI) this.ui = context.ui;
   }
 
   private updateStatus(manager: SwarmManagerService) {
     if (!this.ui) return;
+
     try {
       updateSwarmStatus(this.ui, manager);
     } catch (error) {
@@ -161,8 +166,11 @@ export class SwarmExtensionSession {
   private onSettled(snapshot: AgentSnapshot, consumed: boolean) {
     if (!this.sessionContext) return;
     this.lifecycle.record(snapshot, "settled");
+
     if (this.closing) return;
+
     if (snapshot.origin === "model") this.messages.forwardCompletion(snapshot);
+
     if (snapshot.origin !== "model") {
       deliverBtwResult(this.pi, this.ui, {
         ...snapshot,
@@ -172,6 +180,7 @@ export class SwarmExtensionSession {
       this.resultDelivery.consume([agentRunId(snapshot)]);
     } else {
       this.resultDelivery.defer({ ...snapshot, meta: { ...snapshot.meta } });
+
       if (this.sessionContext.isIdle()) this.flushResults(true);
     }
   }
@@ -179,6 +188,7 @@ export class SwarmExtensionSession {
   private async stopRunning(manager: SwarmManagerService | undefined) {
     const snapshots = manager?.view.beginShutdown() ?? [];
     const ids = snapshots.map((snapshot) => snapshot.id);
+
     if (manager && ids.length > 0) {
       try {
         await runTool(this.getRuntime(), manager.cancel(ids), {
@@ -190,6 +200,7 @@ export class SwarmExtensionSession {
         console.error("swarm: shutdown cancellation failed", error);
       }
     }
+
     return snapshots;
   }
 
@@ -199,6 +210,7 @@ export class SwarmExtensionSession {
     disposalError?: string,
   ) {
     const incomplete = new Set<string>();
+
     const all = new Map([
       ...(disposalError ? (manager?.view.list() ?? []) : []).map(
         (snapshot) => [snapshot.id, snapshot] as const,
@@ -211,6 +223,7 @@ export class SwarmExtensionSession {
         (snapshot) => [snapshot.id, snapshot] as const,
       ),
     ]);
+
     for (const observed of all.values()) {
       const snapshot = disposalError
         ? {
@@ -218,10 +231,13 @@ export class SwarmExtensionSession {
             cleanupIncomplete: observed.cleanupIncomplete ?? disposalError,
           }
         : observed;
+
       if (!this.lifecycle.hasStarted(snapshot))
         this.lifecycle.record(snapshot, "started");
+
       if (snapshot.status !== "running")
         this.lifecycle.record(snapshot, "settled");
+
       if (snapshot.status === "running" || snapshot.cleanupIncomplete) {
         incomplete.add(snapshot.id);
         this.lifecycle.record(
@@ -235,7 +251,9 @@ export class SwarmExtensionSession {
         );
       }
     }
+
     this.lifecycle.retrySettlements();
+
     return [...incomplete];
   }
 
@@ -244,12 +262,15 @@ export class SwarmExtensionSession {
     this.sessionContext = undefined;
     this.unsubStatus?.();
     this.unsubStatus = undefined;
+
     try {
       this.ui?.setStatus("swarm", undefined);
     } catch {
       // The user interface may already be unavailable during teardown.
     }
+
     this.ui = undefined;
+
     return unpersisted;
   }
 
@@ -258,40 +279,48 @@ export class SwarmExtensionSession {
     this.shutdownReason = reason;
     this.resultDelivery.clear();
     let manager: SwarmManagerService | undefined;
+
     try {
       manager = this.managerPromise ? await this.managerPromise : undefined;
     } catch (error) {
       console.error("swarm: manager startup failed", error);
     }
+
     const snapshots = await this.stopRunning(manager);
     const runtime = this.runtime;
     this.runtime = undefined;
     this.managerPromise = undefined;
     const failures: unknown[] = [];
     let disposalError: string | undefined;
+
     try {
       await runtime?.dispose();
     } catch (error) {
       disposalError = `Runtime disposal failed: ${String(error)}`;
       failures.push(error);
     }
+
     try {
       await this.messages.settled();
     } catch (error) {
       failures.push(error);
     }
+
     const incomplete = this.recordShutdown(manager, snapshots, disposalError);
     const unpersisted = this.resetAfterShutdown();
+
     if (incomplete.length > 0)
       failures.push(
         new Error(`Swarm cleanup incomplete: ${incomplete.join(", ")}.`),
       );
+
     if (unpersisted > 0)
       failures.push(
         new Error(
           `Swarm shutdown left ${unpersisted} lifecycle receipt(s) unpersisted.`,
         ),
       );
+
     if (failures.length > 0)
       throw new AggregateError(failures, failures.map(String).join("; "));
   }

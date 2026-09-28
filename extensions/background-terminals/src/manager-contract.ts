@@ -11,15 +11,25 @@ import type {
 import type { OutputBuffer } from "./output.ts";
 
 export const MAX_RUNNING = 8;
+
 export const MAX_TRACKED = 32;
+
 export const MAX_SETTLED_HISTORY = MAX_TRACKED * 4;
+
 export const RETAINED_PER_STREAM = 2 * 1024 * 1024;
+
 export const MAX_SPILL_BYTES_PER_STREAM = 256 * 1024 * 1024;
+
 export const STOP_TIMEOUT_MS = 5_000;
+
 export const FORCE_KILL_AFTER_MS = 2_000;
+
 export const SETTLE_GRACE_MS = 1_000;
+
 export const TERMINAL_SHUTDOWN_TIMEOUT_MS = STOP_TIMEOUT_MS + SETTLE_GRACE_MS;
+
 export const SPILL_FLUSH_TIMEOUT_MS = 1_500;
+
 const ERROR_TEXT_MAX_LENGTH = 4_096;
 
 export function bounded(text: string) {

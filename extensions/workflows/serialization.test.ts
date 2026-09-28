@@ -12,7 +12,7 @@ import {
   writeFileAtomic,
 } from "./serialization.ts";
 
-NodeTest(
+await NodeTest(
   "worker serializes cycles, repeated references, bigint and undefined",
   async () => {
     const run = (source: string) =>
@@ -24,6 +24,7 @@ NodeTest(
         onAgent: async () => ({ ok: true, output: "unused" }),
         onPhase: () => {},
       });
+
     NodeAssert.deepEqual(
       await run(`
     const value = { count: 7n };
@@ -36,12 +37,13 @@ NodeTest(
   },
 );
 
-NodeTest("safeStringify handles cycles, bigint, depth, and size", () => {
+await NodeTest("safeStringify handles cycles, bigint, depth, and size", () => {
   const value: RuntimeRecord = {
     bigint: 42n,
     nested: { deeper: { deepest: true } },
     large: "x".repeat(20_000),
   };
+
   value["self"] = value;
 
   const text = safeStringify(value, {
@@ -49,6 +51,7 @@ NodeTest("safeStringify handles cycles, bigint, depth, and size", () => {
     maxDepth: 2,
     maxStringBytes: 512,
   });
+
   NodeAssert.ok(Buffer.byteLength(text, "utf8") <= 2_048);
   const parsed: unknown = JSON.parse(text);
   NodeAssert.ok(parsed && isObjectValue(parsed));
@@ -57,7 +60,7 @@ NodeTest("safeStringify handles cycles, bigint, depth, and size", () => {
   NodeAssert.match(text, /truncated/);
 });
 
-NodeTest(
+await NodeTest(
   "toSerializable preserves readable properties beside a throwing getter",
   () => {
     const value = {
@@ -77,10 +80,11 @@ NodeTest(
   },
 );
 
-NodeTest("atomic writes leave complete readable content", () => {
+await NodeTest("atomic writes leave complete readable content", () => {
   const directory = NodeFS.mkdtempSync(
     NodePath.join(NodeOS.tmpdir(), "pi-workflow-test-"),
   );
+
   try {
     const file = NodePath.join(directory, "artifact.json");
     writeFileAtomic(file, '{"value":1}');

@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Effect, Match, Predicate } from "effect";
 import {
   LIVE_ASSISTANT_MAX_LENGTH,
   appendTranscript,
@@ -6,9 +6,10 @@ import {
   type Entry,
 } from "./manager-contract.ts";
 import { notify, settle, type ManagerState } from "./manager-state.ts";
-import type { AgentEvent } from "./domain.ts";
+import { RunOutcome, type AgentEvent } from "./domain.ts";
 
 type Event<Tag extends AgentEvent["_tag"]> = Extract<AgentEvent, { _tag: Tag }>;
+
 function foldAssistantDelta(entry: Entry, event: Event<"AssistantDelta">) {
   const live = entry.snapshot.liveAssistant ?? { text: "", thinking: "" };
   entry.snapshot.liveAssistant =
@@ -31,6 +32,7 @@ function foldAssistantMessage(entry: Entry, event: Event<"AssistantMessage">) {
     parts: event.parts.map((part) => {
       if (part.type !== "toolCall")
         return { ...part, text: boundedTranscriptText(part.text) };
+
       return {
         ...part,
         argsPreview: part.argsPreview
@@ -53,6 +55,7 @@ function foldToolStart(entry: Entry, event: Event<"ToolStart">) {
 
 function foldToolUpdate(entry: Entry, event: Event<"ToolUpdate">) {
   const current = entry.liveToolMap.get(event.toolId);
+
   if (!current) return;
   entry.liveToolMap.set(event.toolId, {
     ...current,
@@ -85,16 +88,21 @@ function foldRunStarted(
   const snapshot = entry.snapshot;
   const restarted = snapshot.status !== "running";
   entry.restarting = false;
+
   if (restarted) snapshot.generation++;
   snapshot.status = "running";
   snapshot.outcome = undefined;
   snapshot.settledAt = undefined;
   snapshot.errorText = undefined;
+
   if (restarted && state.onStarted?.(snapshot) === false) {
-    settle(state, entry, {
-      _tag: "Failed",
-      errorText: "Run lifecycle could not be persisted",
-    });
+    settle(
+      state,
+      entry,
+      RunOutcome.Failed({
+        errorText: "Run lifecycle could not be persisted",
+      }),
+    );
     state.runDetached(abort(entry).pipe(Effect.ignore));
   }
 }
@@ -106,46 +114,40 @@ export function foldEvent(
   abort: (entry: Entry) => Effect.Effect<void>,
 ) {
   const snapshot = entry.snapshot;
-  switch (event._tag) {
-    case "RunStarted":
-      foldRunStarted(state, entry, abort);
-      break;
-    case "RunSettled":
-      settle(state, entry, event.outcome);
-      return;
-    case "UserMessage":
-      appendTranscript(snapshot, {
-        kind: "user",
-        text: boundedTranscriptText(event.text),
-      });
-      break;
-    case "AssistantDelta":
-      foldAssistantDelta(entry, event);
-      break;
-    case "AssistantMessage":
-      foldAssistantMessage(entry, event);
-      break;
-    case "ToolStart":
-      foldToolStart(entry, event);
-      break;
-    case "ToolUpdate":
-      foldToolUpdate(entry, event);
-      break;
-    case "ToolEnd":
-      foldToolEnd(entry, event);
-      break;
-    case "QueueChanged":
-      snapshot.queued = event.queued;
-      break;
-    case "UsageChanged":
-      snapshot.usage = {
-        tokens: event.tokens ?? snapshot.usage.tokens,
-        contextWindow: event.contextWindow ?? snapshot.usage.contextWindow,
-      };
-      break;
-    case "MetaChanged":
-      snapshot.meta = { ...snapshot.meta, ...event.meta };
-      break;
+
+  if (Predicate.isTagged(event, "RunSettled")) {
+    settle(state, entry, event.outcome);
+
+    return;
   }
+
+  Match.value(event).pipe(
+    Match.tagsExhaustive({
+      RunStarted: () => foldRunStarted(state, entry, abort),
+      UserMessage: (event) =>
+        appendTranscript(snapshot, {
+          kind: "user",
+          text: boundedTranscriptText(event.text),
+        }),
+      AssistantDelta: (event) => foldAssistantDelta(entry, event),
+      AssistantMessage: (event) => foldAssistantMessage(entry, event),
+      ToolStart: (event) => foldToolStart(entry, event),
+      ToolUpdate: (event) => foldToolUpdate(entry, event),
+      ToolEnd: (event) => foldToolEnd(entry, event),
+      QueueChanged: (event) => {
+        snapshot.queued = event.queued;
+      },
+      UsageChanged: (event) => {
+        snapshot.usage = {
+          tokens: event.tokens ?? snapshot.usage.tokens,
+          contextWindow: event.contextWindow ?? snapshot.usage.contextWindow,
+        };
+      },
+      MetaChanged: (event) => {
+        snapshot.meta = { ...snapshot.meta, ...event.meta };
+      },
+    }),
+  );
+
   notify(state, snapshot.id);
 }

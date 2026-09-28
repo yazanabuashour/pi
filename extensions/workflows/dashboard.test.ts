@@ -9,11 +9,12 @@ import { loadRunEntries, normalizeWorkflowDetails } from "./dashboard.ts";
 import { WorkflowDashboard } from "./workflow-dashboard.ts";
 import { emptyUsage, type Theme, type WorkflowDetails } from "./model.ts";
 
-NodeTest("workflow artifacts require the v1 contract", () => {
+await NodeTest("workflow artifacts require the v1 contract", () => {
   const current = normalizeWorkflowDetails("wf_current", {
     schemaVersion: 1,
     status: "completed",
   });
+
   NodeAssert.ok(current);
   NodeAssert.equal(
     normalizeWorkflowDetails("wf_unversioned", { status: "completed" }),
@@ -39,6 +40,7 @@ function fixture(t: NodeTest.TestContext) {
   const directory = NodeFS.mkdtempSync(
     NodePath.join(NodeOS.tmpdir(), "pi-dashboard-"),
   );
+
   const previous = process.env["PI_CODING_AGENT_DIR"];
   process.env["PI_CODING_AGENT_DIR"] = directory;
   t.after(() => {
@@ -46,12 +48,14 @@ function fixture(t: NodeTest.TestContext) {
     else process.env["PI_CODING_AGENT_DIR"] = previous;
     NodeFS.rmSync(directory, { recursive: true, force: true });
   });
+
   return NodePath.join(directory, "workflows");
 }
 
 function savedRun(root: string, runId: string, sessionId = "session_fixture") {
   const directory = NodePath.join(root, runId);
   NodeFS.mkdirSync(directory, { recursive: true });
+
   const details: WorkflowDetails = {
     schemaVersion: 1,
     runId,
@@ -62,14 +66,16 @@ function savedRun(root: string, runId: string, sessionId = "session_fixture") {
     phases: [],
     agents: [],
   };
+
   NodeFS.writeFileSync(
     NodePath.join(directory, "workflow.json"),
     JSON.stringify(details),
   );
+
   return { directory, details };
 }
 
-NodeTest(
+await NodeTest(
   "absent workflow directory is empty but listing failures reach the notice",
   (t) => {
     const root = fixture(t);
@@ -87,7 +93,7 @@ NodeTest(
   },
 );
 
-NodeTest(
+await NodeTest(
   "corrupt runs are visible while compatible, partial and foreign runs stay read-only",
   (t) => {
     const root = fixture(t);
@@ -121,23 +127,29 @@ NodeTest(
       "{}",
     );
     const unreadable = savedRun(root, "wf_unreadable");
+
     const unreadableManifest = NodePath.join(
       unreadable.directory,
       "workflow.json",
     );
+
     NodeFS.unlinkSync(unreadableManifest);
     NodeFS.mkdirSync(unreadableManifest);
     const foreign = savedRun(root, "wf_foreign", "other_session");
     savedRun(root, "wf_compatible");
+
     const loaded = loadRunEntries(
       new Map(),
       "session_fixture",
       new Set(["wf_foreign"]),
     );
+
     NodeAssert.equal(loaded.entries.length, 3);
+
     const partial = loaded.entries.find(
       (entry) => entry.runId === "wf_partial",
     );
+
     NodeAssert.deepEqual(partial?.details.result, details.result);
     NodeAssert.deepEqual(
       partial?.details.agents[0]?.transcript,
@@ -179,7 +191,7 @@ NodeTest(
   },
 );
 
-NodeTest(
+await NodeTest(
   "malformed transcript entries are reported without dropping valid partial content",
   (t) => {
     const root = fixture(t);
@@ -199,6 +211,7 @@ NodeTest(
       JSON.stringify(details),
     );
     const transcriptPath = NodePath.join(directory, "transcripts.json");
+
     for (const transcripts of [
       [],
       { "1": [{ role: "assistant", text: "kept" }, { role: "bogus" }] },
@@ -210,6 +223,7 @@ NodeTest(
         loaded.notice ?? "",
         /wf_transcript\/transcript: invalid/,
       );
+
       if (!Array.isArray(transcripts))
         NodeAssert.deepEqual(loaded.entries[0]?.details.agents[0]?.transcript, [
           { role: "assistant", text: "kept" },
@@ -218,7 +232,7 @@ NodeTest(
   },
 );
 
-NodeTest(
+await NodeTest(
   "artifact failures remain visible in direct detail, transcript and list views",
   (t) => {
     const root = fixture(t);
@@ -238,20 +252,24 @@ NodeTest(
       NodePath.join(directory, "workflow.json"),
       JSON.stringify(details),
     );
+
     const tui: TUI = Object.assign(Object.create(null), {
       terminal: { rows: 24 },
       requestRender: () => {},
     });
+
     const theme: Theme = Object.assign(Object.create(null), {
       fg: (_color: string, text: string) => text,
       bold: (text: string) => text,
     });
+
     const keys: KeybindingsManager = Object.assign(Object.create(null), {
       getKeys: () => ["esc"],
       matches: (data: string, binding: string) =>
         (data === "enter" && binding === "tui.select.confirm") ||
         (data === "escape" && binding === "tui.select.cancel"),
     });
+
     const dashboard = new WorkflowDashboard(
       tui,
       theme,
@@ -262,11 +280,13 @@ NodeTest(
       () => {},
       "wf_display",
     );
+
     const assertNotice = () =>
       NodeAssert.match(
         dashboard.render(100).at(-1) ?? "",
         /wf_display\/transcript: ENOENT/,
       );
+
     try {
       NodeAssert.match(dashboard.render(100).join("\n"), /retained-child/);
       assertNotice();

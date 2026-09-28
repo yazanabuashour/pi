@@ -21,6 +21,7 @@ it.live(
       const release = yield* Deferred.make<void>();
       const disposed = yield* Deferred.make<void>();
       let dispatched = false;
+
       const layer = SwarmManagerLive.pipe(
         Layer.provide(
           Layer.succeed(SessionFactory, (spawnTask) =>
@@ -32,11 +33,14 @@ it.live(
                   Deferred.succeed(disposed, undefined),
                 );
               }
+
               const session = yield* spawnStubSession(spawnTask);
+
               return {
                 ...session,
                 send: (text: string) => {
                   if (spawnTask.title === "child") dispatched = true;
+
                   return session.send(text);
                 },
               };
@@ -44,9 +48,11 @@ it.live(
           ),
         ),
       );
+
       yield* Effect.gen(function* () {
         const manager = yield* SwarmManager;
         const parent = yield* manager.spawn(task("parent"));
+
         const child = yield* Effect.forkChild(
           manager
             .spawn({
@@ -59,6 +65,7 @@ it.live(
             })
             .pipe(Effect.result),
         );
+
         yield* Deferred.await(creating);
         yield* manager.cancel([parent.id]);
         yield* Deferred.succeed(release, undefined);
@@ -73,6 +80,7 @@ it.live(
 it.live("failed initial admission closes its published lifecycle receipt", () =>
   Effect.gen(function* () {
     const receipts: string[] = [];
+
     const layer = SwarmManagerLive.pipe(
       Layer.provide(
         Layer.succeed(SessionFactory, (spawnTask) =>
@@ -84,10 +92,12 @@ it.live("failed initial admission closes its published lifecycle receipt", () =>
         ),
       ),
     );
+
     yield* Effect.gen(function* () {
       const manager = yield* SwarmManager;
       manager.view.setOnStarted((snapshot) => {
         receipts.push(`${snapshot.id}:started`);
+
         return true;
       });
       manager.view.setOnSettled((snapshot) =>
@@ -103,6 +113,7 @@ it.live("failed initial admission closes its published lifecycle receipt", () =>
 it.live("abort defects fail visibly and still close the owned session", () =>
   Effect.gen(function* () {
     let closed = false;
+
     const layer = SwarmManagerLive.pipe(
       Layer.provide(
         Layer.succeed(SessionFactory, (spawnTask) =>
@@ -113,6 +124,7 @@ it.live("abort defects fail visibly and still close the owned session", () =>
                 closed = true;
               }),
             );
+
             return {
               ...session,
               interrupt: Effect.die(new Error("fixture abort failure")),
@@ -121,6 +133,7 @@ it.live("abort defects fail visibly and still close the owned session", () =>
         ),
       ),
     );
+
     yield* Effect.gen(function* () {
       const manager = yield* SwarmManager;
       const child = yield* manager.spawn(task("child"));

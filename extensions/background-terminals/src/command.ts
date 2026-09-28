@@ -11,6 +11,7 @@ export function registerTerminalCommand(
     description: "List and inspect background terminals",
     handler: async (_args, context) => {
       const manager = await session.getManager();
+
       if (context.mode !== "tui") {
         if (context.hasUI) {
           const terminals = manager.view.list();
@@ -23,15 +24,19 @@ export function registerTerminalCommand(
             "info",
           );
         }
+
         return;
       }
+
       if (manager.view.size() === 0) {
         context.ui.notify(
           "No background terminals yet. The agent starts them with bg_start.",
           "info",
         );
+
         return;
       }
+
       await openTerminalPicker(context, manager.view);
     },
   });

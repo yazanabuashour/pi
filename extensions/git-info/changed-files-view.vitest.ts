@@ -9,6 +9,7 @@ import { CommandRunner, type CommandResult } from "./src/process.ts";
 it("repository text cannot inject terminal control sequences", () => {
   const input =
     "before\u001b]52;c;Y2xpcGJvYXJk\u0007after\u001b[31mred\u001b[0m\u0001";
+
   assert.equal(sanitizeTerminalText(input), "beforeafterred");
 });
 
@@ -34,16 +35,19 @@ it.effect("changed-files failures do not look clean or non-repository", () =>
       ["rev-parse --verify --quiet HEAD", "rev-parse --verify HEAD"],
     ]) {
       assert.ok(command);
+
       const failure = yield* Effect.flip(
         loadWithResults({
           [command]: { code: -1, stderr: "permission denied" },
         }),
       );
+
       assert.equal(
         failure.message,
         `git ${operation} unavailable (exit -1): permission denied`,
       );
     }
+
     assert.equal(
       yield* loadWithResults({
         "rev-parse --show-toplevel": {
@@ -74,9 +78,11 @@ it.effect(
           stdout: "1\t0\tfile.txt",
         },
       };
+
       const files = yield* loadWithResults(results);
       assert.equal(files?.[0]?.additions, 1);
       assert.deepEqual(files?.[0]?.diff, ["+hello"]);
+
       for (const command of Object.keys(results).filter((key) =>
         key.startsWith("diff "),
       )) {
@@ -86,6 +92,7 @@ it.effect(
             [command]: { code: 128, stderr: "cannot read file" },
           }),
         );
+
         assert.match(
           failure.message,
           /git diff.*unavailable.*cannot read file/,

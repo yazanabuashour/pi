@@ -33,12 +33,15 @@ function reserveStart(state: ManagerState) {
           message: "Background terminal manager is shutting down.",
         });
       }
+
       if (runningCount(state) + state.reserved >= MAX_RUNNING) {
         return new ConcurrencyLimitError({
           message: `Max ${MAX_RUNNING} background terminals can run concurrently. Stop one with bg_kill before starting another.`,
         });
       }
+
       state.reserved++;
+
       return Effect.void;
     },
   );
@@ -46,6 +49,7 @@ function reserveStart(state: ManagerState) {
 
 function spawnChild(options: StartOptions) {
   const { shell, args } = shellInvocation(options.command);
+
   return Effect.try({
     try: () =>
       NodeChildProcess.spawn(shell, args, {
@@ -64,16 +68,20 @@ function createBuffers(
   id: string,
 ) {
   const entryRef = () => state.entries.get(id);
+
   const stdoutSpill = createSpill(state, entryRef, id, "stdout", () =>
     child.stdout?.resume(),
   );
+
   const stderrSpill = createSpill(state, entryRef, id, "stderr", () =>
     child.stderr?.resume(),
   );
+
   const stdoutBuf = new OutputBuffer(RETAINED_PER_STREAM, stdoutSpill?.write);
   const stderrBuf = new OutputBuffer(RETAINED_PER_STREAM, stderrSpill?.write);
   stdoutBuf.spillPath = stdoutSpill?.spillPath;
   stderrBuf.spillPath = stderrSpill?.spillPath;
+
   return { stdoutBuf, stderrBuf, stdoutSpill, stderrSpill };
 }
 
@@ -85,6 +93,7 @@ function createEntry(
   return Effect.gen(function* () {
     const id = `bt-${++state.counter}`;
     const buffers = createBuffers(state, child, id);
+
     const snapshot: MutableSnapshot = {
       id,
       command: options.command,
@@ -99,13 +108,16 @@ function createEntry(
         return buffers.stderrBuf.view();
       },
     };
+
     if (child.pid !== undefined) snapshot.pid = child.pid;
     const scope = yield* Scope.make();
     const settled = yield* Deferred.make<void>();
+
     const spillStreams = [
       buffers.stdoutSpill?.file,
       buffers.stderrSpill?.file,
     ].filter((file): file is NodeFS.WriteStream => file !== undefined);
+
     return {
       snapshot,
       child,
@@ -143,6 +155,7 @@ function wireLifecycle(state: ManagerState, entry: Entry) {
   const { child, snapshot } = entry;
   child.once("error", (error) => {
     snapshot.errorText ??= boundedError(error);
+
     // A spawn error proves no child was started. Other errors (including
     // failed signals) do not prove that an existing child exited.
     if (child.pid !== undefined) return;
@@ -153,12 +166,16 @@ function wireLifecycle(state: ManagerState, entry: Entry) {
   child.once("exit", (code, signal) => {
     entry.stopRequestedBeforeExit = snapshot.stopRequested === true;
     entry.exited = true;
+
     if (entry.stdioCleanupIncomplete) {
       snapshot.cleanupIncomplete =
         "Process exit observed, but stdio did not close";
     }
+
     if (code !== null) snapshot.exitCode = code;
+
     if (signal !== null) snapshot.signal = signal;
+
     // Bounded cleanup may already have closed the scope without observing exit.
     if (Deferred.isDoneUnsafe(entry.settled)) settleAfterFlush(state, entry);
     else scheduleExitCleanup(state, entry);
@@ -168,19 +185,23 @@ function wireLifecycle(state: ManagerState, entry: Entry) {
       entry.stopRequestedBeforeExit = snapshot.stopRequested === true;
     entry.exited = true;
     entry.stdioClosed = true;
+
     if (entry.stdioCleanupIncomplete) {
       entry.stdioCleanupIncomplete = false;
       delete snapshot.cleanupIncomplete;
       notify(state, snapshot.id);
     }
+
     if (!entry.processErrored) {
       if (snapshot.exitCode === undefined && code !== null) {
         snapshot.exitCode = code;
       }
+
       if (snapshot.signal === undefined && signal !== null) {
         snapshot.signal = signal;
       }
     }
+
     settleAfterFlush(state, entry);
   });
 }
@@ -188,6 +209,7 @@ function wireLifecycle(state: ManagerState, entry: Entry) {
 function forceSettlement(state: ManagerState, entry: Entry) {
   return Effect.gen(function* () {
     if (entry.snapshot.status !== "running" || entry.settling) return;
+
     if (!entry.stdioClosed) {
       entry.stdioCleanupIncomplete = true;
       entry.snapshot.cleanupIncomplete = entry.exited
@@ -198,6 +220,7 @@ function forceSettlement(state: ManagerState, entry: Entry) {
       entry.stdoutBuf.spillPath = undefined;
       entry.stderrBuf.spillPath = undefined;
     }
+
     entry.settling = true;
     yield* flushSpillStreams(entry);
     settle(state, entry);
@@ -214,14 +237,17 @@ function installFinalizer(state: ManagerState, entry: Entry) {
         notify(state, entry.snapshot.id);
       },
     );
+
     if (entry.snapshot.status === "running") {
       yield* Deferred.await(entry.settled).pipe(
         Effect.timeout(SETTLE_GRACE_MS),
         Effect.ignore,
       );
     }
+
     yield* forceSettlement(state, entry);
   });
+
   return Scope.provide(
     Effect.addFinalizer(() => finalizer),
     entry.scope,
@@ -235,14 +261,18 @@ function startReserved(state: ManagerState, options: StartOptions) {
     wireOutput(state, entry);
     wireLifecycle(state, entry);
     yield* installFinalizer(state, entry);
+
     if (state.disposed) {
       yield* closeEntryScope(entry);
+
       return yield* new SpawnError({
         message: "Background terminal manager shut down while starting.",
       });
     }
+
     state.entries.set(entry.snapshot.id, entry);
     notify(state, entry.snapshot.id);
+
     return entry.snapshot;
   });
 }
@@ -250,6 +280,7 @@ function startReserved(state: ManagerState, options: StartOptions) {
 export function startTerminal(state: ManagerState, options: StartOptions) {
   return Effect.gen(function* () {
     yield* reserveStart(state);
+
     return yield* startReserved(state, options).pipe(
       Effect.uninterruptible,
       Effect.ensuring(

@@ -2,9 +2,13 @@ import { Type } from "typebox";
 import { Value } from "typebox/value";
 
 const booleanSchema = Type.Boolean();
+
 const functionSchema = Type.Function([], Type.Any());
+
 const numberSchema = Type.Number();
+
 const recordSchema = Type.Record(Type.String(), Type.Any());
+
 const stringSchema = Type.String();
 
 export interface RuntimeRecord {

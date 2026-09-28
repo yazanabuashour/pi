@@ -13,6 +13,7 @@ import { registerSwarmTools } from "./src/extension-tools.ts";
 import type { SwarmExtensionSession } from "./src/extension-session.ts";
 
 type CommandOptions = Parameters<ExtensionAPI["registerCommand"]>[1];
+
 type Tool = Parameters<ExtensionAPI["registerTool"]>[0];
 
 function snapshotFor(task: SpawnTask): AgentSnapshot {
@@ -37,11 +38,12 @@ function snapshotFor(task: SpawnTask): AgentSnapshot {
   };
 }
 
-NodeTest(
+await NodeTest(
   "only btw and swarm commands remain; commands and tools inherit the parent model and effort",
   async () => {
     const commands = new Map<string, CommandOptions>();
     const tools = new Map<string, Tool>();
+
     const api: ExtensionAPI = Object.assign(Object.create(null), {
       getThinkingLevel: () => "high",
       registerCommand: (name: string, options: CommandOptions) =>
@@ -54,18 +56,22 @@ NodeTest(
     let takeoverOpened = false;
     let closeOnSpawn = false;
     let closing = false;
+
     const manager = {
       spawn: (task: SpawnTask) =>
         Effect.sync(() => {
           spawnedTask = task;
           snapshot = snapshotFor(task);
+
           if (closeOnSpawn) closing = true;
+
           return snapshot;
         }),
       view: {
         get: (id: string) => (snapshot?.id === id ? snapshot : undefined),
       },
     };
+
     const session: SwarmExtensionSession = Object.assign(Object.create(null), {
       identity: "test-runtime",
       isCurrent: (runtimeId: string) =>
@@ -75,8 +81,10 @@ NodeTest(
       getRuntime: () => ({ runPromiseExit: Effect.runPromiseExit }),
       details: (snapshot: AgentSnapshot) => snapshot,
     });
+
     // SAFETY: The command passes the registry through opaquely; this test never calls it.
     const modelRegistry = Object.create(null) as ModelRegistry;
+
     const context: ExtensionCommandContext = Object.assign(
       Object.create(null),
       {
@@ -90,6 +98,7 @@ NodeTest(
         ui: {
           custom: async () => {
             takeoverOpened = true;
+
             return null;
           },
           input: async () => undefined,
@@ -117,12 +126,14 @@ NodeTest(
     NodeAssert.ok(spawn);
     const params = { prompt: "Inspect the changes", name: "inspection" };
     NodeAssert.ok(Value.Check(spawn.parameters, params));
+
     for (const field of ["model", "provider", "role", "harness"]) {
       NodeAssert.equal(
         Value.Check(spawn.parameters, { ...params, [field]: "override" }),
         false,
       );
     }
+
     for (const reasoning_effort of [undefined, "off"] as const) {
       await spawn.execute(
         "test-spawn",

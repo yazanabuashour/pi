@@ -14,11 +14,13 @@ import type { ManagerState } from "./manager-state.ts";
 export function flushSpillStreams(entry: Entry) {
   const streams = entry.spillStreams;
   entry.spillStreams = [];
+
   return Effect.forEach(
     streams,
     (stream) =>
       Effect.callback<void>((resume) => {
         const done = () => resume(Effect.void);
+
         try {
           stream.end(done);
         } catch (error) {
@@ -49,6 +51,7 @@ export function flushSpillStreams(entry: Entry) {
 
 function resolveSpillDir(state: ManagerState) {
   if (state.spillDir !== undefined) return state.spillDir ?? undefined;
+
   try {
     const base = NodePath.join(NodeOS.tmpdir(), "pi-background-terminals");
     NodeFS.mkdirSync(base, { recursive: true, mode: 0o700 });
@@ -58,6 +61,7 @@ function resolveSpillDir(state: ManagerState) {
   } catch {
     state.spillDir = null;
   }
+
   return state.spillDir ?? undefined;
 }
 
@@ -92,13 +96,16 @@ export function createSpill(
   resumeSource: () => void,
 ) {
   const dir = resolveSpillDir(state);
+
   if (!dir) return undefined;
   const spillPath = NodePath.join(dir, `${id}.${stream}.log`);
+
   try {
     const file = NodeFS.createWriteStream(spillPath, {
       flags: "a",
       mode: 0o600,
     });
+
     let broken = false;
     let capped = false;
     let writtenBytes = 0;
@@ -107,20 +114,26 @@ export function createSpill(
       resumeSource();
       noteSpillFailure(entry(), stream, spillPath, error);
     });
+
     return {
       spillPath,
       file,
       write: (chunk: string) => {
         if (broken || capped || file.writableEnded) return true;
         const chunkBytes = Buffer.byteLength(chunk, "utf8");
+
         if (writtenBytes + chunkBytes > MAX_SPILL_BYTES_PER_STREAM) {
           capped = true;
           noteSpillCap(entry(), stream);
+
           return true;
         }
+
         writtenBytes += chunkBytes;
         const accepted = file.write(chunk);
+
         if (!accepted) file.once("drain", resumeSource);
+
         return accepted;
       },
     };

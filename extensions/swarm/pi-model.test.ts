@@ -33,13 +33,15 @@ const parentModel: Model<Api> = {
   compat: { supportsToolSearch: true },
 };
 
-NodeTest(
+await NodeTest(
   "an unlisted inherited Pi model prevents SDK settings fallback",
   async (t) => {
     const directory = await NodeFSP.mkdtemp(
       NodePath.join(NodeOS.tmpdir(), "pi-model-inheritance-"),
     );
+
     t.after(() => NodeFSP.rm(directory, { recursive: true, force: true }));
+
     const modelRuntime = await ModelRuntime.create({
       credentials: new InMemoryCredentialStore(),
       modelsStore: new InMemoryModelsStore(),
@@ -47,6 +49,7 @@ NodeTest(
       allowModelNetwork: false,
       refreshOnCreate: false,
     });
+
     const registry = new ModelRegistry(modelRuntime);
     registry.registerProvider(parentModel.provider, {
       api: "openai-responses",
@@ -58,10 +61,12 @@ NodeTest(
       registry.find(parentModel.provider, parentModel.id),
       undefined,
     );
+
     const settingsManager = SettingsManager.inMemory({
       defaultProvider: parentModel.provider,
       defaultModel: "settings-default",
     });
+
     const resourceLoader = new DefaultResourceLoader({
       cwd: directory,
       agentDir: directory,
@@ -72,6 +77,7 @@ NodeTest(
       noThemes: true,
       noContextFiles: true,
     });
+
     await resourceLoader.reload();
 
     // Construct sessions only. No prompt, provider request, or persisted session.
@@ -87,7 +93,9 @@ NodeTest(
         model: parentModel,
         thinkingLevel,
       };
+
       const { session } = await createAgentSession(options);
+
       try {
         NodeAssert.equal(session.model, parentModel);
         NodeAssert.equal(session.thinkingLevel, thinkingLevel);

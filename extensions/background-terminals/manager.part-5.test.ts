@@ -16,66 +16,76 @@ import {
 } from "./manager.test-support.ts";
 import { runTool } from "./src/runtime.ts";
 
-NodeTest("aborting the kill wait does not cancel the termination", async () => {
-  await withManager(async (manager, runtime) => {
-    const snap = await runTool(
-      runtime,
-      manager.start({
-        command:
-          hostPlatform === "win32"
-            ? nodeCmd("setInterval(() => {}, 1000)")
-            : `exec ${nodeCmd(
-                'process.on("SIGTERM", () => process.stdout.write("term\\n")); process.stdout.write("ready\\n"); setInterval(() => {}, 1000);',
-              )}`,
-        title: "abort-race",
-        cwd,
-      }),
-    );
-    const pid = snap.pid;
-    NodeAssert.ok(pid);
-    if (hostPlatform !== "win32") {
-      NodeAssert.ok(
-        await pollUntil(() =>
-          (manager.view.get(snap.id)?.stdout.text ?? "").includes("ready"),
-        ),
-        "child installed its SIGTERM handler",
+await NodeTest(
+  "aborting the kill wait does not cancel the termination",
+  async () => {
+    await withManager(async (manager, runtime) => {
+      const snap = await runTool(
+        runtime,
+        manager.start({
+          command:
+            hostPlatform === "win32"
+              ? nodeCmd("setInterval(() => {}, 1000)")
+              : `exec ${nodeCmd(
+                  'process.on("SIGTERM", () => process.stdout.write("term\\n")); process.stdout.write("ready\\n"); setInterval(() => {}, 1000);',
+                )}`,
+          title: "abort-race",
+          cwd,
+        }),
       );
-    }
 
-    const reason = new Error("caller stopped waiting");
-    const preAborted = new AbortController();
-    preAborted.abort(reason);
-    await NodeAssert.rejects(
-      runTool(runtime, manager.kill([snap.id]), { signal: preAborted.signal }),
-      { cause: reason },
-    );
-    NodeAssert.equal(
-      snap.stopRequested,
-      undefined,
-      "pre-aborted wait never accepted a kill",
-    );
+      const pid = snap.pid;
+      NodeAssert.ok(pid);
 
-    // Once accepted, interrupt only the caller's wait, not owned cleanup.
-    const controller = new AbortController();
-    const killPromise = runTool(runtime, manager.kill([snap.id]), {
-      signal: controller.signal,
-      interruptMessage: "aborted",
+      if (hostPlatform !== "win32") {
+        NodeAssert.ok(
+          await pollUntil(() =>
+            (manager.view.get(snap.id)?.stdout.text ?? "").includes("ready"),
+          ),
+          "child installed its SIGTERM handler",
+        );
+      }
+
+      const reason = new Error("caller stopped waiting");
+      const preAborted = new AbortController();
+      preAborted.abort(reason);
+      await NodeAssert.rejects(
+        runTool(runtime, manager.kill([snap.id]), {
+          signal: preAborted.signal,
+        }),
+        { cause: reason },
+      );
+      NodeAssert.equal(
+        snap.stopRequested,
+        undefined,
+        "pre-aborted wait never accepted a kill",
+      );
+
+      // Once accepted, interrupt only the caller's wait, not owned cleanup.
+      const controller = new AbortController();
+
+      const killPromise = runTool(runtime, manager.kill([snap.id]), {
+        signal: controller.signal,
+        interruptMessage: "aborted",
+      });
+
+      NodeAssert.ok(await pollUntil(() => snap.stopRequested === true));
+      controller.abort(reason);
+      await NodeAssert.rejects(killPromise, {
+        message: "aborted",
+        cause: reason,
+      });
+
+      const { snap: after } = await settlement(manager, snap.id);
+      NodeAssert.equal(after.status, "killed");
+
+      if (hostPlatform !== "win32") NodeAssert.equal(after.signal, "SIGKILL");
+      NodeAssert.ok(await pollUntil(() => processGone(pid)), "process is gone");
     });
-    NodeAssert.ok(await pollUntil(() => snap.stopRequested === true));
-    controller.abort(reason);
-    await NodeAssert.rejects(killPromise, {
-      message: "aborted",
-      cause: reason,
-    });
+  },
+);
 
-    const { snap: after } = await settlement(manager, snap.id);
-    NodeAssert.equal(after.status, "killed");
-    if (hostPlatform !== "win32") NodeAssert.equal(after.signal, "SIGKILL");
-    NodeAssert.ok(await pollUntil(() => processGone(pid)), "process is gone");
-  });
-});
-
-NodeTest(
+await NodeTest(
   "normal exit after a stop request preserves its exit code",
   { skip: hostPlatform === "win32" },
   async () => {
@@ -89,6 +99,7 @@ NodeTest(
             cwd,
           }),
         );
+
         NodeAssert.ok(
           await pollUntil(() => snap.stdout.text.includes("ready")),
         );
@@ -104,7 +115,7 @@ NodeTest(
 );
 
 for (const exitTiming of ["before-stop", "after-cleanup"] as const) {
-  NodeTest(
+  await NodeTest(
     `incomplete cleanup preserves an exit observed ${exitTiming}, before stdio closes`,
     async (context) => {
       const child = new NodeChildProcess.ChildProcess();
@@ -114,29 +125,39 @@ for (const exitTiming of ["before-stop", "after-cleanup"] as const) {
       const signals: Array<NodeJS.Signals | number | undefined> = [];
       context.mock.method(child, "kill", (signal?: NodeJS.Signals | number) => {
         signals.push(signal);
+
         return false;
       });
+
       const mutableChildProcess: typeof NodeChildProcess =
         NodeModule.createRequire(import.meta.url)("node:child_process");
+
       const spawn = context.mock.method(
         mutableChildProcess,
         "spawn",
         () => child,
       );
+
       NodeModule.syncBuiltinESMExports();
+
       try {
         await withManager(async (manager, runtime) => {
           const events: string[] = [];
           manager.view.setOnSettled((snapshot) => events.push(snapshot.status));
+
           const snap = await runTool(
             runtime,
             manager.start({ command: "ignored", title: "ignored", cwd }),
           );
+
           child.emit("error", new Error("fixture signal failure after spawn"));
+
           if (exitTiming === "before-stop") child.emit("exit", null, "SIGSEGV");
+
           const [result] = await runTool(runtime, manager.kill([snap.id]), {
             signal: AbortSignal.timeout(TERMINAL_SHUTDOWN_TIMEOUT_MS),
           });
+
           NodeAssert.deepEqual(signals, ["SIGTERM", "SIGKILL"]);
           NodeAssert.equal(
             result?.status,
@@ -150,6 +171,7 @@ for (const exitTiming of ["before-stop", "after-cleanup"] as const) {
               ? /stdio did not close/
               : /exit was not observed/,
           );
+
           if (exitTiming === "after-cleanup")
             NodeAssert.equal(snap.settledAt, undefined);
           NodeAssert.equal(snap.exitCode, undefined);
@@ -158,6 +180,7 @@ for (const exitTiming of ["before-stop", "after-cleanup"] as const) {
             undefined,
             "early capture is not advertised as a full log",
           );
+
           if (exitTiming === "after-cleanup") child.emit("exit", 7, null);
           NodeAssert.ok(
             await pollUntil(() => snap.status === "failed"),
@@ -192,7 +215,7 @@ for (const exitTiming of ["before-stop", "after-cleanup"] as const) {
   );
 }
 
-NodeTest(
+await NodeTest(
   "status returns the snapshot and rejects unknown ids with the known list",
   async () => {
     await withManager(async (manager, runtime) => {
@@ -200,6 +223,7 @@ NodeTest(
         runtime,
         manager.start({ command: "true", title: "status", cwd }),
       );
+
       const seen = await runTool(runtime, manager.status(snap.id));
       NodeAssert.equal(seen.id, snap.id);
       await NodeAssert.rejects(

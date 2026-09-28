@@ -56,10 +56,13 @@ function killReport(
     const history = state.settledHistory.get(id);
     const known = snapshot ?? history;
     const status = known?.status ?? "running";
+
     const cleanupIncomplete =
       known?.cleanupIncomplete ??
       (!known ? "Terminal is no longer tracked; exit is unknown" : undefined);
+
     const wasRunning = runningIds.includes(id);
+
     return {
       id,
       title: snapshot?.title ?? history?.title ?? "?",
@@ -76,17 +79,22 @@ function killReport(
 export function killTerminals(state: ManagerState, ids: ReadonlyArray<string>) {
   return Effect.suspend(() => {
     const unique = [...new Set(ids)];
+
     const byId = new Map(
       unique.flatMap((id) => {
         const entry = state.entries.get(id);
+
         return entry ? [[entry.snapshot.id, entry] as const] : [];
       }),
     );
+
     const running = [...byId.values()].filter(
       (entry) => entry.snapshot.status === "running",
     );
+
     const runningIds = running.map((entry) => entry.snapshot.id);
     addKillInterest(state, runningIds);
+
     const work = Effect.gen(function* () {
       yield* Effect.forEach(running, (entry) => killEntry(state, entry), {
         concurrency: "unbounded",
@@ -95,8 +103,10 @@ export function killTerminals(state: ManagerState, ids: ReadonlyArray<string>) {
         concurrency: "unbounded",
         discard: true,
       });
+
       return killReport(state, unique, byId, runningIds);
     });
+
     return work.pipe(
       Effect.ensuring(
         Effect.sync(() => {
@@ -132,6 +142,7 @@ export function disposeTerminals(
     yield* Effect.sync(() => {
       const dir = state.spillDir;
       state.spillDir = null;
+
       if (dir) NodeFS.rmSync(dir, { recursive: true, force: true });
       notify(state);
     });
@@ -145,26 +156,33 @@ export function createReadModel(state: ManagerState): TerminalReadModel {
     size: () => state.entries.size,
     beginShutdown: () => {
       state.disposed = true;
+
       return [...state.entries.values()].map(({ snapshot }) => snapshot);
     },
     subscribe: (listener) => {
       state.listeners.add(listener);
+
       return () => state.listeners.delete(listener);
     },
     subscribeTo: (id, listener) => {
       let listeners = state.idListeners.get(id);
+
       if (!listeners) {
         listeners = new Set();
         state.idListeners.set(id, listeners);
       }
+
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
+
         if (listeners.size === 0) state.idListeners.delete(id);
       };
     },
     requestKill: (id) => {
       const entry = state.entries.get(id);
+
       if (entry) state.runCleanup(killEntry(state, entry).pipe(Effect.ignore));
     },
     setOnSettled: (hook) => {

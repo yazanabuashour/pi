@@ -86,7 +86,9 @@ export class PiPromptLifecycle {
 
   private assertAdmission(signal: AbortSignal, generation: number) {
     signal.throwIfAborted();
+
     if (this.closed) throw new Error("Agent session is closed.");
+
     if (this.stopping || generation !== this.stopGeneration)
       throw new Error("Agent session was interrupted before admission.");
   }
@@ -94,13 +96,17 @@ export class PiPromptLifecycle {
   private submit(text: string, generation: number, fresh: boolean) {
     return Effect.callback<boolean, SendError>((resume, signal) => {
       let accepted = false;
+
       const operation = Promise.resolve().then(async () => {
         this.assertAdmission(signal, generation);
+
         if (!fresh) {
           if (!this.session.isStreaming) return false;
           await this.session.steer(text);
+
           return true;
         }
+
         this.settledRun = undefined;
         this.hooks.started();
         await this.session.prompt(text, {
@@ -114,8 +120,10 @@ export class PiPromptLifecycle {
             queueMicrotask(() => resume(Effect.succeed(true)));
           },
         });
+
         return true;
       });
+
       const observed = operation
         .then(
           async (submitted) => {
@@ -127,22 +135,26 @@ export class PiPromptLifecycle {
               message: boundedError(cause),
               cause,
             });
+
             if (fresh) await this.settleRun(generation, failure);
+
             if (!accepted) resume(Effect.fail(failure));
           },
         )
+        .finally(() => {
+          this.prompts.delete(observed);
+          this.steering.delete(observed);
+        })
         .catch((defect) => {
           // Event-translation defects remain observable even after admission.
           this.defects.push(defect);
           resume(Effect.die(defect));
         });
+
       if (fresh) this.run = observed;
       else this.steering.add(observed);
       this.prompts.add(observed);
-      void observed.then(() => {
-        this.prompts.delete(observed);
-        this.steering.delete(observed);
-      });
+
       return Effect.promise(async () => {
         if (fresh) await this.stop();
         else
@@ -161,28 +173,38 @@ export class PiPromptLifecycle {
         await Promise.all(this.steering);
         continue;
       }
+
       // Timeout wrappers can finish before the underlying tool promises do.
       await this.settleTools();
+
       if (this.steering.size > 0) continue;
+
       if (this.stopping || this.closed || generation !== this.stopGeneration)
         break;
+
       if (this.session.isStreaming) {
         // Extensions can start a continuation before the prior prompt returns.
         await this.session.waitForIdle();
         continue;
       }
+
       let stopReason: string | undefined;
+
       for (let index = this.session.messages.length - 1; index >= 0; index--) {
         const message = this.session.messages[index];
+
         if (message?.role !== "assistant") continue;
         stopReason = message.stopReason;
         break;
       }
+
       if (failure || stopReason === "aborted" || stopReason === "error") {
         this.session.clearQueue();
         break;
       }
+
       if (!this.session.agent.hasQueuedMessages()) break;
+
       try {
         // Wake the existing queue without replaying its text. AgentSession owns
         // post-run hooks/retries; raw agent.continue() would bypass that owner.
@@ -198,15 +220,18 @@ export class PiPromptLifecycle {
         failure = new SendError({ message: boundedError(cause), cause });
       }
     }
+
     // No await between the final queue check and releasing this reservation.
     this.run = undefined;
     this.settledRun = { failure };
+
     if (!this.stopping && !this.closed) this.hooks.settled(failure);
   }
 
   private admit(text: string, fresh: boolean) {
     return Effect.suspend(() => {
       const generation = this.stopGeneration;
+
       return this.admission
         .withPermit(
           Effect.sync(() =>
@@ -226,6 +251,7 @@ export class PiPromptLifecycle {
                   return new SendError({
                     message: "Cannot start an already active agent.",
                   });
+
                 return this.submit(text, generation, fresh);
               }),
             ),
@@ -243,28 +269,34 @@ export class PiPromptLifecycle {
     this.stopping = (async () => {
       const clear = Promise.resolve().then(() => this.session.clearQueue());
       const abort = Promise.resolve().then(() => this.session.abort());
+
       const [cleared, aborted] = await Promise.allSettled([
         clear,
         abort,
         ...this.prompts,
       ]);
+
       await this.settleTools();
       // A pending steer may have queued after the first clear.
       this.session.clearQueue();
+
       const failures = [
         ...this.defects,
         ...[cleared, aborted].flatMap((result) =>
           result.status === "rejected" ? [result.reason] : [],
         ),
       ];
+
       if (failures.length > 0) {
         if (!this.closed && this.settledRun)
           this.hooks.settled(this.settledRun.failure);
         throw new AggregateError(failures, "Agent interruption failed.");
       }
+
       if (!this.closed) this.hooks.interrupted();
       this.stopping = undefined;
     })();
+
     return this.stopping;
   }
 
@@ -275,6 +307,7 @@ export class PiPromptLifecycle {
     this.closed = true;
     this.disposal = (async () => {
       let timer: ReturnType<typeof setTimeout> | undefined;
+
       try {
         await Promise.race([
           this.stop(),
@@ -294,6 +327,7 @@ export class PiPromptLifecycle {
         if (timer) clearTimeout(timer);
       }
     })();
+
     return this.disposal;
   }
 }

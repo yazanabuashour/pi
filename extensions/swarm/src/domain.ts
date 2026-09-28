@@ -20,9 +20,11 @@ export const REASONING_EFFORTS = [
   "xhigh",
   "max",
 ] as const;
+
 export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
 
 export type AgentStatus = "running" | "done" | "error";
+
 export type AgentOutcome = "completed" | "failed" | "interrupted";
 
 /** Parent-session context resolved by the tool layer and passed opaquely. */
@@ -118,6 +120,8 @@ export type RunOutcome =
       readonly partialText?: string | undefined;
     };
 
+export const RunOutcome = Data.taggedEnum<RunOutcome>();
+
 /**
  * Normalized activity stream. Previews (`argsPreview`, `outputPreview`) are
  * pre-flattened single-line strings because the UI only ever renders one
@@ -166,6 +170,8 @@ export type AgentEvent =
       readonly contextWindow?: number | undefined;
     }
   | { readonly _tag: "MetaChanged"; readonly meta: Partial<AgentMeta> };
+
+export const AgentEvent = Data.taggedEnum<AgentEvent>();
 
 // --- Snapshot ---------------------------------------------------------------
 
@@ -271,7 +277,9 @@ export function agentDetails(
 /** Final text, or the live streaming buffer while a run is active. */
 export function latestText(snap: AgentSnapshot) {
   const live = snap.liveAssistant?.text.trim();
+
   if (live) return live;
+
   return snap.finalText;
 }
 
@@ -280,6 +288,7 @@ export function formatElapsed(snap: AgentSnapshot) {
   const totalSeconds = Math.max(0, Math.round((end - snap.createdAt) / 1000));
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
+
   return minutes > 0
     ? `${minutes}m${seconds.toString().padStart(2, "0")}s`
     : `${seconds}s`;

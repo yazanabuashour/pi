@@ -78,6 +78,7 @@ export async function openAgentPicker(
   while (true) {
     if (view.size() === 0) {
       ctx.ui.notify("No agents", "info");
+
       return;
     }
 
@@ -91,6 +92,7 @@ export async function openAgentPicker(
     );
 
     if (!picked) return;
+
     if (!view.get(picked)) continue;
 
     await openAgentTakeover(ctx, view, picked);
@@ -112,6 +114,7 @@ export function reconcileDashboardSelection(
   const stableIndex = selection.id
     ? agents.findIndex((snap) => snap.id === selection.id)
     : -1;
+
   selection.index =
     stableIndex >= 0
       ? stableIndex
@@ -159,6 +162,7 @@ class SwarmDashboard implements Component {
     this.closed = true;
     clearInterval(this.ticker);
     this.unsubChange();
+
     return true;
   }
 
@@ -176,13 +180,18 @@ class SwarmDashboard implements Component {
 
     if (this.keybindings.matches(data, "tui.select.cancel")) {
       this.close(null);
+
       return;
     }
+
     if (this.keybindings.matches(data, "tui.select.confirm")) {
       const snap = agents[this.selection.index];
+
       if (snap) this.close(snap.id);
+
       return;
     }
+
     if (this.keybindings.matches(data, "tui.select.up") || data === "k") {
       if (agents.length > 0) {
         this.selection.index =
@@ -190,34 +199,44 @@ class SwarmDashboard implements Component {
         this.selection.id = agents[this.selection.index]?.id;
         this.tui.requestRender();
       }
+
       return;
     }
+
     if (this.keybindings.matches(data, "tui.select.down") || data === "j") {
       if (agents.length > 0) {
         this.selection.index = (this.selection.index + 1) % agents.length;
         this.selection.id = agents[this.selection.index]?.id;
         this.tui.requestRender();
       }
+
       return;
     }
+
     if (data === "x") {
       const snap = agents[this.selection.index];
+
       if (snap && snap.status === "running") this.view.requestAbort(snap.id);
+
       return;
     }
   }
 
   private pad(text: string, width: number): string {
     const truncated = truncateToWidth(text, width);
+
     return truncated + " ".repeat(Math.max(0, width - visibleWidth(truncated)));
   }
 
   private borderSegment(width: number, title: string): string {
     const theme = this.theme;
+
     const label = title
       ? ` ${truncateToWidth(title, Math.max(0, width - 3))} `
       : "";
+
     const labelWidth = visibleWidth(label);
+
     return (
       theme.fg("border", "─") +
       (label ? theme.fg("text", label) : "") +
@@ -241,14 +260,17 @@ class SwarmDashboard implements Component {
 
     // Header: title left, count right
     const headerLeft = theme.fg("accent", theme.bold("Swarm"));
+
     const headerRight = theme.fg(
       "muted",
       `${agents.length} agent${agents.length === 1 ? "" : "s"}`,
     );
+
     const headerPad = Math.max(
       1,
       width - visibleWidth(headerLeft) - visibleWidth(headerRight) - 4,
     );
+
     lines.push(
       truncateToWidth(
         `  ${headerLeft}${" ".repeat(headerPad)}${headerRight}  `,
@@ -267,6 +289,7 @@ class SwarmDashboard implements Component {
     // Rows
     const divider = theme.fg("border", "│");
     const rowLines = this.renderRows(agents, innerWidth, bodyHeight);
+
     for (let i = 0; i < bodyHeight; i++) {
       lines.push(divider + this.pad(rowLines[i] ?? "", innerWidth) + divider);
     }
@@ -302,12 +325,14 @@ class SwarmDashboard implements Component {
 
     // Scroll window around selection
     let start = 0;
+
     if (agents.length > height) {
       start = Math.min(
         Math.max(0, this.selection.index - Math.floor(height / 2)),
         agents.length - height,
       );
     }
+
     const visible = agents.slice(start, start + height);
 
     for (const [offset, snap] of visible.entries()) {
@@ -316,14 +341,17 @@ class SwarmDashboard implements Component {
 
       // Left: marker, status square, title, dim id
       const marker = isSelected ? theme.fg("accent", "❯") : " ";
+
       const title = isSelected
         ? theme.fg("accent", snap.title)
         : theme.fg("text", snap.title);
+
       const left = ` ${marker} ${statusGlyph(snap, theme)} ${title} ${theme.fg("dim", snap.id)}`;
 
       // Right: backend · model · context utilization · elapsed · status
       const utilization = formatContextUtilization(snap.usage);
       const dot = theme.fg("dim", " · ");
+
       const rightParts = [
         theme.fg("muted", "pi"),
         theme.fg("muted", snap.meta.modelLabel ?? "?"),
@@ -331,6 +359,7 @@ class SwarmDashboard implements Component {
         theme.fg("muted", formatElapsed(snap)),
         statusWord(snap, theme),
       ];
+
       const right = `${rightParts.join(dot)} `;
 
       const rightWidth = visibleWidth(right);
@@ -343,12 +372,14 @@ class SwarmDashboard implements Component {
     if (start > 0) {
       out[0] = truncateToWidth(theme.fg("dim", `   ... ${start} more`), width);
     }
+
     if (start + height < agents.length) {
       out[out.length - 1] = truncateToWidth(
         theme.fg("dim", `   ... ${agents.length - start - height} more`),
         width,
       );
     }
+
     return out;
   }
 

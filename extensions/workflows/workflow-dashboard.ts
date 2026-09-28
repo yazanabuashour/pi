@@ -30,10 +30,13 @@ import {
 } from "./model.ts";
 
 const NOTICE_TTL_MS = 4000;
+
 const MIN_HEIGHT = 10;
+
 const TRANSCRIPT_SCROLL_STEP = 20;
 
 type View = "list" | "detail" | "transcript";
+
 type DetailFocus = "phases" | "agents";
 
 interface DetailSelection {
@@ -99,16 +102,19 @@ export class WorkflowDashboard {
     this.referencedRunIds = referencedRunIds;
     this.close = close;
     this.refresh();
+
     if (initialRunId) {
       const entry = this.entries.find(
         (e) => e.runId === initialRunId || e.runId.endsWith(initialRunId),
       );
+
       if (entry) {
         this.current = entry;
         this.listIndex = this.entries.indexOf(entry);
         this.view = "detail";
       }
     }
+
     this.timer = setInterval(() => {
       if (
         this.entries.some((e) => e.live) ||
@@ -129,33 +135,42 @@ export class WorkflowDashboard {
 
   private refresh() {
     const selected = this.entries[this.listIndex]?.runId;
+
     const loaded = loadRunEntries(
       this.getActive(),
       this.sessionId,
       this.referencedRunIds,
     );
+
     this.entries = loaded.entries;
     this.artifactNotice = loaded.notice;
+
     if (selected) {
       const index = this.entries.findIndex((e) => e.runId === selected);
+
       if (index >= 0) this.listIndex = index;
     }
+
     this.listIndex = Math.min(
       this.listIndex,
       Math.max(0, this.entries.length - 1),
     );
+
     if (this.current) {
       const refreshed = this.entries.find(
         (e) => e.runId === this.current?.runId,
       );
+
       if (refreshed) this.current = refreshed;
     }
+
     if (this.notice && Date.now() - this.noticeAt > NOTICE_TTL_MS)
       this.notice = undefined;
   }
 
   private groups(): PhaseGroup[] {
     if (!this.current) return [];
+
     return phaseGroups(this.current.details, true);
   }
 
@@ -174,14 +189,17 @@ export class WorkflowDashboard {
 
   private saveReport() {
     const entry = this.current;
+
     if (!entry) return;
     const target = NodePath.join(runsDir(), entry.runId, "report.md");
+
     try {
       NodeFS.writeFileSync(target, buildReport(entry.details), "utf8");
       this.notice = `saved ${shortenHome(target)}`;
     } catch (error) {
       this.notice = `save failed: ${error instanceof Error ? error.message : String(error)}`;
     }
+
     this.noticeAt = Date.now();
   }
 
@@ -195,6 +213,7 @@ export class WorkflowDashboard {
       this.listIndex = Math.max(0, this.entries.length - 1);
     else if (keys.confirm) {
       const entry = this.entries[this.listIndex];
+
       if (entry) {
         this.current = entry;
         this.phaseIndex = 0;
@@ -204,8 +223,10 @@ export class WorkflowDashboard {
       }
     } else if (keys.cancel) {
       this.close();
+
       return false;
     }
+
     return true;
   }
 
@@ -217,7 +238,9 @@ export class WorkflowDashboard {
       this.groups().length,
       this.selectedGroup()?.agents.length ?? 0,
     );
+
     this.phaseIndex = result.phaseIndex;
+
     if (result.action === "select") {
       this.agentIndex = 0;
     } else if (result.action === "agents") {
@@ -231,6 +254,7 @@ export class WorkflowDashboard {
 
   private handleAgentInput(data: string, keys: DashboardKeys) {
     const agents = this.selectedGroup()?.agents ?? [];
+
     const result = agentNavigation(
       data,
       keys,
@@ -238,7 +262,9 @@ export class WorkflowDashboard {
       agents.length,
       this.selectedAgent() !== undefined,
     );
+
     this.agentIndex = result.agentIndex;
+
     if (result.action === "phases") this.detailFocus = "phases";
     else if (result.action === "transcript") {
       this.transcriptScroll = 0;
@@ -255,7 +281,9 @@ export class WorkflowDashboard {
       this.transcriptViewportSize,
       TRANSCRIPT_SCROLL_STEP,
     );
+
     this.transcriptScroll = result.scroll;
+
     if (result.back) {
       this.view = "detail";
       this.detailFocus = "agents";
@@ -264,14 +292,18 @@ export class WorkflowDashboard {
 
   handleInput(data: string) {
     const keys = dashboardKeys(this.keybindings, data);
+
     if (this.view === "list" && !this.handleListInput(data, keys)) return;
+
     if (this.view === "detail") {
       if (this.detailFocus === "phases") this.handlePhaseInput(data, keys);
       else this.handleAgentInput(data, keys);
+
       if (data === "s") this.saveReport();
     } else if (this.view === "transcript") {
       this.handleTranscriptInput(data, keys);
     }
+
     this.tui.requestRender();
   }
 
@@ -279,6 +311,7 @@ export class WorkflowDashboard {
     const height = Math.max(MIN_HEIGHT, this.tui.terminal.rows - 1);
     let lines: string[];
     const selectedAgent = this.selectedAgent();
+
     if (this.view === "transcript" && this.current && selectedAgent) {
       this.transcriptRenderer.transcriptScroll = this.transcriptScroll;
       lines = this.transcriptRenderer.renderTranscript(
@@ -310,8 +343,11 @@ export class WorkflowDashboard {
         height,
       );
     }
+
     const notice = this.notice ?? this.artifactNotice;
+
     if (notice) lines[lines.length - 1] = this.theme.fg("accent", ` ${notice}`);
+
     return lines.map((line) => truncateToWidth(line, width, ""));
   }
 }

@@ -10,6 +10,7 @@ export function shellInvocation(command: string) {
       args: ["/d", "/s", "/c", command],
     };
   }
+
   return { shell: "/bin/sh", args: ["-c", command] };
 }
 
@@ -29,6 +30,7 @@ function killTree(
         ],
         { stdio: "ignore", windowsHide: true },
       );
+
       const fallback = () => {
         try {
           child.kill(signal);
@@ -36,24 +38,29 @@ function killTree(
           /* Process already exited. */
         }
       };
+
       killer.once("error", fallback);
       killer.once("exit", (code) => {
         if (code !== 0) fallback();
       });
       killer.unref();
+
       return;
     } catch {
       // Fall through to direct signaling.
     }
   }
+
   if (hostPlatform !== "win32" && child.pid) {
     try {
       process.kill(-child.pid, signal);
+
       return;
     } catch {
       // Fall through to direct signaling.
     }
   }
+
   try {
     child.kill(signal);
   } catch {
@@ -68,10 +75,13 @@ function awaitChildClose(
   return Effect.callback<void>((resume) => {
     if (closed()) {
       resume(Effect.void);
+
       return;
     }
+
     const onClose = () => resume(Effect.void);
     child.once("close", onClose);
+
     return Effect.sync(() => child.off("close", onClose));
   });
 }
@@ -83,6 +93,7 @@ export function terminateChild(
 ) {
   return Effect.suspend(() => {
     if (closed()) return Effect.void;
+
     return Effect.gen(function* () {
       yield* Effect.sync(() => {
         onSignal();
@@ -92,6 +103,7 @@ export function terminateChild(
         Effect.timeout(FORCE_KILL_AFTER_MS),
         Effect.ignore,
       );
+
       if (closed()) return;
       yield* Effect.sync(() => killTree(child, "SIGKILL"));
       yield* awaitChildClose(child, closed).pipe(

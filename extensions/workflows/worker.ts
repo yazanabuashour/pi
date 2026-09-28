@@ -2,6 +2,7 @@ import { WorkerSession } from "./worker-session.ts";
 import { safeStringify } from "./serialization.ts";
 
 const MAX_SOURCE_BYTES = 512 * 1024;
+
 const MAX_ARGS_BYTES = 256 * 1024;
 
 export interface WorkerAgentOptions {
@@ -43,6 +44,7 @@ function byteLength(value: string) {
  */
 export async function runWorkflowWorker(options: RunWorkflowWorkerOptions) {
   options.signal.throwIfAborted();
+
   if (byteLength(options.source) > MAX_SOURCE_BYTES) {
     return Promise.reject(
       new Error(`Workflow script exceeds the ${MAX_SOURCE_BYTES} byte limit`),
@@ -53,10 +55,12 @@ export async function runWorkflowWorker(options: RunWorkflowWorkerOptions) {
     { defined: options.args !== undefined, value: options.args },
     { maxBytes: MAX_ARGS_BYTES, maxDepth: 16, maxNodes: 10_000 },
   );
+
   if (byteLength(argsJson) > MAX_ARGS_BYTES) {
     return Promise.reject(new Error("Workflow args exceed the IPC limit"));
   }
 
   options.signal.throwIfAborted();
+
   return new WorkerSession(options).run(options.source, argsJson);
 }

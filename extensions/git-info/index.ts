@@ -83,6 +83,7 @@ class GitInfoController {
       this.refresh.invalidate();
       const previous = this.pollingFiber;
       this.pollingFiber = undefined;
+
       if (previous)
         await this.getRuntime().runPromise(Fiber.interrupt(previous));
       this.refreshInBackground(ctx);
@@ -90,6 +91,7 @@ class GitInfoController {
     });
     this.pi.on("input", (_event, ctx) => {
       this.refreshInBackground(ctx);
+
       return { action: "continue" };
     });
     this.pi.on("tool_execution_end", (_event, ctx) =>
@@ -123,8 +125,10 @@ class GitInfoController {
         "The local changes viewer requires the interactive TUI",
         "warning",
       );
+
       return;
     }
+
     const files = await runEffect(
       this.getRuntime(),
       loadChangedFiles(ctx.cwd),
@@ -133,7 +137,9 @@ class GitInfoController {
         interruptMessage: "Loading changed files was cancelled.",
       },
     );
+
     if (files === null) return ctx.ui.notify("Not a git repository", "warning");
+
     if (files.length === 0)
       return ctx.ui.notify("Working tree is clean", "info");
     await showChangedFiles(ctx, files);
@@ -146,6 +152,7 @@ class GitInfoController {
       interruptMessage: "Git and pull request refresh was cancelled.",
     });
     const state = this.refresh.snapshot;
+
     if (state.unavailable !== null) ctx.ui.notify(state.unavailable, "warning");
     else if (!state.isRepository)
       ctx.ui.notify("Not a git repository", "warning");

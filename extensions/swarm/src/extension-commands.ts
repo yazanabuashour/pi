@@ -17,16 +17,20 @@ async function runBtw(
   if (context.mode !== "tui") {
     if (context.hasUI)
       context.ui.notify("by the way is only available in the TUI", "error");
+
     return;
   }
+
   const prompt =
     rawArgs.trim() ||
     (await context.ui.input("by the way", "Ask a one-off question…"))?.trim() ||
     "";
+
   if (!prompt) return;
   const runtimeId = session.identity;
   const manager = await session.getManager();
   let snapshot: AgentSnapshot;
+
   try {
     snapshot = await runTool(
       session.getRuntime(),
@@ -48,8 +52,10 @@ async function runBtw(
       error instanceof Error ? error.message : String(error),
       "error",
     );
+
     return;
   }
+
   if (!session.isCurrent(runtimeId)) return;
   await openAgentTakeover(context, manager.view, snapshot.id, {
     badge: "by the way",
@@ -76,16 +82,21 @@ export function registerSwarmCommands(
             "error",
           );
         }
+
         return;
       }
+
       const manager = await session.getManager();
+
       if (manager.view.size() === 0) {
         context.ui.notify(
           "No agents yet. Use swarm_spawn for model tasks or /btw for a private side question.",
           "info",
         );
+
         return;
       }
+
       await openAgentPicker(context, manager.view);
     },
   });

@@ -18,6 +18,7 @@ const makeManager = Effect.gen(function* () {
   const runDetached = Effect.runForkWith(yield* Effect.context());
   const state = createManagerState(runDetached);
   yield* Effect.addFinalizer(() => disposeAgents(state));
+
   return SwarmManager.of({
     spawn: (task) => spawnAgent(state, createSession, task),
     waitFor: (ids, onPending) => waitForAgents(state, ids, onPending),

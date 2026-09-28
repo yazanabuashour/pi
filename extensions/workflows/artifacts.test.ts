@@ -28,10 +28,11 @@ function workflowDetails(): WorkflowDetails {
   };
 }
 
-NodeTest(
+await NodeTest(
   "artifact transcript keeps the initial prompt, marker, and newest entries",
   () => {
     const prompt = `initial:${"p".repeat(70)}`;
+
     const transcript = [
       { role: "user" as const, text: prompt },
       ...Array.from({ length: 5 }, (_, index) => ({
@@ -62,12 +63,13 @@ NodeTest(
   },
 );
 
-NodeTest(
+await NodeTest(
   "live artifact persistence includes current agents and transcripts",
   () => {
     const directory = NodeFS.mkdtempSync(
       NodePath.join(NodeOS.tmpdir(), "pi-workflow-artifacts-"),
     );
+
     try {
       const details = workflowDetails();
       details.agents.push({
@@ -97,6 +99,7 @@ NodeTest(
       const workflow = JSON.parse(
         NodeFS.readFileSync(NodePath.join(directory, "workflow.json"), "utf8"),
       ) as WorkflowDetails;
+
       // SAFETY: This test fixture constructs the complete interface exercised by the test.
       const transcripts = JSON.parse(
         NodeFS.readFileSync(
@@ -104,6 +107,7 @@ NodeTest(
           "utf8",
         ),
       ) as Record<string, TranscriptEntry[]>;
+
       NodeAssert.equal(workflow.agents.length, 1);
       NodeAssert.equal(workflow.agents[0]?.label, "running-fixture");
       NodeAssert.equal(transcripts["1"]?.[0]?.text, "current prompt");
@@ -127,50 +131,54 @@ NodeTest(
   },
 );
 
-NodeTest("interrupted workflow display terminates only running state", () => {
-  const details = workflowDetails();
-  details.agents.push(
-    {
-      index: 1,
-      label: "running-fixture",
-      state: "running",
-      startedAt: 2,
-      preview: "working",
-      usage: emptyUsage(),
-      transcript: [],
-    },
-    {
-      index: 2,
-      label: "done-fixture",
-      state: "done",
-      startedAt: 2,
-      finishedAt: 3,
-      preview: "done",
-      usage: emptyUsage(),
-      transcript: [],
-    },
-  );
+await NodeTest(
+  "interrupted workflow display terminates only running state",
+  () => {
+    const details = workflowDetails();
+    details.agents.push(
+      {
+        index: 1,
+        label: "running-fixture",
+        state: "running",
+        startedAt: 2,
+        preview: "working",
+        usage: emptyUsage(),
+        transcript: [],
+      },
+      {
+        index: 2,
+        label: "done-fixture",
+        state: "done",
+        startedAt: 2,
+        finishedAt: 3,
+        preview: "done",
+        usage: emptyUsage(),
+        transcript: [],
+      },
+    );
 
-  const displayed = displayInterruptedWorkflow(details, 10);
-  NodeAssert.equal(displayed.status, "aborted");
-  NodeAssert.deepEqual(
-    displayed.agents.map((agent) => ({
-      state: agent.state,
-      finishedAt: agent.finishedAt,
-    })),
-    [
-      { state: "error", finishedAt: 10 },
-      { state: "done", finishedAt: 3 },
-    ],
-  );
-  NodeAssert.equal(details.status, "running");
-});
+    const displayed = displayInterruptedWorkflow(details, 10);
+    NodeAssert.equal(displayed.status, "aborted");
+    NodeAssert.deepEqual(
+      displayed.agents.map((agent) => ({
+        state: agent.state,
+        finishedAt: agent.finishedAt,
+      })),
+      [
+        { state: "error", finishedAt: 10 },
+        { state: "done", finishedAt: 3 },
+      ],
+    );
+    NodeAssert.equal(details.status, "running");
+  },
+);
 
-NodeTest(
+await NodeTest(
   "workflow checkpoints throttle updates and support immediate/final flushes",
   async () => {
     const details = workflowDetails();
     const snapshots: WorkflowDetails[] = [];
+
     const persistence = createWorkflowPersistence("fixture", details, {
       intervalMs: 15,
       persist: (_runDir, current) => snapshots.push(structuredClone(current)),

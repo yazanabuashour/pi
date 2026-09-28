@@ -1,4 +1,4 @@
-import { Cause, Effect, Exit, Fiber, Scope } from "effect";
+import { Cause, Effect, Exit, Fiber, Match, Scope } from "effect";
 import {
   FINAL_TEXT_MAX_LENGTH,
   MAX_TRACKED,
@@ -51,7 +51,9 @@ export function createManagerState(
 export function notify(state: ManagerState, id?: string) {
   const waiters = state.changeWaiters;
   state.changeWaiters = [];
+
   for (const waiter of waiters) waiter();
+
   for (const listener of state.listeners) {
     try {
       listener();
@@ -59,7 +61,9 @@ export function notify(state: ManagerState, id?: string) {
       // A failed render listener must not corrupt lifecycle state.
     }
   }
+
   if (!id) return;
+
   for (const listener of state.idListeners.get(id) ?? []) {
     try {
       listener();
@@ -73,8 +77,10 @@ export function nextChange(state: ManagerState) {
   return Effect.callback<void>((resume) => {
     const waiter = () => resume(Effect.void);
     state.changeWaiters.push(waiter);
+
     return Effect.sync(() => {
       const index = state.changeWaiters.indexOf(waiter);
+
       if (index >= 0) state.changeWaiters.splice(index, 1);
     });
   });
@@ -83,11 +89,15 @@ export function nextChange(state: ManagerState) {
 export function canAct(state: ManagerState, id: string): boolean {
   if (state.disposed) return false;
   let entry = state.entries.get(id);
+
   if (!entry || entry.stopping) return false;
+
   while (entry.snapshot.parentId !== "root") {
     entry = state.entries.get(entry.snapshot.parentId);
+
     if (!entry || entry.stopping) return false;
   }
+
   return true;
 }
 
@@ -109,6 +119,7 @@ export function releaseInterest(
 ) {
   for (const id of ids) {
     const count = (state.waitInterest.get(id) ?? 1) - 1;
+
     if (count <= 0) state.waitInterest.delete(id);
     else state.waitInterest.set(id, count);
   }
@@ -141,6 +152,7 @@ export function closeEntryBounded(state: ManagerState, entry: Entry) {
       Effect.timeout(STOP_TIMEOUT_MS),
       Effect.exit,
     );
+
     if (Exit.isFailure(result))
       recordCleanupIncomplete(
         state,
@@ -152,9 +164,11 @@ export function closeEntryBounded(state: ManagerState, entry: Entry) {
 
 export function pruneSettled(state: ManagerState) {
   if (state.entries.size <= MAX_TRACKED) return;
+
   const parents = new Set(
     [...state.entries.values()].map((entry) => entry.snapshot.parentId),
   );
+
   const candidates = [...state.entries.values()]
     .filter(
       (entry) =>
@@ -167,6 +181,7 @@ export function pruneSettled(state: ManagerState) {
         (left.snapshot.settledAt ?? left.snapshot.createdAt) -
         (right.snapshot.settledAt ?? right.snapshot.createdAt),
     );
+
   for (const entry of candidates) {
     if (state.entries.size <= MAX_TRACKED) break;
     state.entries.delete(entry.snapshot.id);
@@ -178,36 +193,41 @@ export function pruneSettled(state: ManagerState) {
 
 function applyOutcome(entry: Entry, outcome: RunOutcome) {
   const snapshot = entry.snapshot;
-  switch (outcome._tag) {
-    case "Completed":
-      snapshot.status = "done";
-      snapshot.outcome = "completed";
-      snapshot.errorText = undefined;
-      snapshot.finalText = outcome.finalText.slice(0, FINAL_TEXT_MAX_LENGTH);
-      break;
-    case "Failed":
-      snapshot.status = "error";
-      snapshot.outcome = "failed";
-      snapshot.errorText = bounded(outcome.errorText);
-      snapshot.finalText = (outcome.partialText ?? "").slice(
-        0,
-        FINAL_TEXT_MAX_LENGTH,
-      );
-      break;
-    case "Interrupted":
-      snapshot.status = "error";
-      snapshot.outcome = "interrupted";
-      snapshot.errorText = "Run was aborted";
-      snapshot.finalText = (outcome.partialText ?? "").slice(
-        0,
-        FINAL_TEXT_MAX_LENGTH,
-      );
-  }
+
+  Match.value(outcome).pipe(
+    Match.tagsExhaustive({
+      Completed: (outcome) => {
+        snapshot.status = "done";
+        snapshot.outcome = "completed";
+        snapshot.errorText = undefined;
+        snapshot.finalText = outcome.finalText.slice(0, FINAL_TEXT_MAX_LENGTH);
+      },
+      Failed: (outcome) => {
+        snapshot.status = "error";
+        snapshot.outcome = "failed";
+        snapshot.errorText = bounded(outcome.errorText);
+        snapshot.finalText = (outcome.partialText ?? "").slice(
+          0,
+          FINAL_TEXT_MAX_LENGTH,
+        );
+      },
+      Interrupted: (outcome) => {
+        snapshot.status = "error";
+        snapshot.outcome = "interrupted";
+        snapshot.errorText = "Run was aborted";
+        snapshot.finalText = (outcome.partialText ?? "").slice(
+          0,
+          FINAL_TEXT_MAX_LENGTH,
+        );
+      },
+    }),
+  );
 }
 
 export function settle(state: ManagerState, entry: Entry, outcome: RunOutcome) {
   const snapshot = entry.snapshot;
   entry.restarting = false;
+
   if (snapshot.status !== "running") return;
   snapshot.settledAt = Date.now();
   applyOutcome(entry, outcome);
@@ -216,11 +236,13 @@ export function settle(state: ManagerState, entry: Entry, outcome: RunOutcome) {
   snapshot.liveTools = [];
   snapshot.queued = [];
   const consumed = (state.waitInterest.get(snapshot.id) ?? 0) > 0;
+
   try {
     if (!state.disposed) state.onSettled?.(snapshot, consumed);
   } catch {
     // The parent session may be unavailable; settlement stays final.
   }
+
   notify(state, snapshot.id);
   pruneSettled(state);
 }

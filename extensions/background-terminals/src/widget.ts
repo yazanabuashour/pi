@@ -5,8 +5,10 @@ const WIDGET_KEY = "background-terminals";
 export function setRunningWidget(ui: ExtensionUIContext, running: number) {
   if (running === 0) {
     ui.setWidget(WIDGET_KEY, undefined);
+
     return;
   }
+
   ui.setWidget(WIDGET_KEY, (_tui, theme) => ({
     render: () => [
       theme.fg("warning", "■ ") +

@@ -15,6 +15,7 @@ export async function withManager(
   ) => Promise<void>,
 ) {
   const runtime = createTerminalRuntime();
+
   try {
     const manager = await runtime.runPromise(TerminalManager);
     await run(manager, runtime);
@@ -27,12 +28,16 @@ export function settlement(manager: TerminalManagerService, id: string) {
   return new Promise<{ snap: TerminalSnapshot; consumed: boolean }>(
     (resolve) => {
       const existing = manager.view.get(id);
+
       if (existing && existing.status !== "running") {
         resolve({ snap: existing, consumed: false });
+
         return;
       }
+
       const unsubscribe = manager.view.subscribeTo(id, () => {
         const snapshot = manager.view.get(id);
+
         if (snapshot && snapshot.status !== "running") {
           unsubscribe();
           resolve({ snap: snapshot, consumed: false });
@@ -45,6 +50,7 @@ export function settlement(manager: TerminalManagerService, id: string) {
 export function processGone(pid: number) {
   try {
     process.kill(pid, 0);
+
     return false;
   } catch {
     return true;
@@ -53,9 +59,11 @@ export function processGone(pid: number) {
 
 export async function pollUntil(check: () => boolean, timeoutMs = 5_000) {
   const deadline = Date.now() + timeoutMs;
+
   while (!check()) {
     if (Date.now() > deadline) return false;
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
+
   return true;
 }

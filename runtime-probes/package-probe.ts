@@ -36,9 +36,13 @@ const requiredTools = [
 ];
 
 const workerFixture = "dotfiles-native-worker-completed";
+
 const childFixture = "dotfiles-native-swarm-completed";
+
 const childPrompt = "Return the synthetic native swarm fixture.";
+
 const progressFixture = "dotfiles-native-swarm-progress";
+
 const childPromptSchema = Type.Union([
   Type.Literal(childPrompt),
   Type.Tuple([
@@ -48,6 +52,7 @@ const childPromptSchema = Type.Union([
     }),
   ]),
 ]);
+
 const workflowSchema = Type.Object({
   schemaVersion: Type.Literal(1),
   background: Type.Literal(false),
@@ -55,6 +60,7 @@ const workflowSchema = Type.Object({
   result: Type.Literal(workerFixture),
   finishedAt: Type.Number(),
 });
+
 const spawnSchema = Type.Object({
   schemaVersion: Type.Literal(1),
   event: Type.Literal("started"),
@@ -62,6 +68,7 @@ const spawnSchema = Type.Object({
   harness: Type.Literal("pi"),
   model: Type.Literal("dotfiles-package-probe/probe"),
 });
+
 const waitSchema = Type.Object({
   results: Type.Tuple([
     Type.Object({
@@ -88,33 +95,43 @@ function toolResult(context: Context, name: string) {
   const result = context.messages.find(
     (message) => message.role === "toolResult" && message.toolName === name,
   );
+
   if (!result || result.role !== "toolResult") return undefined;
+
   if (result.isError)
     throw new Error(`failed ${name}: ${JSON.stringify(result)}`);
+
   return result;
 }
 
 function parentResponse(context: Context) {
   const probe = toolResult(context, "package_probe");
+
   if (!probe) return callTool("package_probe", { value: "probe-receipt" });
   const workflow = toolResult(context, "workflow");
+
   if (!workflow)
     return callTool("workflow", {
       script: `return ${JSON.stringify(workerFixture)};`,
       background: false,
     });
+
   if (!Check(workflowSchema, workflow.details))
     throw new Error("workflow did not return its completed worker fixture");
   const spawn = toolResult(context, "swarm_spawn");
+
   if (!spawn)
     return callTool("swarm_spawn", {
       prompt: childPrompt,
       name: "native-package-fixture",
     });
+
   if (!Check(spawnSchema, spawn.details))
     throw new Error("invalid swarm spawn receipt");
   const waited = toolResult(context, "swarm_wait");
+
   if (!waited) return callTool("swarm_wait", { ids: [spawn.details.id] });
+
   if (
     !Check(waitSchema, waited.details) ||
     waited.details.results[0].id !== spawn.details.id ||
@@ -126,6 +143,7 @@ function parentResponse(context: Context) {
     throw new Error(
       "swarm agent did not complete with its fixture before shutdown",
     );
+
   if (
     !context.messages.some(
       (message) =>
@@ -136,6 +154,7 @@ function parentResponse(context: Context) {
     throw new Error(
       "Invisible swarm progress was not delivered to the root model context.",
     );
+
   return fauxAssistantMessage("dotfiles-package-probe-ok");
 }
 
@@ -162,10 +181,13 @@ const systemResourcesSchema = Type.Object({
 function providerResources(context: Context) {
   const prompts = [context.systemPrompt ?? ""];
   const sections = new Map<string, string>();
+
   const tools = new Map<string, { name: string; parameters: unknown }>(
     context.tools?.map((tool) => [tool.name, tool]),
   );
+
   const messages: ReadonlyArray<unknown> = context.messages;
+
   for (const message of messages) {
     if (!Check(systemResourcesSchema, message)) continue;
     prompts.push(
@@ -173,13 +195,17 @@ function providerResources(context: Context) {
         ? message.content.map((part) => part.text).join("\n")
         : message.content,
     );
+
     for (const [name, content] of Object.entries(message.sections ?? {})) {
       if (content === null) sections.delete(name);
       else sections.set(name, content);
     }
+
     for (const tool of message.toolsAdded ?? []) tools.set(tool.name, tool);
+
     for (const tool of message.toolsRemoved ?? []) tools.delete(tool.name);
   }
+
   return {
     systemPrompt: [...prompts, ...sections.values()].join("\n"),
     tools: [...tools.values()],
@@ -193,17 +219,21 @@ function checkResources(
   child: boolean,
 ) {
   const resources = providerResources(context);
+
   if (
     !browserSkillName ||
     !resources.systemPrompt.includes(`<name>${browserSkillName}</name>`)
   )
     throw new Error("upstream agent-browser skill was not discovered");
+
   if (!resources.systemPrompt.includes("<name>swarm</name>"))
     throw new Error("swarm skill was not discovered");
+
   for (const name of ["workflow-authoring", "technical-writing"]) {
     if (resources.systemPrompt.includes(`<name>${name}</name>`))
       throw new Error(`manual skill is advertised to the model: ${name}`);
   }
+
   if (
     !child &&
     !pi
@@ -211,9 +241,11 @@ function checkResources(
       .some((command) => command.name === "skill:workflow-authoring")
   )
     throw new Error("manual workflow skill command is missing");
+
   if (!child && !pi.getCommands().some((command) => command.name === "swarm"))
     throw new Error("swarm management command is missing");
   const spawn = resources.tools.find((tool) => tool.name === "swarm_spawn");
+
   if (spawn) {
     if (
       !Check(
@@ -222,12 +254,15 @@ function checkResources(
       )
     )
       throw new Error("swarm_spawn has no object parameter schema");
+
     for (const field of ["harness", "model", "provider"]) {
       if (Object.hasOwn(spawn.parameters.properties, field))
         throw new Error(`swarm_spawn still advertises ${field}`);
     }
   }
+
   const names = new Set(resources.tools.map((tool) => tool.name));
+
   const parentOnly = new Set([
     "ask_user",
     "swarm_spawn",
@@ -235,6 +270,7 @@ function checkResources(
     "swarm_cancel",
     "workflow",
   ]);
+
   for (const name of requiredTools) {
     if (child && parentOnly.has(name)) {
       if (names.has(name))
@@ -274,17 +310,23 @@ export default function (pi: ExtensionAPI) {
 
   const respond: FauxResponseFactory = (context) => {
     faux.appendResponses([respond]);
+
     const child = context.messages.some(
       (message) =>
         message.role === "user" && Check(childPromptSchema, message.content),
     );
+
     if (!toolResult(context, "web_enable")) return callTool("web_enable", {});
     checkResources(pi, context, browserSkillName, child);
+
     if (!child) return parentResponse(context);
+
     if (!toolResult(context, "swarm_send"))
       return callTool("swarm_send", { to: "root", message: progressFixture });
+
     return fauxAssistantMessage(childFixture);
   };
+
   faux.setResponses([respond]);
 
   pi.registerProvider(faux.provider);

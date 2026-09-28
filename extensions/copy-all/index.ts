@@ -6,11 +6,13 @@ import {
 
 function textFromContent<Input1>(content: Input1) {
   if (isString(content)) return content;
+
   if (!Array.isArray(content)) return "";
 
   return content
     .map((block) => {
       if (!block || !isObjectValue(block)) return "";
+
       if (!("type" in block)) return "";
 
       if (block.type === "text" && "text" in block && isString(block.text)) {
@@ -48,6 +50,7 @@ export default function (pi: ExtensionAPI) {
 
       if (sections.length === 0) {
         ctx.ui.notify("No user or assistant messages to copy", "info");
+
         return;
       }
 

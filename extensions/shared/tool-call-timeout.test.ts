@@ -12,7 +12,7 @@ import {
   ToolCallTimeoutError,
 } from "./tool-call-timeout.ts";
 
-NodeTest(
+await NodeTest(
   "the production timeout error names the tool and three-minute limit",
   () => {
     NodeAssert.equal(
@@ -23,7 +23,7 @@ NodeTest(
   },
 );
 
-NodeTest(
+await NodeTest(
   "a hung tool call fails clearly and receives an abort signal",
   async () => {
     let executionSignal: AbortSignal | undefined;
@@ -31,6 +31,7 @@ NodeTest(
     await NodeAssert.rejects(
       runWithToolCallTimeout("hung_fixture", 10, undefined, (signal) => {
         executionSignal = signal;
+
         return new Promise(() => {});
       }),
       <Input1>(error: Input1) => {
@@ -39,6 +40,7 @@ NodeTest(
           error instanceof Error ? error.message : "",
           'Tool call "hung_fixture" timed out after 10 ms.',
         );
+
         return true;
       },
     );
@@ -51,7 +53,7 @@ NodeTest(
   },
 );
 
-NodeTest(
+await NodeTest(
   "parent cancellation still stops the timeout wrapper immediately",
   async () => {
     let executed = false;
@@ -69,6 +71,7 @@ NodeTest(
     NodeAssert.equal(executed, false);
     const controller = new AbortController();
     const reason = new Error("cancelled fixture");
+
     const pending = runWithToolCallTimeout(
       "hung_fixture",
       60_000,
@@ -85,25 +88,30 @@ NodeTest(
   },
 );
 
-NodeTest(
+await NodeTest(
   "the guard wraps each definition once and can discover later tools",
   () => {
     const definitions = new Map<string, ToolDefinition>();
-    const createDefinition = (name: string): ToolDefinition => ({
-      name,
-      label: name,
-      description: name,
-      parameters: Type.Object({}),
-      async execute() {
-        return { content: [{ type: "text", text: "done" }], details: {} };
-      },
-    });
+
+    const createDefinition = (name: string) =>
+      ({
+        name,
+        label: name,
+        description: name,
+        parameters: Type.Object({}),
+        async execute(this: void) {
+          return { content: [{ type: "text", text: "done" }], details: {} };
+        },
+      }) satisfies ToolDefinition;
+
     const first = createDefinition("first");
     definitions.set(first.name, first);
+
     const registry = {
       getAllTools: () => [...definitions.keys()].map((name) => ({ name })),
       getToolDefinition: (name: string) => definitions.get(name),
     };
+
     const guard = createToolCallTimeoutGuard(10);
 
     const firstExecute = first.execute;
@@ -121,10 +129,11 @@ NodeTest(
   },
 );
 
-NodeTest(
+await NodeTest(
   "guard retains raw execution after timeout and observes late rejection",
   async () => {
     let reject!: (error: Error) => void;
+
     const definition: ToolDefinition = {
       name: "ignored_abort",
       label: "fixture",
@@ -135,6 +144,7 @@ NodeTest(
           reject = rejectPromise;
         }),
     };
+
     const guard = createToolCallTimeoutGuard(10);
     guard.apply({
       getAllTools: () => [{ name: definition.name }],
@@ -148,9 +158,11 @@ NodeTest(
     );
     NodeAssert.deepEqual(guard.pendingResources(), ["ignored_abort:call-1"]);
     let settled = false;
+
     const settlement = guard.settled().then(() => {
       settled = true;
     });
+
     await Promise.resolve();
     NodeAssert.equal(settled, false);
     reject(new Error("late rejection"));
@@ -159,7 +171,7 @@ NodeTest(
   },
 );
 
-NodeTest(
+await NodeTest(
   "successful and terminating tool results pass through unchanged",
   async () => {
     const result = {
@@ -180,12 +192,13 @@ NodeTest(
   },
 );
 
-NodeTest(
+await NodeTest(
   "the timeout is fresh for each tool call, not shared across calls",
   async () => {
     const execute = () =>
       runWithToolCallTimeout("slow_fixture", 100, undefined, async () => {
         await new Promise((resolve) => setTimeout(resolve, 60));
+
         return "done";
       });
 

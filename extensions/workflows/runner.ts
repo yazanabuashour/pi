@@ -33,10 +33,13 @@ import { STRUCTURED_OUTPUT_TOOL_DESCRIPTION } from "./prompt.ts";
 import { toSerializable } from "./serialization.ts";
 
 export const AGENT_OUTPUT_MAX_BYTES = 64 * 1024;
+
 export const FIRST_RESPONSE_TIMEOUT_MS = 45_000;
 
 export type WorkflowModel = NonNullable<ExtensionContext["model"]>;
+
 export type ThinkingLevel = ReturnType<ExtensionAPI["getThinkingLevel"]>;
+
 type AgentMessage = AgentSession["messages"][number];
 
 export interface AgentOutcome {
@@ -91,6 +94,7 @@ export function guardWorkflowChildTools(
 ) {
   const guard = createToolCallTimeoutGuard(timeoutMs);
   guard.apply(session);
+
   return session.subscribe((event) => {
     if (event.type === "agent_start") guard.apply(session);
   });
@@ -100,25 +104,34 @@ function isJsonSchema<Input1>(value: Input1): value is Input1 & TSchema {
   if (!isRuntimeRecord(value)) return false;
   const seen = new WeakSet<object>();
   let nodes = 0;
+
   const validate = <Input1>(current: Input1, depth: number): boolean => {
     if (++nodes > 10_000 || depth > 24) return false;
+
     if (current === null || isString(current) || isBoolean(current)) {
       return true;
     }
+
     if (isNumber(current)) return Number.isFinite(current);
+
     if (Array.isArray(current)) {
       return current.every((item) => validate(item, depth + 1));
     }
+
     if (!isRuntimeRecord(current)) return false;
+
     if (seen.has(current)) return false;
     seen.add(current);
+
     return Object.keys(current).every((key) => {
       if (key === "__proto__" || key === "constructor" || key === "prototype") {
         return false;
       }
+
       return validate(current[key], depth + 1);
     });
   };
+
   return validate(value, 0);
 }
 
@@ -127,6 +140,7 @@ function jsonSchemaToTypebox<Input1>(schema: Input1): TSchema {
   if (!isJsonSchema(schema)) {
     throw new Error("structured output schema must be a bounded JSON object");
   }
+
   return Type.Unsafe(schema);
 }
 
@@ -145,6 +159,7 @@ export function createStructuredOutputTool<Input1>(
     parameters: jsonSchemaToTypebox(schema),
     async execute(_toolCallId, params) {
       capture(toSerializable(params));
+
       return {
         content: [{ type: "text", text: "Recorded structured result." }],
         details: params,
@@ -157,14 +172,18 @@ export function createStructuredOutputTool<Input1>(
 export function finalOutput(messages: AgentMessage[]): string {
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
+
     if (!msg || msg.role !== "assistant") continue;
+
     const text = msg.content
       .filter((part) => part.type === "text")
       .map((part) => part.text)
       .join("\n")
       .trim();
+
     if (text) return text;
   }
+
   return "";
 }
 
@@ -191,6 +210,7 @@ export function createFirstResponseWatchdog(
 ) {
   const timeoutMs = options.timeoutMs ?? FIRST_RESPONSE_TIMEOUT_MS;
   let timer: ReturnType<typeof setTimeout> | undefined;
+
   const timeout = new Promise<never>((_resolve, reject) => {
     timer = setTimeout(() => {
       timer = undefined;

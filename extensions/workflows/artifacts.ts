@@ -7,9 +7,13 @@ import {
 import * as NodePath from "node:path";
 
 const ARTIFACT_TRANSCRIPT_MAX_BYTES = 32 * 1024;
+
 const ARTIFACT_TRANSCRIPT_ENTRY_MAX_BYTES = 8 * 1024;
+
 export const WORKFLOW_CHECKPOINT_INTERVAL_MS = 500;
+
 const ENTRY_TRUNCATION_MARKER = "\n[entry truncated]";
+
 const TRANSCRIPT_TRUNCATION_MARKER =
   "[artifact transcript truncated: older entries omitted]";
 
@@ -20,10 +24,12 @@ function textBytes(text: string) {
 function boundEntry(entry: TranscriptEntry, maxBytes: number) {
   if (textBytes(entry.text) <= maxBytes) return { ...entry };
   const markerBytes = textBytes(ENTRY_TRUNCATION_MARKER);
+
   const text =
     maxBytes > markerBytes
       ? `${truncateUtf8(entry.text, maxBytes - markerBytes)}${ENTRY_TRUNCATION_MARKER}`
       : truncateUtf8(ENTRY_TRUNCATION_MARKER, maxBytes);
+
   return { ...entry, text };
 }
 
@@ -33,10 +39,12 @@ export function boundedArtifactTranscript(
   options: { maxBytes?: number; entryMaxBytes?: number } = {},
 ) {
   if (transcript.length === 0) return [];
+
   const maxBytes = Math.max(
     256,
     options.maxBytes ?? ARTIFACT_TRANSCRIPT_MAX_BYTES,
   );
+
   const entryMaxBytes = Math.max(
     64,
     Math.min(
@@ -44,7 +52,9 @@ export function boundedArtifactTranscript(
       options.entryMaxBytes ?? ARTIFACT_TRANSCRIPT_ENTRY_MAX_BYTES,
     ),
   );
+
   const bounded = transcript.map((entry) => boundEntry(entry, entryMaxBytes));
+
   if (
     bounded.reduce((total, entry) => total + textBytes(entry.text), 0) <=
     maxBytes
@@ -54,16 +64,20 @@ export function boundedArtifactTranscript(
 
   const initialIndex = transcript.findIndex((entry) => entry.role === "user");
   const initialEntry = transcript[initialIndex >= 0 ? initialIndex : 0];
+
   if (!initialEntry) return [];
+
   const initial = boundEntry(
     initialEntry,
     Math.min(entryMaxBytes, maxBytes - textBytes(TRANSCRIPT_TRUNCATION_MARKER)),
   );
+
   const marker: TranscriptEntry = {
     role: "toolResult",
     name: "transcript",
     text: TRANSCRIPT_TRUNCATION_MARKER,
   };
+
   let remaining = maxBytes - textBytes(initial.text) - textBytes(marker.text);
   const tail: TranscriptEntry[] = [];
 
@@ -74,16 +88,20 @@ export function boundedArtifactTranscript(
   ) {
     if (index === initialIndex || (initialIndex < 0 && index === 0)) continue;
     const transcriptEntry = transcript[index];
+
     if (!transcriptEntry) continue;
+
     const entry = boundEntry(
       transcriptEntry,
       Math.min(entryMaxBytes, remaining),
     );
+
     tail.push(entry);
     remaining -= textBytes(entry.text);
   }
 
   tail.reverse();
+
   return [initial, marker, ...tail];
 }
 
@@ -98,11 +116,13 @@ export function persistWorkflowJson(runDir: string, details: WorkflowDetails) {
       boundedArtifactTranscript(agent.transcript),
     ]),
   );
+
   writeRunFile(
     runDir,
     "transcripts.json",
     safeStringify(transcripts, { maxBytes: 2 * 1024 * 1024 }),
   );
+
   if (details.result !== undefined) {
     writeRunFile(
       runDir,
@@ -110,15 +130,18 @@ export function persistWorkflowJson(runDir: string, details: WorkflowDetails) {
       safeStringify(details.result, { maxBytes: 1024 * 1024 }),
     );
   }
+
   const compact: WorkflowDetails = {
     ...details,
     transcriptArtifact: "transcripts.json",
     agents: details.agents.map((agent) => ({ ...agent, transcript: [] })),
   };
+
   if (details.result !== undefined) {
     compact.result = "[stored in result.json]";
     compact.resultArtifact = "result.json";
   }
+
   writeRunFile(
     runDir,
     "workflow.json",
@@ -139,6 +162,7 @@ export function createWorkflowPersistence(
     0,
     options.intervalMs ?? WORKFLOW_CHECKPOINT_INTERVAL_MS,
   );
+
   const persist = options.persist ?? persistWorkflowJson;
   let lastPersistedAt = Date.now();
   let dirty = false;
@@ -146,7 +170,9 @@ export function createWorkflowPersistence(
 
   const savePending = () => {
     timer = undefined;
+
     if (!dirty) return;
+
     try {
       persist(runDir, details);
       dirty = false;
@@ -159,18 +185,24 @@ export function createWorkflowPersistence(
   return {
     checkpoint(options: { immediate?: boolean } = {}) {
       dirty = true;
+
       if (options.immediate) {
         if (timer) clearTimeout(timer);
         timer = undefined;
         savePending();
+
         return;
       }
+
       if (timer) return;
       const delay = Math.max(0, intervalMs - (Date.now() - lastPersistedAt));
+
       if (delay === 0) {
         savePending();
+
         return;
       }
+
       timer = setTimeout(savePending, delay);
     },
     flush() {

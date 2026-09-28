@@ -47,22 +47,27 @@ function acquireSession(
   return Effect.callback<WorkflowSession, AgentSetupError>((resume, signal) => {
     const operation = Promise.resolve().then(async () => {
       signal.throwIfAborted();
+
       if (!options.model)
         throw new Error("Workflow requires a model in the calling thread");
+
       const customTools: ToolDefinition[] | undefined =
         options.schema === undefined
           ? undefined
           : [createStructuredOutputTool(options.schema, captureStructured)];
+
       const resourceOptions: Parameters<typeof createChildResources>[0] = {
         cwd: options.cwd,
         projectTrusted: options.projectTrusted,
       };
+
       if (options.schema !== undefined)
         resourceOptions.appendSystemPrompt = [
           STRUCTURED_OUTPUT_SYSTEM_INSTRUCTION,
         ];
       const resources = await createChildResources(resourceOptions);
       signal.throwIfAborted();
+
       const sessionOptions: Parameters<typeof createAgentSession>[0] = {
         cwd: options.cwd,
         model: options.model,
@@ -71,14 +76,18 @@ function acquireSession(
         sessionManager: SessionManager.inMemory(options.cwd),
         ...childToolPolicy(),
       };
+
       if (options.thinkingLevel)
         sessionOptions.thinkingLevel = options.thinkingLevel;
+
       if (customTools) sessionOptions.customTools = customTools;
       const { session } = await createAgentSession(sessionOptions);
+
       try {
         signal.throwIfAborted();
         await bindChildSessionExtensions(session);
         signal.throwIfAborted();
+
         return {
           session,
           unsubscribeToolTimeout: guardWorkflowChildTools(
@@ -91,9 +100,11 @@ function acquireSession(
         throw error;
       }
     });
+
     const settled = operation.then(
       (created) => {
         resume(Effect.succeed(created));
+
         return created;
       },
       (cause) => {
@@ -105,13 +116,16 @@ function acquireSession(
             }),
           ),
         );
+
         return undefined;
       },
     );
+
     // SDK loading and binding ignore cancellation. Own their settlement before
     // disposal so late setup cannot restart extension resources after teardown.
     return Effect.promise(async () => {
       const created = await settled;
+
       if (created) await dispose(created);
     });
   });

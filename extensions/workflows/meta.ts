@@ -65,10 +65,13 @@ function propertyName(property: Property) {
   if (property.computed || property.kind !== "init" || property.method) {
     return undefined;
   }
+
   if (isIdentifier(property.key)) return property.key.name;
+
   if (isLiteral(property.key) && isString(property.key.value)) {
     return property.key.value;
   }
+
   return undefined;
 }
 
@@ -79,6 +82,7 @@ function propertyName(property: Property) {
  */
 function literalValue(node: Expression, depth = 0): RuntimeValue {
   if (depth > 8) throw new Error("workflow metadata is nested too deeply");
+
   if (isLiteral(node)) {
     if (
       node.value === null ||
@@ -88,64 +92,83 @@ function literalValue(node: Expression, depth = 0): RuntimeValue {
     ) {
       return node.value;
     }
+
     throw new Error("workflow metadata contains an unsupported literal");
   }
+
   if (node.type === "ArrayExpression") {
     const arrayNode: ArrayExpression = node;
+
     return arrayNode.elements.map((element) => {
       if (!element || element.type === "SpreadElement") {
         throw new Error(
           "workflow metadata arrays cannot contain holes or spreads",
         );
       }
+
       return literalValue(element, depth + 1);
     });
   }
+
   if (node.type === "ObjectExpression") {
     const objectNode: ObjectExpression = node;
     const value: RuntimeRecord = Object.create(null);
+
     for (const item of objectNode.properties) {
       if (!isProperty(item)) {
         throw new Error("workflow metadata objects cannot contain spreads");
       }
+
       const key = propertyName(item);
+
       if (key === undefined || item.shorthand) {
         throw new Error(
           "workflow metadata keys and values must be plain literals",
         );
       }
+
       value[key] = literalValue(item.value, depth + 1);
     }
+
     return value;
   }
+
   throw new Error("workflow metadata must contain only static literals");
 }
 
 function sanitizeMeta<Input1>(value: Input1): WorkflowMeta {
   const meta: WorkflowMeta = { phases: [] };
+
   if (!isRuntimeRecord(value)) return meta;
   const name = value["name"];
+
   if (isString(name)) meta.name = name.slice(0, 160);
   const description = value["description"];
+
   if (isString(description)) meta.description = description.slice(0, 2_000);
   const phases = value["phases"];
+
   if (Array.isArray(phases)) {
     for (const item of phases.slice(0, 64)) {
       if (!isRuntimeRecord(item)) continue;
       const title = item["title"];
+
       if (!isString(title) || !title.trim()) continue;
       const normalized: WorkflowPhase = { title: title.slice(0, 160) };
       const detail = item["detail"];
+
       if (isString(detail)) normalized.detail = detail.slice(0, 2_000);
       meta.phases.push(normalized);
     }
   }
+
   return meta;
 }
 
 function metadataDeclaration(statement: Program["body"][number]) {
   if (statement.type !== "ExportNamedDeclaration") return undefined;
   const exported: ExportNamedDeclaration = statement;
+
   if (
     exported.source ||
     exported.specifiers.length > 0 ||
@@ -155,13 +178,17 @@ function metadataDeclaration(statement: Program["body"][number]) {
       "workflow scripts may only export a static `const meta = {...}` declaration",
     );
   }
+
   const declaration: VariableDeclaration = exported.declaration;
+
   if (declaration.kind !== "const" || declaration.declarations.length !== 1) {
     throw new Error(
       "workflow metadata must be declared as `export const meta = {...}`",
     );
   }
+
   const declarator = declaration.declarations[0];
+
   if (
     !declarator ||
     declarator.id.type !== "Identifier" ||
@@ -170,6 +197,7 @@ function metadataDeclaration(statement: Program["body"][number]) {
   ) {
     throw new Error("workflow scripts may only export a `meta` declaration");
   }
+
   return { exported, initializer: declarator.init };
 }
 
@@ -187,6 +215,7 @@ export function prepareWorkflowScript(source: string): PreparedWorkflowScript {
     if (statement.type === "ImportDeclaration") {
       throw new Error("workflow scripts cannot use static imports");
     }
+
     if (
       statement.type === "ExportDefaultDeclaration" ||
       statement.type === "ExportAllDeclaration"
@@ -195,8 +224,11 @@ export function prepareWorkflowScript(source: string): PreparedWorkflowScript {
         "workflow scripts may only export a static `const meta = {...}` declaration",
       );
     }
+
     const declaration = metadataDeclaration(statement);
+
     if (!declaration) continue;
+
     if (metadataRange)
       throw new Error("workflow metadata may only be declared once");
     meta = sanitizeMeta(literalValue(declaration.initializer));
@@ -211,6 +243,7 @@ export function prepareWorkflowScript(source: string): PreparedWorkflowScript {
   // executable metadata. A semicolon keeps adjacent statements separated.
   const removed = source.slice(metadataRange.start, metadataRange.end);
   const replacement = `;${removed.slice(1).replace(/[^\n\r]/g, " ")}`;
+
   return {
     source:
       source.slice(0, metadataRange.start) +
@@ -221,19 +254,24 @@ export function prepareWorkflowScript(source: string): PreparedWorkflowScript {
 }
 
 const metaCache = new Map<string, WorkflowMeta>();
+
 const META_CACHE_LIMIT = 32;
 
 /** Safe metadata extraction for render paths. Invalid/partial scripts are empty. */
 export function extractMeta(script: string): WorkflowMeta {
   const cached = metaCache.get(script);
+
   if (cached) return cached;
   let meta: WorkflowMeta = { phases: [] };
+
   try {
     meta = prepareWorkflowScript(script).meta;
   } catch {
     // Renderers must tolerate partial model output and invalid scripts.
   }
+
   if (metaCache.size >= META_CACHE_LIMIT) metaCache.clear();
   metaCache.set(script, meta);
+
   return meta;
 }

@@ -8,26 +8,32 @@ import { CommandRunner, type CommandResult } from "./src/process.ts";
 import { GitInfoRefresh } from "./src/refresh.ts";
 
 const repoCommand = "rev-parse --is-inside-work-tree";
+
 const branchCommand = "branch --show-current";
+
 const prCommand = "pr view main --json number,url,state,isDraft";
+
 const openPr = {
   number: 7,
   url: "https://example.test/org/repo/pull/7",
   state: "OPEN",
   isDraft: false,
 };
+
 const result = (value: Partial<CommandResult>) =>
   Effect.succeed({ code: 0, stdout: "", stderr: "", ...value });
 
 function fixture() {
   const requests: string[] = [];
   const published: GitInfoState[] = [];
+
   const responses = new Map([
     [repoCommand, result({ stdout: "true" })],
     [branchCommand, result({ stdout: "main" })],
     ["status --porcelain=v1 --untracked-files=all", result({ stdout: "" })],
     [prCommand, result({ stdout: JSON.stringify(openPr) })],
   ]);
+
   const runner = CommandRunner.of({
     run: (_command, args) =>
       Effect.suspend(() => {
@@ -35,15 +41,19 @@ function fixture() {
         requests.push(command);
         const response = responses.get(command);
         assert.ok(response, `Unexpected command: ${command}`);
+
         return response;
       }),
   });
+
   const refresh = new GitInfoRefresh((state) => published.push(state));
+
   return { requests, published, responses, runner, refresh };
 }
 
 it.effect("forced refreshes queue while background refreshes coalesce", () => {
   const f = fixture();
+
   return Effect.gen(function* () {
     const started = yield* Deferred.make<void>();
     const release = yield* Deferred.make<void>();
@@ -52,12 +62,15 @@ it.effect("forced refreshes queue while background refreshes coalesce", () => {
       Effect.gen(function* () {
         yield* Deferred.succeed(started, undefined);
         yield* Deferred.await(release);
+
         return yield* result({ stdout: JSON.stringify(openPr) });
       }),
     );
+
     const background = yield* Effect.forkChild(
       f.refresh.refreshIfIdle("/fixture"),
     );
+
     yield* Deferred.await(started);
     const forced = yield* Effect.forkChild(f.refresh.refresh("/fixture"));
     const forcedAgain = yield* Effect.forkChild(f.refresh.refresh("/fixture"));
@@ -92,6 +105,7 @@ it.effect(
   "invalidation discards active PR results and queued refreshes without caching them",
   () => {
     const f = fixture();
+
     return Effect.gen(function* () {
       const started = yield* Deferred.make<void>();
       const release = yield* Deferred.make<void>();
@@ -100,15 +114,18 @@ it.effect(
         Effect.gen(function* () {
           yield* Deferred.succeed(started, undefined);
           yield* Deferred.await(release);
+
           return yield* result({
             code: 4,
             stderr: "private authentication error",
           });
         }),
       );
+
       const active = yield* Effect.forkChild(
         f.refresh.refreshIfIdle("/fixture"),
       );
+
       yield* Deferred.await(started);
       const queued = yield* Effect.forkChild(f.refresh.refresh("/fixture"));
       yield* Effect.yieldNow;
@@ -139,9 +156,11 @@ it.effect(
   "invalidation prevents stale repository success and failure from publishing",
   () => {
     const f = fixture();
+
     return Effect.gen(function* () {
       yield* f.refresh.refresh("/fixture");
       const snapshot = f.refresh.snapshot;
+
       for (const response of [{ stdout: "true" }, { code: 1 }]) {
         const started = yield* Deferred.make<void>();
         const release = yield* Deferred.make<void>();
@@ -150,6 +169,7 @@ it.effect(
           Effect.gen(function* () {
             yield* Deferred.succeed(started, undefined);
             yield* Deferred.await(release);
+
             return yield* result(response);
           }),
         );
@@ -173,6 +193,7 @@ it.effect(
   "PR cache is isolated from observers and refreshed on forced, cwd, branch or session changes",
   () => {
     const f = fixture();
+
     return Effect.gen(function* () {
       yield* f.refresh.refreshIfIdle("/fixture");
       const pristine = f.refresh.snapshot;

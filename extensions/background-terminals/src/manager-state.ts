@@ -63,7 +63,9 @@ export function notify(state: ManagerState, id?: string) {
       // A failed render listener must not corrupt lifecycle state.
     }
   }
+
   if (!id) return;
+
   for (const listener of state.idListeners.get(id) ?? []) {
     try {
       listener();
@@ -94,6 +96,7 @@ export function releaseKillInterest(
 ) {
   for (const id of ids) {
     const count = (state.killInterest.get(id) ?? 1) - 1;
+
     if (count <= 0) state.killInterest.delete(id);
     else state.killInterest.set(id, count);
   }
@@ -114,6 +117,7 @@ export function closeEntryScope(entry: Entry) {
 
 export function pruneSettled(state: ManagerState) {
   if (state.entries.size <= MAX_TRACKED) return;
+
   const candidates = [...state.entries.values()]
     .filter(
       (entry) =>
@@ -125,6 +129,7 @@ export function pruneSettled(state: ManagerState) {
         (left.snapshot.settledAt ?? left.snapshot.createdAt) -
         (right.snapshot.settledAt ?? right.snapshot.createdAt),
     );
+
   for (const entry of candidates) {
     if (state.entries.size <= MAX_TRACKED) break;
     state.entries.delete(entry.snapshot.id);
@@ -141,8 +146,10 @@ function rememberSettlement(state: ManagerState, entry: Entry) {
     stopRequested: snapshot.stopRequested,
     cleanupIncomplete: snapshot.cleanupIncomplete,
   });
+
   while (state.settledHistory.size > MAX_SETTLED_HISTORY) {
     const oldest = state.settledHistory.keys().next().value;
+
     if (oldest === undefined) break;
     state.settledHistory.delete(oldest);
   }
@@ -150,7 +157,9 @@ function rememberSettlement(state: ManagerState, entry: Entry) {
 
 export function settle(state: ManagerState, entry: Entry) {
   const snapshot = entry.snapshot;
+
   if (snapshot.status !== "running") return;
+
   if (entry.exited) {
     snapshot.settledAt = Date.now();
     snapshot.status = entry.processErrored
@@ -164,15 +173,18 @@ export function settle(state: ManagerState, entry: Entry) {
           : "failed";
     rememberSettlement(state, entry);
   }
+
   entry.settling = false;
   const consumed = (state.killInterest.get(snapshot.id) ?? 0) > 0;
   Deferred.doneUnsafe(entry.settled, Effect.void);
   notify(state, snapshot.id);
+
   try {
     if (!state.disposed) state.onSettled?.(snapshot, consumed);
   } catch {
     // The parent session may be unavailable; settlement stays final.
   }
+
   pruneSettled(state);
 }
 
@@ -209,8 +221,10 @@ export function terminalStatus(state: ManagerState, id: string) {
   return Effect.suspend(
     (): Effect.Effect<TerminalSnapshot, UnknownTerminalError> => {
       const entry = state.entries.get(id);
+
       if (entry) return Effect.succeed(entry.snapshot);
       const known = [...state.entries.keys()];
+
       return new UnknownTerminalError({
         message: `Unknown terminal id "${id}". Known: ${known.join(", ") || "none"}.`,
       });

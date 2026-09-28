@@ -63,6 +63,7 @@ it.live("stub agent completes and delivers a final result", () =>
         "unknown-id",
         snap.id,
       ]);
+
       yield* Effect.yieldNow;
       const done = manager.view.get(snap.id);
       NodeAssert.ok(done);
@@ -93,10 +94,12 @@ it.live(
         );
 
         const snap = yield* manager.spawn(task("FAIL: blow up please"));
+
         // Poll without wait-interest so the settle is delivered unconsumed.
         while (manager.view.get(snap.id)?.status === "running") {
           yield* Effect.sleep("50 millis");
         }
+
         const failed = manager.view.get(snap.id);
         NodeAssert.equal(failed?.status, "error");
         NodeAssert.equal(failed?.outcome, "failed");
@@ -150,6 +153,7 @@ it.live("spawn origin propagates to ids, snapshots, and settlement", () =>
       );
 
       const model = yield* manager.spawn(task("model task"));
+
       const btw = yield* manager.spawn({
         ...task("side question"),
         origin: "btw",
@@ -182,6 +186,7 @@ it.live("the global concurrency cap includes by-the-way sessions", () =>
         task("Task 3"),
         task("Task 4"),
       ];
+
       const spawns = yield* Effect.forEach(
         tasks,
         (spawnTask) => manager.spawn(spawnTask),
@@ -189,13 +194,16 @@ it.live("the global concurrency cap includes by-the-way sessions", () =>
           concurrency: "unbounded",
         },
       );
+
       NodeAssert.equal(spawns.length, 4);
+
       const error = yield* Effect.flip(
         manager.spawn({
           ...task("another side question"),
           origin: "btw",
         }),
       );
+
       NodeAssert.match(String(error), /Max 4 agents/);
     }),
   ),
@@ -208,6 +216,7 @@ it.live(
       Effect.gen(function* () {
         const failure = yield* Effect.flip(manager.spawn(task("FAIL_SPAWN")));
         NodeAssert.match(String(failure), /Scripted spawn failure/);
+
         const spawns = yield* Effect.forEach(
           [1, 2, 3, 4],
           (n) => manager.spawn(task(`Task ${n}`)),
@@ -215,6 +224,7 @@ it.live(
             concurrency: "unbounded",
           },
         );
+
         NodeAssert.equal(spawns.length, 4);
         const error = yield* Effect.flip(manager.spawn(task("Task 5")));
         NodeAssert.match(String(error), /Max 4 agents/);
@@ -235,7 +245,9 @@ it.live(
           refreshOnCreate: false,
         }),
       );
+
       const createSession = yield* SessionFactory;
+
       for (const modelRegistry of [undefined, new ModelRegistry(runtime)]) {
         const error = yield* Effect.flip(
           createSession({
@@ -243,6 +255,7 @@ it.live(
             parent: { ...parent, modelRegistry },
           }),
         );
+
         NodeAssert.match(
           error.message,
           modelRegistry ? /parent session's model\./ : /model registry/,
@@ -284,13 +297,16 @@ it.live("send steers an idle agent into another turn", () =>
       const started: Array<{ id: string; generation: number }> = [];
       manager.view.setOnStarted((snapshot) => {
         started.push({ id: snapshot.id, generation: snapshot.generation });
+
         return true;
       });
       yield* manager.send(snap.id, "Second turn");
+
       // The fresh run flips the status back to running...
       while (manager.view.get(snap.id)?.status !== "running") {
         yield* Effect.sleep("10 millis");
       }
+
       yield* manager.waitFor([snap.id]);
       const afterSecond = manager.view.get(snap.id);
       NodeAssert.equal(afterSecond?.status, "done");

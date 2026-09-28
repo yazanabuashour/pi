@@ -30,6 +30,7 @@ import {
 } from "./src/question-view.ts";
 
 const MIN_OPTIONS = 2;
+
 const MAX_OPTIONS = 5;
 
 const OptionSchema = Type.Object({
@@ -74,6 +75,7 @@ export async function showRpcQuestion(
     (option, index) =>
       `${index + 1}. ${option.label}${option.description ? ` — ${option.description}` : ""}`,
   );
+
   const customOption = `${options.length + 1}. ${CUSTOM_OPTION_LABEL}`;
 
   while (true) {
@@ -82,10 +84,12 @@ export async function showRpcQuestion(
       [...options, customOption],
       signal === undefined ? undefined : { signal },
     );
+
     if (selected === undefined) return null;
 
     const index = options.indexOf(selected);
     const option = params.options[index];
+
     if (index >= 0 && option) {
       return {
         answer: option.label,
@@ -93,6 +97,7 @@ export async function showRpcQuestion(
         index: index + 1,
       };
     }
+
     if (selected !== customOption) return null;
 
     const answer = (
@@ -102,6 +107,7 @@ export async function showRpcQuestion(
         signal === undefined ? undefined : { signal },
       )
     )?.trim();
+
     if (answer) return { answer, wasCustom: true };
   }
 }
@@ -138,33 +144,42 @@ async function executeAskUser(
       `ask_user requires between ${MIN_OPTIONS} and ${MAX_OPTIONS} options (got ${params.options.length}). Retry with a valid number of options.`,
     );
   }
+
   if (
     !ctx.hasUI ||
     (ctx.mode === "rpc" && pi.getFlag("ask-user-rpc") !== true)
   ) {
     return reply(params, buildAskUserResultMessage({ kind: "no-ui" }));
   }
+
   if (signal?.aborted) {
     return reply(params, buildAskUserResultMessage({ kind: "cancelled" }));
   }
+
   const showQuestion =
     ctx.mode === "rpc"
       ? (uiSignal: AbortSignal) => showRpcQuestion(params, uiSignal, ctx.ui)
       : (uiSignal: AbortSignal) => showTuiQuestion(params, uiSignal, ctx.ui);
+
   const uiExit = await Effect.runPromiseExit(
     Effect.tryPromise(showQuestion),
     signal ? { signal } : undefined,
   );
+
   if (Exit.isFailure(uiExit)) {
     if (Cause.hasInterruptsOnly(uiExit.cause)) {
       return reply(params, buildAskUserResultMessage({ kind: "cancelled" }));
     }
+
     const [first] = Cause.prettyErrors(uiExit.cause);
     throw new Error(first?.message ?? Cause.pretty(uiExit.cause));
   }
+
   const result = uiExit.value;
+
   if (!result)
     return reply(params, buildAskUserResultMessage({ kind: "dismissed" }));
+
   if (result.wasCustom) {
     return reply(
       params,
@@ -173,6 +188,7 @@ async function executeAskUser(
       true,
     );
   }
+
   return reply(
     params,
     buildAskUserResultMessage({
@@ -207,18 +223,22 @@ export default function askUser(pi: ExtensionAPI) {
       let text = theme.fg("toolTitle", theme.bold("ask_user "));
       text += theme.fg("muted", isString(args.question) ? args.question : "");
       const opts = Array.isArray(args.options) ? args.options : [];
+
       if (opts.length > 0) {
         const numbered = opts.map((o, i) => `${i + 1}. ${o.label}`);
         text += `\n${theme.fg("dim", `  ${numbered.join("  ")}`)}`;
       }
+
       return new Text(text, 0, 0);
     },
 
     renderResult(result, _options, theme, _context) {
       // SAFETY: The adjacent runtime guard establishes the asserted protocol representation.
       const details = result.details as AskUserDetails | undefined;
+
       if (!details) {
         const first = result.content[0];
+
         return new Text(first?.type === "text" ? first.text : "", 0, 0);
       }
 
@@ -238,6 +258,7 @@ export default function askUser(pi: ExtensionAPI) {
 
       const idx = details.options.indexOf(details.answer) + 1;
       const display = idx > 0 ? `${idx}. ${details.answer}` : details.answer;
+
       return new Text(
         theme.fg("success", "✓ ") + theme.fg("accent", display),
         0,

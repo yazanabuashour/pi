@@ -29,6 +29,7 @@ interface RunSummary {
 
 function liveSummary(runId: string, details: WorkflowDetails): RunSummary {
   const { done, failed } = countStates(details);
+
   const summary: RunSummary = {
     runId,
     status: details.status,
@@ -37,12 +38,15 @@ function liveSummary(runId: string, details: WorkflowDetails): RunSummary {
     startedAt: details.startedAt,
     active: true,
   };
+
   if (details.name !== undefined) summary.name = details.name;
+
   return summary;
 }
 
 function savedSummary(runId: string, details: WorkflowDetails): RunSummary {
   const displayed = displayInterruptedWorkflow(details);
+
   const summary: RunSummary = {
     runId,
     status: displayed.status,
@@ -51,7 +55,9 @@ function savedSummary(runId: string, details: WorkflowDetails): RunSummary {
     startedAt: displayed.startedAt,
     active: false,
   };
+
   if (displayed.name !== undefined) summary.name = displayed.name;
+
   return summary;
 }
 
@@ -62,18 +68,23 @@ function listRuns(
 ) {
   const base = NodePath.join(getAgentDir(), "workflows");
   let names: string[] = [];
+
   try {
     names = NodeFS.readdirSync(base).filter((name) => name.startsWith("wf_"));
   } catch {
     // No runs exist yet.
   }
+
   const summaries: RunSummary[] = [];
+
   for (const runId of names) {
     const live = activeRuns.get(runId);
+
     if (live) {
       summaries.push(liveSummary(runId, live));
       continue;
     }
+
     try {
       const parsed = normalizeWorkflowDetails(
         runId,
@@ -84,6 +95,7 @@ function listRuns(
           ),
         ),
       );
+
       if (
         parsed &&
         (parsed.sessionId === sessionId || referencedRunIds.has(runId))
@@ -94,6 +106,7 @@ function listRuns(
       // Ignore artifacts whose owning session cannot be verified.
     }
   }
+
   return summaries.sort((left, right) => right.startedAt - left.startedAt);
 }
 
@@ -103,7 +116,9 @@ function runDetailText(
 ) {
   const runDir = NodePath.join(getAgentDir(), "workflows", run.runId);
   const live = activeRuns.get(run.runId);
+
   if (live) return buildWorkflowResultMessage(live, runDir);
+
   try {
     const parsed = normalizeWorkflowDetails(
       run.runId,
@@ -111,6 +126,7 @@ function runDetailText(
         NodeFS.readFileSync(NodePath.join(runDir, "workflow.json"), "utf8"),
       ),
     );
+
     return parsed
       ? buildWorkflowResultMessage(displayInterruptedWorkflow(parsed), runDir)
       : `Run ${run.runId} — unreadable artifact`;
@@ -128,6 +144,7 @@ export function registerWorkflowCommand(
       "List workflow runs (`/workflows <runId>` for one run's detail)",
     handler: async (rawArgs, context) => {
       const argument = rawArgs.trim();
+
       if (context.mode === "tui") {
         session.setUi(context);
         await showWorkflowDashboard(
@@ -136,42 +153,56 @@ export function registerWorkflowCommand(
           argument || undefined,
         );
         session.acknowledgeFinished();
+
         return;
       }
+
       const active = session.activeDetails();
+
       const runs = listRuns(
         active,
         context.sessionManager.getSessionId(),
         sessionWorkflowRunIds(context),
       );
+
       if (runs.length === 0) {
         context.ui.notify("No workflow runs yet.", "info");
+
         return;
       }
+
       if (argument) {
         const run = runs.find(
           (candidate) =>
             candidate.runId === argument || candidate.runId.endsWith(argument),
         );
+
         context.ui.notify(
           run
             ? runDetailText(run, active)
             : `No workflow run matching "${argument}".`,
           run ? "info" : "warning",
         );
+
         return;
       }
+
       const labels = runs.map(
         (run) =>
           `${run.active ? "* " : "  "}${run.runId}  ${run.status}  ${run.name ?? ""}  ${run.done}/${run.total}`,
       );
+
       if (!context.hasUI) {
         context.ui.notify(labels.join("\n"), "info");
+
         return;
       }
+
       const choice = await context.ui.select("Workflow runs", labels);
+
       if (!choice) return;
       const run = runs[labels.indexOf(choice)];
+
       if (run) context.ui.notify(runDetailText(run, active), "info");
     },
   });

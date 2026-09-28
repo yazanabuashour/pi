@@ -16,12 +16,13 @@ import {
 } from "./manager.test-support.ts";
 import { runTool } from "./src/runtime.ts";
 
-NodeTest(
+await NodeTest(
   "happy path: stdout and stderr captured separately, settles done, hook fires once unconsumed",
   async () => {
     await withManager(async (manager, runtime) => {
       const settled: Array<{ id: string; status: string; consumed: boolean }> =
         [];
+
       manager.view.setOnSettled((snap, consumed) =>
         settled.push({ id: snap.id, status: snap.status, consumed }),
       );
@@ -36,6 +37,7 @@ NodeTest(
           cwd,
         }),
       );
+
       NodeAssert.equal(snap.status, "running");
       NodeAssert.ok(snap.pid);
       NodeAssert.equal(snap.command.includes("out-line"), true);
@@ -57,6 +59,7 @@ NodeTest(
           NodeFS.readFileSync(done.stdout.spillPath, "utf8"),
           "out-line\n",
         );
+
         if (hostPlatform !== "win32") {
           NodeAssert.equal(
             NodeFS.statSync(done.stdout.spillPath).mode & 0o777,
@@ -69,6 +72,7 @@ NodeTest(
           );
         }
       }
+
       if (done.stderr.spillPath) {
         NodeAssert.equal(
           NodeFS.readFileSync(done.stderr.spillPath, "utf8"),
@@ -79,23 +83,27 @@ NodeTest(
   },
 );
 
-NodeTest("non-zero exit settles as failed with the exit code", async () => {
-  await withManager(async (manager, runtime) => {
-    const snap = await runTool(
-      runtime,
-      manager.start({
-        command: nodeCmd("process.exit(3)"),
-        title: "fails",
-        cwd,
-      }),
-    );
-    const { snap: failed } = await settlement(manager, snap.id);
-    NodeAssert.equal(failed.status, "failed");
-    NodeAssert.equal(failed.exitCode, 3);
-  });
-});
+await NodeTest(
+  "non-zero exit settles as failed with the exit code",
+  async () => {
+    await withManager(async (manager, runtime) => {
+      const snap = await runTool(
+        runtime,
+        manager.start({
+          command: nodeCmd("process.exit(3)"),
+          title: "fails",
+          cwd,
+        }),
+      );
 
-NodeTest(
+      const { snap: failed } = await settlement(manager, snap.id);
+      NodeAssert.equal(failed.status, "failed");
+      NodeAssert.equal(failed.exitCode, 3);
+    });
+  },
+);
+
+await NodeTest(
   "kill settles a never-exiting process as killed and resolves after settle; repeat kill is a no-op",
   async () => {
     await withManager(async (manager, runtime) => {
@@ -107,6 +115,7 @@ NodeTest(
           cwd,
         }),
       );
+
       NodeAssert.equal(snap.status, "running");
 
       const report = await runTool(runtime, manager.kill([snap.id]));
@@ -133,7 +142,7 @@ NodeTest(
   },
 );
 
-NodeTest(
+await NodeTest(
   "a SIGTERM-resistant child is escalated to SIGKILL within the teardown bound",
   { skip: hostPlatform === "win32" },
   async () => {
@@ -148,6 +157,7 @@ NodeTest(
           cwd,
         }),
       );
+
       NodeAssert.ok(
         await pollUntil(() =>
           (manager.view.get(snap.id)?.stdout.text ?? "").includes("ready"),

@@ -17,12 +17,15 @@ import {
 
 function groupSquare(group: PhaseGroup, theme: Theme) {
   if (group.agents.length === 0) return theme.fg("dim", SQUARE);
+
   if (group.agents.some((agent) => agent.state === "running")) {
     return theme.fg("warning", SQUARE);
   }
+
   if (group.agents.some((agent) => agent.state === "error")) {
     return theme.fg("error", SQUARE);
   }
+
   return theme.fg("success", SQUARE);
 }
 
@@ -53,9 +56,11 @@ export class WorkflowDetailRenderer {
   private split(left: string, right: string, width: number) {
     const rightWidth = visibleWidth(right);
     let text = left;
+
     if (visibleWidth(text) + rightWidth + 1 > width) {
       text = truncateToWidth(text, Math.max(0, width - rightWidth - 2), "…");
     }
+
     return (
       text +
       " ".repeat(Math.max(1, width - visibleWidth(text) - rightWidth)) +
@@ -66,9 +71,11 @@ export class WorkflowDetailRenderer {
   private panel(title: string, rows: string[], width: number, height: number) {
     const inner = Math.max(0, width - 2);
     const top = `╭ ${title} ${"─".repeat(Math.max(0, inner - visibleWidth(title) - 2))}╮`;
+
     const lines = [
       this.theme.fg("borderMuted", truncateToWidth(top, width, "")),
     ];
+
     for (let index = 0; index < height - 2; index++) {
       const row = truncateToWidth(rows[index] ?? "", inner, "…");
       lines.push(
@@ -78,7 +85,9 @@ export class WorkflowDetailRenderer {
           this.theme.fg("borderMuted", "│"),
       );
     }
+
     lines.push(this.theme.fg("borderMuted", `╰${"─".repeat(inner)}╯`));
+
     return lines;
   }
 
@@ -90,6 +99,7 @@ export class WorkflowDetailRenderer {
         Math.max(0, items.length - size),
       ),
     );
+
     return { items: items.slice(offset, offset + size), offset };
   }
 
@@ -99,6 +109,7 @@ export class WorkflowDetailRenderer {
 
   private renderHeader(details: WorkflowDetails, width: number) {
     const { done, failed } = countStates(details);
+
     const right =
       this.theme.fg(
         "dim",
@@ -106,7 +117,9 @@ export class WorkflowDetailRenderer {
       ) +
       this.theme.fg(statusColor(details.status), statusWord(details.status)) +
       " ";
+
     const totals = formatUsage(aggregateUsage(details.agents));
+
     return [
       this.split(
         " " +
@@ -134,26 +147,32 @@ export class WorkflowDetailRenderer {
       this.selection.phaseIndex,
       bodyHeight,
     );
+
     return visible.items.map((group, visibleIndex) => {
       const index = visible.offset + visibleIndex;
       const selected = index === this.selection.phaseIndex;
+
       const marker = selected
         ? this.theme.fg(
             this.selection.detailFocus === "phases" ? "accent" : "muted",
             "❯",
           )
         : " ";
+
       const done = group.agents.filter(
         (agent) => agent.state !== "running",
       ).length;
+
       const title = this.theme.fg(
         selected && this.selection.detailFocus === "phases" ? "accent" : "text",
         group.title,
       );
+
       const counts = this.theme.fg(
         "dim",
         group.agents.length > 0 ? `${done}/${group.agents.length} ` : "- ",
       );
+
       return this.split(
         ` ${marker} ${groupSquare(group, this.theme)} ${title}`,
         counts,
@@ -169,38 +188,48 @@ export class WorkflowDetailRenderer {
     bodyHeight: number,
   ) {
     const rows: string[] = [];
+
     if (group) {
       const maxLabel = Math.max(
         0,
         ...group.agents.map((agent) => agent.label.length),
       );
+
       const visible = this.windowed(
         group.agents,
         this.selection.agentIndex,
         bodyHeight,
       );
+
       for (const [visibleIndex, agent] of visible.items.entries()) {
         const selected =
           visible.offset + visibleIndex === this.selection.agentIndex;
+
         const marker =
           selected && this.selection.detailFocus === "agents"
             ? this.theme.fg("accent", "❯")
             : " ";
+
         const stats = [agent.model, agentContext(agent)]
           .filter(Boolean)
           .join(" · ");
+
         const label = this.theme.fg(
           selected && this.selection.detailFocus === "agents"
             ? "accent"
             : "text",
           agent.label.padEnd(Math.min(maxLabel, 40)),
         );
+
         const left = ` ${marker} ${stateSquare(agent.state, this.theme)} ${label}  ${this.theme.fg("dim", stats)}`;
+
         const right = this.theme.fg(
           "dim",
           `${formatElapsed(agent.startedAt, agent.finishedAt)} `,
         );
+
         rows.push(this.split(left, right, innerWidth));
+
         if (agent.error) {
           rows.push(
             truncateToWidth(
@@ -211,9 +240,11 @@ export class WorkflowDetailRenderer {
           );
         }
       }
+
       if (group.agents.length === 0)
         rows.push(this.theme.fg("dim", " no agents in this phase yet"));
     }
+
     if (details.error) {
       rows.push(
         "",
@@ -224,6 +255,7 @@ export class WorkflowDetailRenderer {
         ),
       );
     }
+
     return rows;
   }
 
@@ -246,27 +278,33 @@ export class WorkflowDetailRenderer {
     const panelHeight = height - 3;
     const bodyHeight = Math.max(0, panelHeight - 2);
     const maxTitle = Math.max(8, ...groups.map((group) => group.title.length));
+
     const sidebarWidth = Math.min(
       Math.max(maxTitle + 12, 20),
       Math.floor(width / 3),
     );
+
     const agentsWidth = width - sidebarWidth - 1;
     const count = selected?.agents.length ?? 0;
+
     const title = selected
       ? `${selected.title} · ${count} agent${count === 1 ? "" : "s"}`
       : "Agents";
+
     const left = this.panel(
       "Phases",
       this.phaseRows(groups, sidebarWidth - 2, bodyHeight),
       sidebarWidth,
       panelHeight,
     );
+
     const right = this.panel(
       title,
       this.agentRows(details, selected, agentsWidth - 2, bodyHeight),
       agentsWidth,
       panelHeight,
     );
+
     return left.map((line, index) => `${line} ${right[index] ?? ""}`);
   }
 
@@ -275,6 +313,7 @@ export class WorkflowDetailRenderer {
       this.selection.detailFocus === "phases"
         ? `j/k select phase · l/${this.keys("tui.editor.cursorRight")}/${this.keys("tui.select.confirm")} agents · ${this.keys("tui.select.cancel")} back · s save report`
         : `j/k select agent · h/${this.keys("tui.editor.cursorLeft")}/${this.keys("tui.select.cancel")} phases · ${this.keys("tui.select.confirm")} transcript · s save report`;
+
     return [
       ...this.renderHeader(details, width),
       ...this.renderPanels(details, width, height),

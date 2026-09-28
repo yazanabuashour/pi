@@ -29,6 +29,7 @@ export async function showWorkflowDashboard(
         },
         initialRunId,
       );
+
       return dashboard;
     },
     {

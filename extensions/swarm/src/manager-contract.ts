@@ -17,13 +17,21 @@ import type {
 } from "./domain.ts";
 
 export const MAX_RUNNING = 4;
+
 export const MAX_TRACKED = 64;
+
 export const STOP_TIMEOUT_MS = 5_000;
+
 export const SWARM_SHUTDOWN_TIMEOUT_MS = STOP_TIMEOUT_MS * 2;
+
 const ERROR_TEXT_MAX_LENGTH = 4_096;
+
 const TRANSCRIPT_TEXT_MAX_LENGTH = 64 * 1_024;
+
 export const LIVE_ASSISTANT_MAX_LENGTH = 128 * 1_024;
+
 export const FINAL_TEXT_MAX_LENGTH = 1_024 * 1_024;
+
 const MAX_TRANSCRIPT_ITEMS = 512;
 
 export function bounded(text: string) {
@@ -61,6 +69,7 @@ export function appendTranscript(
   item: TranscriptItem,
 ) {
   snapshot.transcript.push(item);
+
   if (snapshot.transcript.length > MAX_TRANSCRIPT_ITEMS) {
     snapshot.transcript.splice(
       0,

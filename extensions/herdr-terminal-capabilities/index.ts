@@ -3,6 +3,7 @@ import { getCapabilities, setCapabilities } from "@earendil-works/pi-tui";
 
 export default function herdrTerminalCapabilities(pi: ExtensionAPI): void {
   const term = process.env["TERM"]?.toLowerCase() ?? "";
+
   if (
     process.env["HERDR_ENV"] !== "1" ||
     process.env["PI_HYPERLINKS"] === "0" ||

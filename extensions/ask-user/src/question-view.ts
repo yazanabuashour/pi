@@ -25,15 +25,20 @@ export const CUSTOM_OPTION_LABEL = "Write my own answer…";
 
 function wrapText(text: string, width: number): string[] {
   const lines: string[] = [];
+
   for (const paragraph of text.split("\n")) {
     const words = paragraph.split(/\s+/).filter(Boolean);
+
     if (words.length === 0) {
       lines.push("");
       continue;
     }
+
     let current = "";
+
     for (const word of words) {
       const candidate = current ? `${current} ${word}` : word;
+
       if (candidate.length > width && current) {
         lines.push(current);
         current = word;
@@ -41,8 +46,10 @@ function wrapText(text: string, width: number): string[] {
         current = candidate;
       }
     }
+
     if (current) lines.push(current);
   }
+
   return lines;
 }
 
@@ -73,6 +80,7 @@ class QuestionView {
     this.tui = tui;
     this.theme = theme;
     this.done = done;
+
     const editorTheme: EditorTheme = {
       borderColor: (text) => theme.fg("accent", text),
       selectList: {
@@ -83,9 +91,11 @@ class QuestionView {
         noMatch: (text) => theme.fg("warning", text),
       },
     };
+
     this.editor = new Editor(tui, editorTheme);
     this.editor.onSubmit = (value) => this.submitCustomAnswer(value);
     signal.addEventListener("abort", this.cancel, { once: true });
+
     if (signal.aborted) queueMicrotask(this.cancel);
   }
 
@@ -100,10 +110,13 @@ class QuestionView {
 
   private submitCustomAnswer(value: string) {
     const answer = value.trim();
+
     if (answer) {
       this.finish({ answer, wasCustom: true });
+
       return;
     }
+
     this.editMode = false;
     this.editor.setText("");
     this.refresh();
@@ -116,13 +129,17 @@ class QuestionView {
 
   private selectOption(index: number) {
     const selected = this.options[index];
+
     if (!selected) return;
+
     if (selected.isOther) {
       this.optionIndex = index;
       this.editMode = true;
       this.refresh();
+
       return;
     }
+
     this.finish({ answer: selected.label, wasCustom: false, index: index + 1 });
   }
 
@@ -132,35 +149,47 @@ class QuestionView {
         this.editMode = false;
         this.editor.setText("");
         this.refresh();
+
         return;
       }
+
       this.editor.handleInput(data);
       this.refresh();
+
       return;
     }
+
     if (matchesKey(data, Key.up)) {
       this.optionIndex =
         (this.optionIndex - 1 + this.options.length) % this.options.length;
       this.refresh();
+
       return;
     }
+
     if (matchesKey(data, Key.down)) {
       this.optionIndex = (this.optionIndex + 1) % this.options.length;
       this.refresh();
+
       return;
     }
+
     if (
       data.length === 1 &&
       data >= "1" &&
       data <= String(this.options.length)
     ) {
       this.selectOption(Number(data) - 1);
+
       return;
     }
+
     if (matchesKey(data, Key.enter)) {
       this.selectOption(this.optionIndex);
+
       return;
     }
+
     if (matchesKey(data, Key.escape)) this.finish(null);
   };
 
@@ -175,17 +204,20 @@ class QuestionView {
         `─${title}${"─".repeat(Math.max(0, width - title.length - 1))}`,
       ),
     );
+
     for (const line of wrapText(
       this.params.question,
       Math.max(10, width - 2),
     )) {
       add(` ${this.theme.fg("text", this.theme.bold(line))}`);
     }
+
     lines.push("");
     this.renderOptions(add);
     this.renderEditor(lines, add, width);
     this.renderHelp(lines, add, width);
     this.cachedLines = lines;
+
     return lines;
   };
 
@@ -195,13 +227,16 @@ class QuestionView {
       const prefix = selected ? this.theme.fg("accent", " ❯ ") : "   ";
       const marker = option.isOther ? "✎" : `${index + 1}.`;
       const label = `${marker} ${option.label}`;
+
       const color =
         selected || (option.isOther && this.editMode)
           ? "accent"
           : option.isOther
             ? "muted"
             : "text";
+
       add(prefix + this.theme.fg(color, label));
+
       if (option.description)
         add(`      ${this.theme.fg("muted", option.description)}`);
     }
@@ -215,6 +250,7 @@ class QuestionView {
     if (!this.editMode) return;
     lines.push("");
     add(this.theme.fg("muted", " Your answer:"));
+
     for (const line of this.editor.render(width - 2)) add(` ${line}`);
   }
 
@@ -224,9 +260,11 @@ class QuestionView {
     width: number,
   ) {
     lines.push("");
+
     const help = this.editMode
       ? " Enter submit • Esc back to options"
       : ` ↑↓ or 1-${this.options.length} select • Enter confirm • Esc dismiss`;
+
     add(this.theme.fg("dim", help));
     add(this.theme.fg("accent", "─".repeat(width)));
   }
@@ -247,8 +285,10 @@ export function showTuiQuestion(
     ...params.options,
     { label: CUSTOM_OPTION_LABEL, isOther: true },
   ];
+
   return ui.custom((tui, theme, _keyboard, done) => {
     const view = new QuestionView(params, options, signal, tui, theme, done);
+
     return view;
   });
 }

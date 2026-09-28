@@ -9,6 +9,7 @@ import type { WorkflowDetails } from "./model.ts";
 import { safeStringify } from "./serialization.ts";
 
 type Persistence = ReturnType<typeof createWorkflowPersistence>;
+
 type OnUpdate = AgentToolUpdateCallback<WorkflowDetails> | undefined;
 
 function compactToolDetails(details: WorkflowDetails): WorkflowDetails {
@@ -21,11 +22,13 @@ function compactToolDetails(details: WorkflowDetails): WorkflowDetails {
       transcript: [],
     })),
   };
+
   if (details.result !== undefined) {
     compact.result = JSON.parse(
       safeStringify(details.result, { maxBytes: 64 * 1024 }),
     );
   }
+
   return compact;
 }
 
@@ -61,7 +64,9 @@ export class WorkflowProgress {
 
   emit(checkpoint = true) {
     if (!this.acceptingUpdates) return;
+
     if (checkpoint) this.persistence.checkpoint();
+
     if (this.emitTimer) return;
     this.emitTimer = setTimeout(
       () => this.flush(),
@@ -84,6 +89,7 @@ export class WorkflowProgress {
 
   invalidate() {
     this.acceptingUpdates = false;
+
     if (this.emitTimer) clearTimeout(this.emitTimer);
     this.emitTimer = undefined;
     this.persistence.cancel();
@@ -91,8 +97,10 @@ export class WorkflowProgress {
 
   private flush(final = false) {
     this.emitTimer = undefined;
+
     if (!this.acceptingUpdates && !final) return;
     this.lastEmit = Date.now();
+
     if (this.background) return;
     this.onUpdate?.({
       content: [{ type: "text", text: summaryLine(this.details) }],

@@ -73,14 +73,18 @@ function spawnTool(session: SwarmExtensionSession, actor?: SwarmActor) {
     async execute(_id, params, signal, _update, context) {
       signal?.throwIfAborted();
       const access = await swarmAccess(session, actor);
+
       if (actor && !swarmMember(access, actor.id).canSpawn)
         throw new Error("This agent has no delegation permission.");
       const cwd = NodePath.resolve(context.cwd, params.working_dir ?? ".");
+
       if (!NodeFS.statSync(cwd).isDirectory())
         throw new Error(`Not a directory: ${cwd}`);
+
       if (!params.prompt.trim() || !params.name.trim())
         throw new Error("Task and name must not be empty.");
       const canSpawn = params.allow_spawn ?? false;
+
       const snapshot = await runTool(
         access.runtime,
         access.manager.spawn({
@@ -111,6 +115,7 @@ function spawnTool(session: SwarmExtensionSession, actor?: SwarmActor) {
         }),
         { signal, interruptMessage: "Swarm spawn aborted." },
       );
+
       return {
         content: [
           {
@@ -155,6 +160,7 @@ function messagingTool(session: SwarmExtensionSession, actor?: SwarmActor) {
         params.message,
         signal,
       );
+
       return {
         content: [
           {
@@ -185,17 +191,22 @@ function inspectionTools(session: SwarmExtensionSession, actor?: SwarmActor) {
         const access = await swarmAccess(session, actor);
         const snapshot = swarmMember(access, params.id);
         let text = `${describeAgent(snapshot)}\nParent: ${snapshot.parentId}\nTurns: ${snapshot.turns}`;
+
         if (snapshot.errorText) text += `\nError: ${snapshot.errorText}`;
         const output = latestText(snapshot);
+
         if (output) {
           const preview = truncateHead(output, {
             maxBytes: 2048,
             maxLines: 20,
           });
+
           text += `\n\nLatest output:\n${preview.content}`;
+
           if (preview.truncated)
             text += `\n[Truncated; transcript: ${snapshot.meta.sessionFilePath ?? "unavailable"}]`;
         }
+
         return {
           content: [{ type: "text", text }],
           details: session.details(snapshot, "snapshot"),
@@ -212,9 +223,11 @@ function inspectionTools(session: SwarmExtensionSession, actor?: SwarmActor) {
       parameters: Type.Object({}, { additionalProperties: false }),
       async execute() {
         const access = await swarmAccess(session, actor);
+
         const snapshots = access.manager.view
           .list()
           .filter((snapshot) => snapshot.origin === "model");
+
         const text =
           `You: ${access.callerId}. Main agent: root.\n` +
           snapshots
@@ -223,6 +236,7 @@ function inspectionTools(session: SwarmExtensionSession, actor?: SwarmActor) {
                 `${describeAgent(snapshot)}; parent=${snapshot.parentId}; allow_spawn=${snapshot.canSpawn}`,
             )
             .join("\n");
+
         return {
           content: [{ type: "text", text }],
           details: {

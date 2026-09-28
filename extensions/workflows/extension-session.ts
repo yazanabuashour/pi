@@ -25,9 +25,11 @@ function appendLifecycle(
       finishedAt: details.finishedAt,
       error: details.error,
     });
+
     return true;
   } catch (error) {
     console.error(`workflows: failed to append ${event} lifecycle`, error);
+
     return false;
   }
 }
@@ -92,10 +94,13 @@ export class WorkflowExtensionSession {
 
   finish(run: ActiveWorkflowRun) {
     this.activeRuns.delete(run.details.runId);
+
     if (!this.ownsCurrentSession(run.details)) return false;
+
     if (run.details.status === "completed") this.completedRuns++;
     else this.failedRuns++;
     this.updateIndicator();
+
     return true;
   }
 
@@ -107,13 +112,18 @@ export class WorkflowExtensionSession {
 
   updateIndicator() {
     const ui = this.lastUi;
+
     if (!ui) return;
+
     try {
       const running = this.activeRuns.size;
+
       if (running === 0 && this.completedRuns === 0 && this.failedRuns === 0) {
         ui.setStatus("workflows", undefined);
+
         return;
       }
+
       ui.setStatus(
         "workflows",
         formatActivityStatus(ui.theme, "workflows", {
@@ -137,32 +147,40 @@ export class WorkflowExtensionSession {
   private async awaitShutdown(runs: ActiveWorkflowRun[]) {
     if (runs.length === 0) return true;
     let timer: ReturnType<typeof setTimeout> | undefined;
+
     const timeout = new Promise<false>((resolve) => {
       timer = setTimeout(() => resolve(false), 12_000);
       timer.unref?.();
     });
+
     const completed = await Promise.race([
       Promise.allSettled(runs.map((run) => run.completion)).then(
         () => true as const,
       ),
       timeout,
     ]);
+
     if (timer) clearTimeout(timer);
+
     return completed;
   }
 
   private async shutdown() {
     this.closing = true;
     const runs = [...this.activeRuns.values()];
+
     for (const run of runs) run.abort("Session is shutting down");
+
     if (!(await this.awaitShutdown(runs))) {
       for (const run of runs) {
         run.forceInterrupted();
         void run.completion.catch(() => {});
       }
     }
+
     this.activeRuns.clear();
     this.lifecycleSessionId = undefined;
+
     try {
       this.lastUi?.setStatus("workflows", undefined);
     } catch {

@@ -46,7 +46,9 @@ export function buildAgentResultMessage(options: {
 }) {
   const verb = options.status === "error" ? "failed" : "finished";
   let text = `Swarm agent ${options.id} "${options.title}" ${verb}.`;
+
   if (options.errorText) text += `\nError: ${options.errorText}`;
   text += `\n\n${options.output}`;
+
   return text;
 }

@@ -13,7 +13,7 @@ import type { Cause } from "effect";
 import { Effect, Queue, Stream } from "effect";
 import { createToolCallTimeoutGuard } from "../../shared/tool-call-timeout.ts";
 import { PiPromptLifecycle, type WorkerSession } from "./session.ts";
-import type { AgentEvent, AgentMeta } from "./domain.ts";
+import { AgentEvent, RunOutcome, type AgentMeta } from "./domain.ts";
 import {
   assistantParts,
   boundedError,
@@ -69,6 +69,7 @@ export class PiSessionAdapter {
         interrupted: () => {
           if (this.state.settled) return;
           const last = lastAssistantMessage(this.session);
+
           if (
             last &&
             last !== this.startingAssistant &&
@@ -77,16 +78,18 @@ export class PiSessionAdapter {
               last.stopReason === "error")
           ) {
             this.settle();
+
             return;
           }
+
           this.state.settled = true;
-          this.emit({
-            _tag: "RunSettled",
-            outcome: {
-              _tag: "Interrupted",
-              partialText: finalOutput(this.session) || undefined,
-            },
-          });
+          this.emit(
+            AgentEvent.RunSettled({
+              outcome: RunOutcome.Interrupted({
+                partialText: finalOutput(this.session) || undefined,
+              }),
+            }),
+          );
         },
       },
       () => this.toolTimeout.settled(),
@@ -104,7 +107,9 @@ export class PiSessionAdapter {
   private activeModel(): Model<Api> | undefined {
     const sessionModel = this.session.model;
     const last = lastAssistantMessage(this.session);
+
     if (!last) return sessionModel;
+
     if (
       sessionModel &&
       (last.provider !== sessionModel.provider ||
@@ -112,6 +117,7 @@ export class PiSessionAdapter {
     ) {
       return sessionModel;
     }
+
     return (
       this.registry.find(last.provider, last.responseModel ?? last.model) ??
       sessionModel
@@ -120,6 +126,7 @@ export class PiSessionAdapter {
 
   currentMeta = (): AgentMeta => {
     const model = this.activeModel();
+
     return {
       modelLabel: model ? `${model.provider}/${model.id}` : undefined,
       contextWindow: model?.contextWindow,
@@ -130,9 +137,11 @@ export class PiSessionAdapter {
   private emitUsage() {
     const usage = this.session.getContextUsage();
     const tokens = usage?.tokens ?? undefined;
+
     const contextWindow =
       this.activeModel()?.contextWindow ?? usage?.contextWindow;
-    this.emit({ _tag: "UsageChanged", tokens, contextWindow });
+
+    this.emit(AgentEvent.UsageChanged({ tokens, contextWindow }));
   }
 
   private settle() {
@@ -140,38 +149,48 @@ export class PiSessionAdapter {
     this.state.settled = true;
     const last = lastAssistantMessage(this.session);
     const partialText = finalOutput(this.session) || undefined;
+
     if (!this.state.runError && last?.stopReason === "aborted") {
-      this.emit({
-        _tag: "RunSettled",
-        outcome: { _tag: "Interrupted", partialText },
-      });
+      this.emit(
+        AgentEvent.RunSettled({
+          outcome: RunOutcome.Interrupted({ partialText }),
+        }),
+      );
+
       return;
     }
+
     const errorText =
       this.state.runError ??
       (last?.stopReason === "error"
         ? (last.errorMessage ?? "Run failed")
         : undefined);
+
     if (errorText !== undefined) {
-      this.emit({
-        _tag: "RunSettled",
-        outcome: {
-          _tag: "Failed",
-          errorText: boundedError(errorText),
-          partialText,
-        },
-      });
+      this.emit(
+        AgentEvent.RunSettled({
+          outcome: RunOutcome.Failed({
+            errorText: boundedError(errorText),
+            partialText,
+          }),
+        }),
+      );
+
       return;
     }
-    this.emit({
-      _tag: "RunSettled",
-      outcome: { _tag: "Completed", finalText: finalOutput(this.session) },
-    });
+
+    this.emit(
+      AgentEvent.RunSettled({
+        outcome: RunOutcome.Completed({ finalText: finalOutput(this.session) }),
+      }),
+    );
   }
 
   private readonly handleEvent = (event: AgentSessionEvent) => {
     if (this.state.closed) return;
+
     if (this.handleLifecycleEvent(event)) return;
+
     if (this.handleMessageEvent(event)) return;
     this.handleToolEvent(event);
   };
@@ -180,87 +199,105 @@ export class PiSessionAdapter {
     if (event.type === "agent_start") {
       this.toolTimeout.apply(this.session);
       this.state.settled = false;
-      this.emit({ _tag: "RunStarted" });
+      this.emit(AgentEvent.RunStarted());
+
       return true;
     }
+
     if (event.type === "queue_update") {
-      this.emit({
-        _tag: "QueueChanged",
-        queued: [
-          ...event.steering.map((text) => ({ text, kind: "steer" as const })),
-          ...event.followUp.map((text) => ({
-            text,
-            kind: "follow-up" as const,
-          })),
-        ],
-      });
+      this.emit(
+        AgentEvent.QueueChanged({
+          queued: [
+            ...event.steering.map((text) => ({ text, kind: "steer" as const })),
+            ...event.followUp.map((text) => ({
+              text,
+              kind: "follow-up" as const,
+            })),
+          ],
+        }),
+      );
+
       return true;
     }
+
     if (event.type === "agent_settled") {
       // The owned run includes SDK post-run hooks, retries, and late-queue
       // reconciliation. Only its lifecycle can release the run reservation.
       if (!this.lifecycle.active) this.settle();
+
       return true;
     }
+
     return false;
   }
 
   private handleMessageEvent(event: AgentSessionEvent) {
     if (event.type === "message_update") {
       const stream = event.assistantMessageEvent;
+
       if (stream.type === "text_delta" || stream.type === "thinking_delta") {
-        this.emit({
-          _tag: "AssistantDelta",
-          kind: stream.type === "text_delta" ? "text" : "thinking",
-          delta: stream.delta,
-        });
+        this.emit(
+          AgentEvent.AssistantDelta({
+            kind: stream.type === "text_delta" ? "text" : "thinking",
+            delta: stream.delta,
+          }),
+        );
       }
+
       return true;
     }
+
     if (event.type !== "message_end") return false;
     const role = messageRole(event.message);
+
     if (role === "user") {
       // SAFETY: messageRole decoded the SDK event's discriminant as a user message.
       const text = userText(event.message as Message);
-      if (text.trim()) this.emit({ _tag: "UserMessage", text });
+
+      if (text.trim()) this.emit(AgentEvent.UserMessage({ text }));
     } else if (role === "assistant") {
       // SAFETY: messageRole decoded the SDK event's discriminant as an assistant message.
-      this.emit({
-        _tag: "AssistantMessage",
-        parts: assistantParts(event.message as AssistantMessage),
-      });
+      this.emit(
+        AgentEvent.AssistantMessage({
+          parts: assistantParts(event.message as AssistantMessage),
+        }),
+      );
       this.emitUsage();
-      this.emit({ _tag: "MetaChanged", meta: this.currentMeta() });
+      this.emit(AgentEvent.MetaChanged({ meta: this.currentMeta() }));
     }
+
     return true;
   }
 
   private handleToolEvent(event: AgentSessionEvent) {
     if (event.type === "tool_execution_start") {
-      this.emit({
-        _tag: "ToolStart",
-        toolId: event.toolCallId,
-        name: event.toolName,
-      });
+      this.emit(
+        AgentEvent.ToolStart({
+          toolId: event.toolCallId,
+          name: event.toolName,
+        }),
+      );
     } else if (event.type === "tool_execution_update") {
-      this.emit({
-        _tag: "ToolUpdate",
-        toolId: event.toolCallId,
-        outputPreview: toolPreview(event.partialResult),
-      });
+      this.emit(
+        AgentEvent.ToolUpdate({
+          toolId: event.toolCallId,
+          outputPreview: toolPreview(event.partialResult),
+        }),
+      );
     } else if (event.type === "tool_execution_end") {
-      this.emit({
-        _tag: "ToolEnd",
-        toolId: event.toolCallId,
-        name: event.toolName,
-        isError: event.isError,
-        outputPreview: toolPreview(event.result),
-      });
+      this.emit(
+        AgentEvent.ToolEnd({
+          toolId: event.toolCallId,
+          name: event.toolName,
+          isError: event.isError,
+          outputPreview: toolPreview(event.result),
+        }),
+      );
     }
   }
 
   announceMeta() {
-    this.emit({ _tag: "MetaChanged", meta: this.currentMeta() });
+    this.emit(AgentEvent.MetaChanged({ meta: this.currentMeta() }));
   }
 
   dispose(shutdown: (session: AgentSession) => Promise<void>): Promise<void> {
@@ -269,11 +306,13 @@ export class PiSessionAdapter {
     this.unsubscribe?.();
     this.disposal = (async () => {
       const failures: unknown[] = [];
+
       try {
         await this.lifecycle.dispose();
       } catch (error) {
         failures.push(error);
       }
+
       try {
         await shutdown(this.session);
       } catch (error) {
@@ -281,9 +320,11 @@ export class PiSessionAdapter {
       } finally {
         Queue.endUnsafe(this.events);
       }
+
       if (failures.length > 0)
         throw new AggregateError(failures, failures.map(String).join("; "));
     })();
+
     return this.disposal;
   }
 

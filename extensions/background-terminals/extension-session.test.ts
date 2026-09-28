@@ -17,11 +17,13 @@ type EventHandler = (
   event: TestEvent,
   context: ExtensionContext,
 ) => void | Promise<void>;
+
 type SendMessage = ExtensionAPI["sendMessage"];
+
 type SendOptions = Parameters<SendMessage>[1];
 
 for (const policy of ["automatic", "host"] as const)
-  NodeTest(
+  await NodeTest(
     `${policy} delivery preserves active messages and controls idle wakes without a UI`,
     async (test) => {
       const previous = process.env["PI_BACKGROUND_WAKE_POLICY"];
@@ -33,6 +35,7 @@ for (const policy of ["automatic", "host"] as const)
       });
       const events = new Map<string, EventHandler>();
       const sent: SendOptions[] = [];
+
       const api: ExtensionAPI = Object.assign(Object.create(null), {
         appendEntry: () => undefined,
         on: (event: string, handler: EventHandler) =>
@@ -42,7 +45,9 @@ for (const policy of ["automatic", "host"] as const)
           options: SendOptions,
         ) => sent.push(options),
       });
+
       let idle = false;
+
       const context: ExtensionContext = Object.assign(Object.create(null), {
         hasUI: false,
         isIdle: () => idle,
@@ -50,6 +55,7 @@ for (const policy of ["automatic", "host"] as const)
           getSessionId: () => "delivery-test-session",
         }),
       });
+
       const session = new BackgroundTerminalSession(api);
       const startSession = events.get("session_start");
       const turnEnd = events.get("turn_end");
@@ -62,11 +68,13 @@ for (const policy of ["automatic", "host"] as const)
       await startSession({ reason: "startup" }, context);
 
       const manager = await session.getManager();
+
       const startAndSettle = async (title: string) => {
         const snapshot = await runTool(
           session.getRuntime(),
           manager.start({ command: nodeCmd(""), title, cwd }),
         );
+
         NodeAssert.equal(session.recordStart(snapshot), true);
         NodeAssert.equal(
           await pollUntil(
@@ -99,36 +107,42 @@ for (const policy of ["automatic", "host"] as const)
     },
   );
 
-NodeTest(
+await NodeTest(
   "shutdown persists incomplete resource IDs when runtime disposal fails",
   async (test) => {
     const events = new Map<string, EventHandler>();
     const receipts: BackgroundTerminalDetailsV1[] = [];
     let rejectSettlement = true;
+
     const api: ExtensionAPI = Object.assign(Object.create(null), {
       appendEntry: (_type: string, details: BackgroundTerminalDetailsV1) => {
         if (details.event === "settled" && rejectSettlement) {
           rejectSettlement = false;
           throw new Error("fixture receipt failure");
         }
+
         receipts.push(details);
       },
       on: (event: string, handler: EventHandler) => events.set(event, handler),
       sendMessage: () => undefined,
     });
+
     const context: ExtensionContext = Object.assign(Object.create(null), {
       hasUI: false,
       isIdle: () => false,
       sessionManager: { getSessionId: () => "shutdown-failure" },
     });
+
     const session = new BackgroundTerminalSession(api);
     await events.get("session_start")?.({ reason: "startup" }, context);
     const manager = await session.getManager();
     const runtime = session.getRuntime();
+
     const snapshot = await runTool(
       runtime,
       manager.start({ command: nodeCmd(""), title: "disposal failure", cwd }),
     );
+
     NodeAssert.equal(session.recordStart(snapshot), true);
     NodeAssert.ok(await pollUntil(() => snapshot.status !== "running"));
     const dispose = runtime.dispose.bind(runtime);
@@ -146,9 +160,11 @@ NodeTest(
       receipts.map((receipt) => receipt.event),
       ["started", "cleanup-incomplete", "settled"],
     );
+
     const receipt = receipts.find(
       (receipt) => receipt.event === "cleanup-incomplete",
     );
+
     NodeAssert.equal(receipt?.event, "cleanup-incomplete");
     NodeAssert.equal(receipt?.id, snapshot.id);
     NodeAssert.equal(receipt?.status, "done");

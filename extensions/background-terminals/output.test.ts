@@ -2,7 +2,7 @@ import * as NodeAssert from "node:assert/strict";
 import NodeTest from "node:test";
 import { OutputBuffer } from "./src/output.ts";
 
-NodeTest("push/view roundtrip preserves text and counts bytes", () => {
+await NodeTest("push/view roundtrip preserves text and counts bytes", () => {
   const buf = new OutputBuffer(1024);
   buf.push("hello ");
   buf.push("world\n");
@@ -12,7 +12,7 @@ NodeTest("push/view roundtrip preserves text and counts bytes", () => {
   NodeAssert.equal(view.truncatedBytes, 0);
 });
 
-NodeTest(
+await NodeTest(
   "head chunks are evicted past the cap and accounted as truncated",
   () => {
     const buf = new OutputBuffer(10);
@@ -26,7 +26,7 @@ NodeTest(
   },
 );
 
-NodeTest(
+await NodeTest(
   "a single chunk larger than the cap is trimmed to its tail — retention stays bounded",
   () => {
     const buf = new OutputBuffer(4);
@@ -43,47 +43,62 @@ NodeTest(
   },
 );
 
-NodeTest("an oversized chunk evicts everything retained before it", () => {
-  const buf = new OutputBuffer(8);
-  buf.push("abcd");
-  buf.push("0123456789"); // 10 bytes > cap: "abcd" evicted, chunk tail-trimmed
-  const view = buf.view();
-  NodeAssert.equal(view.text, "23456789");
-  NodeAssert.equal(view.totalBytes, 14);
-  NodeAssert.equal(view.truncatedBytes, 6);
-});
+await NodeTest(
+  "an oversized chunk evicts everything retained before it",
+  () => {
+    const buf = new OutputBuffer(8);
+    buf.push("abcd");
+    buf.push("0123456789"); // 10 bytes > cap: "abcd" evicted, chunk tail-trimmed
+    const view = buf.view();
+    NodeAssert.equal(view.text, "23456789");
+    NodeAssert.equal(view.totalBytes, 14);
+    NodeAssert.equal(view.truncatedBytes, 6);
+  },
+);
 
-NodeTest("an oversized chunk cut lands on a UTF-8 code point boundary", () => {
-  const buf = new OutputBuffer(5);
-  buf.push("ééééé"); // 10 bytes; naive cut at byte 5 would split an é
-  const view = buf.view();
-  NodeAssert.equal(view.text, "éé"); // 4 bytes retained (5 would split)
-  NodeAssert.equal(view.totalBytes, 10);
-  NodeAssert.equal(view.truncatedBytes, 6);
-  NodeAssert.ok(!view.text.includes("�"));
-});
+await NodeTest(
+  "an oversized chunk cut lands on a UTF-8 code point boundary",
+  () => {
+    const buf = new OutputBuffer(5);
+    buf.push("ééééé"); // 10 bytes; naive cut at byte 5 would split an é
+    const view = buf.view();
+    NodeAssert.equal(view.text, "éé"); // 4 bytes retained (5 would split)
+    NodeAssert.equal(view.totalBytes, 10);
+    NodeAssert.equal(view.truncatedBytes, 6);
+    NodeAssert.ok(!view.text.includes("�"));
+  },
+);
 
-NodeTest("spill receives the complete oversized chunk before trimming", () => {
-  const spilled: string[] = [];
-  const buf = new OutputBuffer(4, (chunk) => spilled.push(chunk));
-  buf.push("0123456789");
-  NodeAssert.deepEqual(spilled, ["0123456789"]);
-  NodeAssert.equal(buf.view().text, "6789");
-});
+await NodeTest(
+  "spill receives the complete oversized chunk before trimming",
+  () => {
+    const spilled: string[] = [];
+    const buf = new OutputBuffer(4, (chunk) => spilled.push(chunk));
+    buf.push("0123456789");
+    NodeAssert.deepEqual(spilled, ["0123456789"]);
+    NodeAssert.equal(buf.view().text, "6789");
+  },
+);
 
-NodeTest("push reports spill backpressure while retaining the chunk", () => {
-  const buf = new OutputBuffer(1024, () => false);
-  NodeAssert.equal(buf.push("queued"), false);
-  NodeAssert.equal(buf.view().text, "queued");
-});
+await NodeTest(
+  "push reports spill backpressure while retaining the chunk",
+  () => {
+    const buf = new OutputBuffer(1024, () => false);
+    NodeAssert.equal(buf.push("queued"), false);
+    NodeAssert.equal(buf.view().text, "queued");
+  },
+);
 
-NodeTest("byte accounting uses UTF-8 byte length, not string length", () => {
-  const buf = new OutputBuffer(1024);
-  buf.push("héllo"); // é is 2 bytes
-  NodeAssert.equal(buf.view().totalBytes, 6);
-});
+await NodeTest(
+  "byte accounting uses UTF-8 byte length, not string length",
+  () => {
+    const buf = new OutputBuffer(1024);
+    buf.push("héllo"); // é is 2 bytes
+    NodeAssert.equal(buf.view().totalBytes, 6);
+  },
+);
 
-NodeTest("multibyte chunks are never split by eviction", () => {
+await NodeTest("multibyte chunks are never split by eviction", () => {
   const buf = new OutputBuffer(8);
   buf.push("ééé"); // 6 bytes
   buf.push("üüü"); // 6 bytes -> evicts the first chunk whole
@@ -92,7 +107,7 @@ NodeTest("multibyte chunks are never split by eviction", () => {
   NodeAssert.equal(view.truncatedBytes, 6);
 });
 
-NodeTest(
+await NodeTest(
   "spill callback receives every chunk in order, even after eviction",
   () => {
     const spilled: string[] = [];
@@ -105,7 +120,7 @@ NodeTest(
   },
 );
 
-NodeTest(
+await NodeTest(
   "view text remains stable between pushes and updates after a push",
   () => {
     const buf = new OutputBuffer(1024);

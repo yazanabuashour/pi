@@ -14,7 +14,7 @@ import {
   buildTerminalResultMessage,
 } from "./src/prompt.ts";
 
-NodeTest(
+await NodeTest(
   "start guidance identifies the shell and scopes the final check to started work",
   () => {
     NodeAssert.match(BG_START_TOOL_DESCRIPTION, /sh -c on POSIX/);
@@ -54,7 +54,7 @@ function snap(overrides: Partial<TerminalSnapshot> = {}): TerminalSnapshot {
   };
 }
 
-NodeTest(
+await NodeTest(
   "kill report distinguishes killed / raced natural exit / already settled",
   () => {
     const report = buildKillReport([
@@ -83,6 +83,7 @@ NodeTest(
         exit: "exit 1",
       },
     ]);
+
     const [killedLine, racedLine, settledLine] = report.split("\n");
     NodeAssert.ok(killedLine);
     NodeAssert.ok(racedLine);
@@ -96,7 +97,7 @@ NodeTest(
   },
 );
 
-NodeTest(
+await NodeTest(
   "status result marks head-truncated output with a pointer at the full log",
   () => {
     const text = buildStatusResult(
@@ -109,6 +110,7 @@ NodeTest(
         }),
       }),
     );
+
     NodeAssert.match(text, /stdout truncated: showing last /);
     NodeAssert.match(
       text,
@@ -117,7 +119,7 @@ NodeTest(
   },
 );
 
-NodeTest(
+await NodeTest(
   "terminal lifecycle details distinguish interruption from failure",
   () => {
     const details = backgroundTerminalDetails(
@@ -131,7 +133,9 @@ NodeTest(
       "runtime-1",
       "reload",
     );
+
     NodeAssert.equal(details.outcome, "interrupted");
+
     const incomplete = backgroundTerminalDetails(
       snap({
         status: "running",
@@ -142,6 +146,7 @@ NodeTest(
       "runtime-1",
       "reload",
     );
+
     NodeAssert.equal(incomplete.outcome, undefined);
     NodeAssert.equal(incomplete.settledAt, undefined);
     NodeAssert.equal(incomplete.stopRequested, true);
@@ -171,12 +176,13 @@ NodeTest(
   },
 );
 
-NodeTest(
+await NodeTest(
   "completion message reports kill vs exit and omits empty stderr",
   () => {
     const killed = buildTerminalResultMessage(
       snap({ status: "killed", signal: "SIGTERM" }),
     );
+
     NodeAssert.match(killed, /was killed after/);
     NodeAssert.ok(!killed.includes("stderr"), "empty stderr section omitted");
 
@@ -187,18 +193,20 @@ NodeTest(
         stderr: view({ text: "boom\n", totalBytes: 5 }),
       }),
     );
+
     NodeAssert.match(failed, /exited \(exit 3\)/);
     NodeAssert.match(failed, /stderr:\nboom/);
   },
 );
 
-NodeTest(
+await NodeTest(
   "completion output is a shorter tail than the detailed status view",
   () => {
     const output = Array.from(
       { length: 100 },
       (_, index) => `line-${index + 1}`,
     ).join("\n");
+
     const terminal = snap({
       stdout: view({ text: output, totalBytes: Buffer.byteLength(output) }),
     });

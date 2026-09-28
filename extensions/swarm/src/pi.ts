@@ -28,11 +28,14 @@ type CreatePiSession = (
 
 const createPiSession: CreatePiSession = async (task, signal) => {
   const model = task.parent.inheritedModel;
+
   if (!model) throw new Error("Agents require the parent session's model.");
+
   const resources: ChildResourceOptions = {
     cwd: task.cwd,
     projectTrusted: task.parent.projectTrusted,
   };
+
   if (task.swarm)
     resources.appendSystemPrompt = [
       `You are a swarm agent. Your direct parent is ${task.swarm.parentId}; the main agent is root. ` +
@@ -45,6 +48,7 @@ const createPiSession: CreatePiSession = async (task, signal) => {
     ];
   const { loader, settingsManager } = await createChildResources(resources);
   signal.throwIfAborted();
+
   const options: Parameters<typeof createAgentSession>[0] = {
     cwd: task.cwd,
     model,
@@ -53,15 +57,20 @@ const createPiSession: CreatePiSession = async (task, signal) => {
     resourceLoader: loader,
     ...childToolPolicy(task.customTools?.map((tool) => tool.name)),
   };
+
   const thinkingLevel =
     task.reasoningEffort ?? task.parent.inheritedThinkingLevel;
+
   if (thinkingLevel !== undefined) options.thinkingLevel = thinkingLevel;
+
   if (task.customTools !== undefined) options.customTools = task.customTools;
+
   return (await createAgentSession(options)).session;
 };
 
 async function shutdownAndDisposeChildSession(session: AgentSession) {
   const report = await shutdownChildSessionReport(session);
+
   if (report.failures.length > 0) throw new Error(report.failures.join("; "));
 }
 
@@ -74,11 +83,14 @@ function acquireAdapter(
     const operation = Promise.resolve().then(async () => {
       signal.throwIfAborted();
       const registry = task.parent.modelRegistry;
+
       if (!registry)
         throw new Error("Agents require the parent session's model registry.");
+
       if (!task.parent.inheritedModel)
         throw new Error("Agents require the parent session's model.");
       const session = await create(task, signal);
+
       try {
         signal.throwIfAborted();
         await bindChildSessionExtensions(session);
@@ -89,27 +101,33 @@ function acquireAdapter(
         const adapter = new PiSessionAdapter(session, registry, events);
         adapter.install();
         adapter.announceMeta();
+
         return adapter;
       } catch (error) {
         await shutdownAndDisposeChildSession(session);
         throw error;
       }
     });
+
     const settled = operation.then(
       (adapter) => {
         resume(Effect.succeed(adapter));
+
         return adapter;
       },
       (cause) => {
         const failure = { message: boundedError(cause), cause };
         resume(Effect.fail(new SpawnError(failure)));
+
         return undefined;
       },
     );
+
     // The SDK factory cannot be cancelled. Interruption owns its late result
     // until it is disposed; it must never bind or dispatch a late child.
     return Effect.promise(async () => {
       const adapter = await settled;
+
       if (adapter) await adapter.dispose(shutdownAndDisposeChildSession);
     });
   });
@@ -122,11 +140,13 @@ const makePiSession = (
   Effect.uninterruptibleMask((restore) =>
     Effect.gen(function* () {
       const events = yield* Queue.make<AgentEvent, Cause.Done>();
+
       const adapter = yield* Effect.acquireRelease(
         restore(acquireAdapter(task, events, create)),
         (adapter) =>
           Effect.promise(() => adapter.dispose(shutdownAndDisposeChildSession)),
       );
+
       return adapter.toSession();
     }),
   );

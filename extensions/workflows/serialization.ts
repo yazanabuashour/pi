@@ -19,8 +19,11 @@ export interface SerializationOptions {
 }
 
 const DEFAULT_MAX_BYTES = 1024 * 1024;
+
 const DEFAULT_MAX_DEPTH = 16;
+
 const DEFAULT_MAX_NODES = 20_000;
+
 const DEFAULT_MAX_STRING_BYTES = 64 * 1024;
 
 function byteLength(value: string) {
@@ -29,14 +32,18 @@ function byteLength(value: string) {
 
 export function truncateUtf8(value: string, maxBytes: number) {
   if (maxBytes <= 0) return "";
+
   if (byteLength(value) <= maxBytes) return value;
   const buffer = Buffer.from(value, "utf8");
   let end = Math.min(maxBytes, buffer.length);
+
   while (end > 0) {
     const byte = buffer[end];
+
     if (byte === undefined || (byte & 0xc0) !== 0x80) break;
     end--;
   }
+
   return buffer.subarray(0, end).toString("utf8");
 }
 
@@ -61,27 +68,40 @@ export function toSerializable<Input1>(
     location: string,
   ): RuntimeValue => {
     nodes++;
+
     if (nodes > maxNodes) return "[truncated: node limit]";
+
     if (depth > maxDepth) return "[truncated: depth limit]";
+
     if (current === null) return null;
+
     if (isBoolean(current)) return current;
+
     if (isString(current)) {
       if (byteLength(current) <= maxStringBytes) return current;
+
       return `${truncateUtf8(current, maxStringBytes)}\n[truncated: string limit]`;
     }
+
     if (isNumber(current)) {
       return Number.isFinite(current)
         ? current
         : `[number: ${String(current)}]`;
     }
+
     if (isBigInt(current)) return `${current.toString()}n`;
+
     if (current === undefined) return "[undefined]";
+
     if (isSymbol(current)) return `[symbol: ${current.description ?? ""}]`;
+
     if (isFunction(current))
       return `[function: ${current.name || "anonymous"}]`;
+
     if (!isObjectValue(current)) return String(current);
 
     const prior = seen.get(current);
+
     if (prior) return `[circular: ${prior}]`;
     seen.set(current, location);
 
@@ -96,38 +116,47 @@ export function toSerializable<Input1>(
         ? "[date: invalid]"
         : current.toISOString();
     }
+
     if (current instanceof Error) {
       const serializedError: RuntimeRecord = {
         name: current.name,
         message: current.message,
       };
+
       if (current.stack) {
         serializedError["stack"] = truncateUtf8(current.stack, 16 * 1024);
       }
+
       return serializedError;
     }
 
     const result: RuntimeRecord = Object.create(null);
     let keys: string[];
+
     try {
       keys = Object.keys(current);
     } catch (error) {
       return `[unreadable object: ${error instanceof Error ? error.message : String(error)}]`;
     }
+
     for (const key of keys) {
       try {
         const descriptor = Object.getOwnPropertyDescriptor(current, key);
+
         if (!descriptor) continue;
+
         const property =
           "value" in descriptor
             ? descriptor.value
             : descriptor.get?.call(current);
+
         result[key] = visit(property, depth + 1, `${location}.${key}`);
       } catch (error) {
         result[key] =
           `[unreadable property: ${error instanceof Error ? error.message : String(error)}]`;
       }
     }
+
     return result;
   };
 
@@ -142,9 +171,11 @@ export function safeStringify<Input1>(
   const maxBytes = Math.max(256, options.maxBytes ?? DEFAULT_MAX_BYTES);
   const normalized = toSerializable(value, options);
   const serialized = JSON.stringify(normalized, null, 2) ?? "null";
+
   if (byteLength(serialized) <= maxBytes) return serialized;
 
   let previewBytes = Math.max(32, Math.floor(maxBytes / 3));
+
   while (previewBytes > 0) {
     const fallback = JSON.stringify(
       {
@@ -155,9 +186,11 @@ export function safeStringify<Input1>(
       null,
       2,
     );
+
     if (byteLength(fallback) <= maxBytes) return fallback;
     previewBytes = Math.floor(previewBytes / 2);
   }
+
   return JSON.stringify({ truncated: true });
 }
 
@@ -165,6 +198,7 @@ export function safeStringify<Input1>(
 export function writeFileAtomic(filePath: string, content: string) {
   NodeFS.mkdirSync(NodePath.dirname(filePath), { recursive: true });
   const temporary = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+
   try {
     NodeFS.writeFileSync(temporary, content, { encoding: "utf8", mode: 0o600 });
     NodeFS.renameSync(temporary, filePath);
@@ -174,6 +208,7 @@ export function writeFileAtomic(filePath: string, content: string) {
     } catch {
       // The original write error is more useful.
     }
+
     throw error;
   }
 }

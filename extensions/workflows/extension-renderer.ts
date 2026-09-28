@@ -24,6 +24,7 @@ import type { WorkflowInput } from "./extension-contract.ts";
 
 function header(details: WorkflowDetails, theme: Theme) {
   const { done, failed } = countStates(details);
+
   let text =
     `${theme.fg(statusColor(details.status), SQUARE)} ${theme.fg("toolTitle", theme.bold("workflow "))}` +
     `${theme.fg("accent", details.name ?? details.runId)} ` +
@@ -32,16 +33,21 @@ function header(details: WorkflowDetails, theme: Theme) {
       `${done + failed}/${details.agents.length} agents · ${formatElapsed(details.startedAt, details.finishedAt)} · `,
     ) +
     theme.fg(statusColor(details.status), statusWord(details.status));
+
   if (failed) text += theme.fg("error", ` · ${failed} failed`);
+
   if (details.background) text += theme.fg("dim", " (background)");
+
   if (details.status === "running" && details.currentPhase) {
     text += theme.fg("muted", ` · ${details.currentPhase}`);
   }
+
   return text;
 }
 
 function collapsed(details: WorkflowDetails, theme: Theme) {
   let text = header(details, theme);
+
   for (const agent of details.agents) {
     const context = agentContext(agent);
     text += `\n  ${stateSquare(agent.state, theme)} ${theme.fg("accent", agent.label)}${
@@ -51,11 +57,15 @@ function collapsed(details: WorkflowDetails, theme: Theme) {
       `${context ? ` · ${context}` : ""} · ${formatElapsed(agent.startedAt, agent.finishedAt)}`,
     )}`;
   }
+
   const totals = formatUsage(aggregateUsage(details.agents));
+
   if (totals) text += `\n  ${theme.fg("dim", `Total: ${totals}`)}`;
+
   if (details.error)
     text += `\n  ${theme.fg("error", `Error: ${details.error}`)}`;
   text += `\n${theme.fg("muted", `(${keyHint("app.tools.expand", "to expand")})`)}`;
+
   return new Text(text, 0, 0);
 }
 
@@ -69,17 +79,21 @@ function addAgents(
     container.addChild(
       new Text(theme.fg("muted", `─── ${group.title} ───`), 0, 0),
     );
+
     for (const agent of group.agents) {
       const usage = formatUsage(agent.usage, agent.model);
       const context = agentContext(agent);
+
       let line = `${stateSquare(agent.state, theme)} ${theme.fg("accent", agent.label)} ${theme.fg(
         "dim",
         [context, formatElapsed(agent.startedAt, agent.finishedAt)]
           .filter(Boolean)
           .join(" · "),
       )}`;
+
       if (usage) line += ` ${theme.fg("dim", usage)}`;
       container.addChild(new Text(line, 0, 0));
+
       if (agent.error) {
         container.addChild(
           new Text(`  ${theme.fg("error", agent.error)}`, 0, 0),
@@ -95,16 +109,20 @@ function addAgents(
 function expanded(details: WorkflowDetails, theme: Theme) {
   const container = new Container();
   container.addChild(new Text(header(details, theme), 0, 0));
+
   if (details.description) {
     container.addChild(new Text(theme.fg("dim", details.description), 0, 0));
   }
+
   addAgents(container, details, theme);
+
   if (details.error) {
     container.addChild(new Spacer(1));
     container.addChild(
       new Text(theme.fg("error", `Error: ${details.error}`), 0, 0),
     );
   }
+
   if (details.result !== undefined) {
     container.addChild(new Spacer(1));
     container.addChild(new Text(theme.fg("muted", "─── result ───"), 0, 0));
@@ -117,11 +135,14 @@ function expanded(details: WorkflowDetails, theme: Theme) {
       ),
     );
   }
+
   const totals = formatUsage(aggregateUsage(details.agents));
+
   if (totals) {
     container.addChild(new Spacer(1));
     container.addChild(new Text(theme.fg("dim", `Total: ${totals}`), 0, 0));
   }
+
   return container;
 }
 
@@ -129,16 +150,21 @@ export function renderWorkflowCall(args: Partial<WorkflowInput>, theme: Theme) {
   const meta: WorkflowMeta = args.script
     ? extractMeta(args.script)
     : { phases: [] };
+
   let text =
     theme.fg("toolTitle", theme.bold("workflow ")) +
     theme.fg("accent", meta.name ?? "(script)");
+
   if (args.background) text += theme.fg("dim", " (background)");
+
   if (meta.description) text += `\n  ${theme.fg("dim", meta.description)}`;
+
   for (const phase of meta.phases.slice(0, 8)) {
     text += `\n  ${theme.fg("dim", SQUARE)} ${theme.fg("accent", phase.title)}${
       phase.detail ? theme.fg("dim", ` — ${phase.detail}`) : ""
     }`;
   }
+
   return new Text(text, 0, 0);
 }
 
@@ -148,9 +174,12 @@ export function renderWorkflowResult(
   theme: Theme,
 ) {
   const details = result.details;
+
   if (!details) {
     const first = result.content[0];
+
     return new Text(first?.type === "text" ? first.text : "(no output)", 0, 0);
   }
+
   return expandedView ? expanded(details, theme) : collapsed(details, theme);
 }

@@ -6,7 +6,9 @@ import {
 } from "./prompt.ts";
 
 export const PREVIEW_LENGTH = 200;
+
 export const EMIT_INTERVAL_MS = 120;
+
 export const THINKING_LEVELS = [
   "off",
   "minimal",
@@ -52,6 +54,7 @@ export function errorText<Input1>(error: Input1) {
 
 export function summaryLine(details: WorkflowDetails) {
   const { done, failed } = countStates(details);
+
   return `workflow ${details.name ?? details.runId}: ${done + failed}/${details.agents.length} agents${
     details.currentPhase ? ` · ${details.currentPhase}` : ""
   }`;

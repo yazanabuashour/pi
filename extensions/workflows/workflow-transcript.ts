@@ -27,24 +27,30 @@ export class WorkflowTranscriptRenderer {
   private split(left: string, right: string, width: number) {
     const rightWidth = visibleWidth(right);
     let text = left;
+
     if (visibleWidth(text) + rightWidth + 1 > width) {
       text = truncateToWidth(text, Math.max(0, width - rightWidth - 2), "…");
     }
+
     const pad = Math.max(1, width - visibleWidth(text) - rightWidth);
+
     return text + " ".repeat(pad) + right;
   }
 
   private panel(title: string, rows: string[], width: number, height: number) {
     const inner = Math.max(0, width - 2);
+
     const top =
       "╭ " +
       title +
       " " +
       "─".repeat(Math.max(0, inner - visibleWidth(title) - 2)) +
       "╮";
+
     const lines = [
       this.theme.fg("borderMuted", truncateToWidth(top, width, "")),
     ];
+
     for (let index = 0; index < height - 2; index++) {
       const row = truncateToWidth(rows[index] ?? "", inner, "…");
       lines.push(
@@ -54,7 +60,9 @@ export class WorkflowTranscriptRenderer {
           this.theme.fg("borderMuted", "│"),
       );
     }
+
     lines.push(this.theme.fg("borderMuted", "╰" + "─".repeat(inner) + "╯"));
+
     return lines;
   }
 
@@ -65,6 +73,7 @@ export class WorkflowTranscriptRenderer {
   private transcriptRows(agent: AgentRecord, width: number): string[] {
     const theme = this.theme;
     const rows: string[] = [];
+
     if (agent.transcript.length === 0) {
       return [theme.fg("dim", " No transcript entries available.")];
     }
@@ -76,15 +85,19 @@ export class WorkflowTranscriptRenderer {
         ` ${theme.fg(color, SQUARE)} ${theme.bold(theme.fg(color, label))}`,
       );
       const contentWidth = Math.max(8, width - 4);
+
       const styled = theme.fg(
         entry.role === "thinking" ? "dim" : entry.isError ? "error" : "text",
         entry.text,
       );
+
       for (const line of wrapTextWithAnsi(styled, contentWidth)) {
         rows.push(`   ${line}`);
       }
+
       rows.push("");
     }
+
     return rows;
   }
 
@@ -96,6 +109,7 @@ export class WorkflowTranscriptRenderer {
   ): string[] {
     const theme = this.theme;
     const lines: string[] = [];
+
     const right = theme.fg(
       "dim",
       [
@@ -106,6 +120,7 @@ export class WorkflowTranscriptRenderer {
         .filter(Boolean)
         .join(" · ") + " ",
     );
+
     lines.push(
       this.split(
         ` ${stateSquare(agent.state, theme)} ${theme.bold(theme.fg("accent", agent.label))}`,
@@ -128,14 +143,17 @@ export class WorkflowTranscriptRenderer {
     this.transcriptViewportSize = bodyHeight;
     const maxScroll = Math.max(0, rows.length - bodyHeight);
     this.transcriptScroll = Math.min(this.transcriptScroll, maxScroll);
+
     const visible = rows.slice(
       this.transcriptScroll,
       this.transcriptScroll + bodyHeight,
     );
+
     const position =
       rows.length > bodyHeight
         ? `Transcript · ${this.transcriptScroll + 1}-${Math.min(rows.length, this.transcriptScroll + bodyHeight)}/${rows.length}`
         : "Transcript";
+
     lines.push(...this.panel(position, visible, width, panelHeight));
     lines.push(
       this.hintLine(
@@ -143,15 +161,20 @@ export class WorkflowTranscriptRenderer {
         width,
       ),
     );
+
     return lines;
   }
 }
 
 function transcriptLabel(entry: TranscriptEntry): string {
   if (entry.role === "user") return "USER";
+
   if (entry.role === "assistant") return "ASSISTANT";
+
   if (entry.role === "thinking") return "THINKING";
+
   if (entry.role === "tool") return `TOOL ${entry.name ?? "unknown"}`;
+
   return `RESULT ${entry.name ?? "unknown"}`;
 }
 
@@ -159,9 +182,14 @@ function transcriptColor(
   entry: TranscriptEntry,
 ): "accent" | "success" | "dim" | "warning" | "error" | "muted" {
   if (entry.isError) return "error";
+
   if (entry.role === "user") return "accent";
+
   if (entry.role === "assistant") return "success";
+
   if (entry.role === "thinking") return "dim";
+
   if (entry.role === "tool") return "warning";
+
   return "muted";
 }

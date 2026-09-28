@@ -19,6 +19,7 @@ export function rootControls(session: SwarmExtensionSession) {
     { ids: Type.Array(Type.String()) },
     { additionalProperties: false },
   );
+
   return [
     defineTool({
       name: "swarm_wait",
@@ -37,7 +38,9 @@ export function rootControls(session: SwarmExtensionSession) {
       async execute(_id, params, signal, onUpdate) {
         const access = await swarmAccess(session);
         const ids = [...new Set(params.ids)];
+
         for (const id of ids) swarmMember(access, id);
+
         const snapshots = await runTool(
           access.runtime,
           access.manager.waitFor(ids, (pending) =>
@@ -53,7 +56,9 @@ export function rootControls(session: SwarmExtensionSession) {
             interruptMessage: "Wait aborted. Swarm agents keep running.",
           },
         );
+
         session.consume(snapshots);
+
         return {
           content: [{ type: "text", text: buildWaitOutput(snapshots) }],
           details: {
@@ -71,7 +76,9 @@ export function rootControls(session: SwarmExtensionSession) {
       parameters,
       async execute(_id, params, signal) {
         const access = await swarmAccess(session);
+
         for (const id of params.ids) swarmMember(access, id);
+
         const report = await runTool(
           access.runtime,
           access.manager.cancel(params.ids),
@@ -81,6 +88,7 @@ export function rootControls(session: SwarmExtensionSession) {
               "Cancellation interrupted; inspect branch status before continuing.",
           },
         );
+
         return {
           content: [
             {

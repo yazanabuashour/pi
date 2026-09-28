@@ -2,7 +2,7 @@ import * as NodeAssert from "node:assert/strict";
 import NodeTest from "node:test";
 import { BTW_TITLE_MAX_LENGTH, deriveBtwTitle } from "./src/by-the-way.ts";
 
-NodeTest(
+await NodeTest(
   "deriveBtwTitle uses the first non-empty line and bounds the title",
   () => {
     NodeAssert.equal(
@@ -18,6 +18,7 @@ NodeTest(
     const emojiTitle = deriveBtwTitle(
       `${"x".repeat(BTW_TITLE_MAX_LENGTH - 2)}😀 more`,
     );
+
     NodeAssert.equal(emojiTitle, `${"x".repeat(BTW_TITLE_MAX_LENGTH - 2)}😀…`);
   },
 );

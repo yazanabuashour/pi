@@ -1,6 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 const WORKFLOW_TOOL_NAME = "workflow";
+
 const WORKFLOW_SKILL_INVOCATION = /^\/skill:workflow-authoring(?:\s|$)/;
 
 /** Activate only for the manual skill command; Pi owns skill expansion. */
@@ -21,7 +22,9 @@ export function registerWorkflowActivation(pi: ExtensionAPI) {
     ) {
       return;
     }
+
     const activeTools = pi.getActiveTools();
+
     if (!activeTools.includes(WORKFLOW_TOOL_NAME)) {
       pi.setActiveTools([...activeTools, WORKFLOW_TOOL_NAME]);
     }

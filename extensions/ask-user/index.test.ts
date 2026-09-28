@@ -2,7 +2,7 @@ import * as NodeAssert from "node:assert/strict";
 import NodeTest from "node:test";
 import { showRpcQuestion } from "./index.ts";
 
-NodeTest(
+await NodeTest(
   "RPC questions return the selected model-provided option",
   async () => {
     const result = await showRpcQuestion(
@@ -22,6 +22,7 @@ NodeTest(
             "2. Production",
             "3. Write my own answer…",
           ]);
+
           return options[0];
         },
         async input() {
@@ -38,12 +39,13 @@ NodeTest(
   },
 );
 
-NodeTest(
+await NodeTest(
   "RPC questions return to the options after an empty custom answer",
   async () => {
     const controller = new AbortController();
     let selections = 0;
     let inputs = 0;
+
     const result = await showRpcQuestion(
       {
         question: "Deploy where?",
@@ -54,11 +56,13 @@ NodeTest(
         async select(_title, options, opts) {
           NodeAssert.equal(opts?.signal, controller.signal);
           selections += 1;
+
           return options[2];
         },
         async input(_title, _placeholder, opts) {
           NodeAssert.equal(opts?.signal, controller.signal);
           inputs += 1;
+
           return inputs === 1 ? "  " : "  Canary  ";
         },
       },

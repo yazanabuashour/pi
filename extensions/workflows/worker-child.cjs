@@ -6,12 +6,16 @@
 // Trusted agent-authored code runs with this account's host permissions.
 // The parent owns cancellation and reaps this process, including CPU loops.
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+
 let initialized = false;
+
 let token;
+
 const pendingAgents = new Map();
 
 function send(message) {
   if (!process.connected) return;
+
   try {
     process.send({ token, ...message }, (error) => {
       // A disconnected parent cannot receive results. Do not keep an orphan
@@ -29,8 +33,10 @@ function fail(error) {
 }
 
 process.on("disconnect", () => process.exit(0));
+
 process.on("message", (message) => {
   if (!message || typeof message !== "object") return;
+
   if (!initialized) {
     if (
       message.kind !== "init" ||
@@ -40,15 +46,20 @@ process.on("message", (message) => {
     ) {
       process.exit(1);
     }
+
     initialized = true;
     token = message.token;
     void run(message.source, message.argsJson).catch(fail);
+
     return;
   }
+
   if (message.token !== token || message.kind !== "agentResult") return;
   const pending = pendingAgents.get(message.id);
+
   if (!pending) return;
   pendingAgents.delete(message.id);
+
   if (typeof message.resultJson === "string")
     pending.resolve(message.resultJson);
   else pending.reject(new Error("Agent IPC failed"));
@@ -63,24 +74,30 @@ function deepFreeze(value, depth = 0) {
   )
     return value;
   Object.freeze(value);
+
   for (const key of Object.keys(value)) deepFreeze(value[key], depth + 1);
+
   return value;
 }
 
 async function mapLimited(items, concurrency, invoke) {
   const results = Array.from({ length: items.length });
   let next = 0;
+
   const workers = Array.from(
     { length: Math.min(concurrency, items.length) },
     async () => {
       while (true) {
         const index = next++;
+
         if (index >= items.length) return;
         results[index] = await invoke(items[index]);
       }
     },
   );
+
   await Promise.all(workers);
+
   return results;
 }
 
@@ -89,15 +106,19 @@ async function parallel(items, options = {}) {
     throw new Error(
       "parallel() expects an array of zero-argument agent thunks",
     );
+
   const requested =
     options && typeof options.concurrency === "number"
       ? Math.floor(options.concurrency)
       : 4;
+
   if (!Number.isFinite(requested) || requested < 1)
     throw new Error("parallel(): concurrency must be a positive integer");
+
   return mapLimited(items, Math.min(4, requested), (item) => {
     if (typeof item !== "function")
       throw new Error("parallel() items must be zero-argument functions");
+
     return item();
   });
 }
@@ -111,12 +132,15 @@ function phase(title) {
 
 function serializeResult(value) {
   const seen = new WeakSet();
+
   return JSON.stringify(value === undefined ? null : value, (_key, item) => {
     if (typeof item === "bigint") return item.toString() + "n";
+
     if (item && typeof item === "object") {
       if (seen.has(item)) return "[circular]";
       seen.add(item);
     }
+
     return item;
   });
 }
@@ -130,10 +154,13 @@ async function run(source, argsJson) {
     const id = ++nextRequestId;
     unconsumed.add(id);
     let started;
+
     const begin = () => {
       unconsumed.delete(id);
+
       if (!started) {
         let payloadJson;
+
         try {
           payloadJson = JSON.stringify({
             id,
@@ -152,8 +179,10 @@ async function run(source, argsJson) {
               "agent() arguments must be serializable: " + error.message,
             ),
           );
+
           return started;
         }
+
         inFlight.add(id);
         started = new Promise((resolve, reject) => {
           pendingAgents.set(id, { resolve, reject });
@@ -162,8 +191,10 @@ async function run(source, argsJson) {
           .then((json) => JSON.parse(json))
           .finally(() => inFlight.delete(id));
       }
+
       return started;
     };
+
     return Object.freeze({
       // Lazy thenable consumption is the agent dispatch contract.
       // oxlint-disable-next-line unicorn/no-thenable
@@ -184,6 +215,7 @@ async function run(source, argsJson) {
 
   const envelope = JSON.parse(argsJson);
   const args = envelope.defined ? deepFreeze(envelope.value) : undefined;
+
   // Compile the body as a function, not source interpolated into an invocation.
   // Stray closing braces must fail parsing before any agent can be dispatched.
   const workflow = new AsyncFunction(
@@ -193,17 +225,21 @@ async function run(source, argsJson) {
     "args",
     `"use strict";\n${source}`,
   );
+
   const value = await workflow(agent, parallel, phase, args);
   await Promise.resolve();
+
   if (unconsumed.size > 0)
     throw new Error(
       "Workflow created " + unconsumed.size + " unawaited agent() call(s)",
     );
+
   if (inFlight.size > 0)
     throw new Error(
       "Workflow returned before " + inFlight.size + " agent call(s) settled",
     );
   const resultJson = serializeResult(value);
+
   if (typeof resultJson !== "string")
     throw new Error("Workflow result was not serializable");
   send({ kind: "result", resultJson });

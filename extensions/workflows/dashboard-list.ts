@@ -22,9 +22,11 @@ export class WorkflowListRenderer {
   private split(left: string, right: string, width: number) {
     const rightWidth = visibleWidth(right);
     let text = left;
+
     if (visibleWidth(text) + rightWidth + 1 > width) {
       text = truncateToWidth(text, Math.max(0, width - rightWidth - 2), "…");
     }
+
     return (
       text +
       " ".repeat(Math.max(1, width - visibleWidth(text) - rightWidth)) +
@@ -38,6 +40,7 @@ export class WorkflowListRenderer {
     const titleText = truncateToWidth(` ${title} `, Math.max(0, inner - 2));
     const dashes = Math.max(0, inner - visibleWidth(titleText) - 1);
     const lines = [border("╭─") + titleText + border(`${"─".repeat(dashes)}╮`)];
+
     for (let index = 0; index < Math.max(0, height - 2); index++) {
       const row = truncateToWidth(rows[index] ?? "", inner, "…");
       lines.push(
@@ -47,7 +50,9 @@ export class WorkflowListRenderer {
           border("│"),
       );
     }
+
     lines.push(border(`╰${"─".repeat(inner)}╯`));
+
     return lines;
   }
 
@@ -72,6 +77,7 @@ export class WorkflowListRenderer {
         Math.max(0, entries.length - bodyHeight),
       ),
     );
+
     return entries
       .slice(offset, offset + bodyHeight)
       .map((entry, visibleIndex) => {
@@ -81,6 +87,7 @@ export class WorkflowListRenderer {
         const name = details.name ?? details.runId;
         const label = this.theme.fg(selected ? "accent" : "text", name);
         const { done, failed } = countStates(details);
+
         const right =
           this.theme.fg(
             "dim",
@@ -91,7 +98,9 @@ export class WorkflowListRenderer {
             statusWord(details.status),
           ) +
           " ";
+
         const square = this.theme.fg(statusColor(details.status), SQUARE);
+
         return this.split(
           ` ${marker} ${square} ${label} ${this.theme.fg("dim", details.runId)}`,
           right,
@@ -114,7 +123,9 @@ export class WorkflowListRenderer {
       ),
       width,
     );
+
     const panelHeight = height - 2;
+
     if (entries.length === 0) {
       return [
         header,
@@ -127,6 +138,7 @@ export class WorkflowListRenderer {
         this.hintLine(`${this.keys("tui.select.cancel")} close`, width),
       ];
     }
+
     return [
       header,
       ...this.panel(

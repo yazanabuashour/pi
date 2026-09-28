@@ -19,6 +19,7 @@ const makeManager = Effect.gen(function* () {
   const state = createManagerState(runCleanup);
   const disposeAll = disposeTerminals(state, cleanupFibers);
   yield* Effect.addFinalizer(() => disposeAll);
+
   return TerminalManager.of({
     start: (options) => startTerminal(state, options),
     status: (id) => terminalStatus(state, id),

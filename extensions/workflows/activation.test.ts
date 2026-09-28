@@ -11,11 +11,12 @@ type Handler = (
   event: Pick<InputEvent, "text" | "source">,
 ) => InputEventResult | void;
 
-NodeTest(
+await NodeTest(
   "only the manual skill command activates an admitted workflow tool",
   () => {
     const events = new Map<string, Handler>();
     let tools = ["read", "workflow"];
+
     const api: ExtensionAPI = Object.assign(Object.create(null), {
       on: (event: string, handler: Handler) => events.set(event, handler),
       getActiveTools: () => tools,
@@ -23,11 +24,13 @@ NodeTest(
         tools = names;
       },
     });
+
     registerWorkflowActivation(api);
     const start = events.get("session_start");
     const input = events.get("input");
     NodeAssert.ok(start);
     NodeAssert.ok(input);
+
     const send = (
       text: string,
       source: InputEvent["source"] = "interactive",
@@ -37,6 +40,7 @@ NodeTest(
 
     start({ text: "", source: "interactive" });
     NodeAssert.deepEqual(tools, ["read"]);
+
     for (const prompt of [
       "ultracode: review these modules",
       "Run a workflow for this audit",
@@ -46,6 +50,7 @@ NodeTest(
       send(prompt);
       NodeAssert.deepEqual(tools, ["read"], prompt);
     }
+
     send("/skill:workflow-authoring", "extension");
     NodeAssert.deepEqual(tools, ["read"]);
 

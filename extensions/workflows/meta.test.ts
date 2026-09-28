@@ -2,7 +2,7 @@ import * as NodeAssert from "node:assert/strict";
 import NodeTest from "node:test";
 import { extractMeta, prepareWorkflowScript } from "./meta.ts";
 
-NodeTest(
+await NodeTest(
   "metadata is decoded statically and removed from executable source",
   () => {
     const source = `export const meta = {
@@ -11,6 +11,7 @@ NodeTest(
     phases: [{ title: "Scan", detail: "files" }],
   };
   return { ok: true };`;
+
     const prepared = prepareWorkflowScript(source);
     NodeAssert.deepEqual(prepared.meta, {
       name: "audit",
@@ -25,7 +26,7 @@ NodeTest(
   },
 );
 
-NodeTest(
+await NodeTest(
   "export-like text in strings, comments, regexes, and templates is untouched",
   () => {
     const source = `
@@ -35,13 +36,14 @@ NodeTest(
     // export const fake = 1
     return { string, template, matches: regex.test(string) };
   `;
+
     const prepared = prepareWorkflowScript(source);
     NodeAssert.equal(prepared.source, source);
     NodeAssert.deepEqual(prepared.meta, { phases: [] });
   },
 );
 
-NodeTest("executable and unsupported metadata fail closed", () => {
+await NodeTest("executable and unsupported metadata fail closed", () => {
   NodeAssert.throws(
     () =>
       prepareWorkflowScript(

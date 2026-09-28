@@ -10,7 +10,7 @@ import {
   sanitizeText,
 } from "./src/ui/output-view.ts";
 
-NodeTest(
+await NodeTest(
   "dashboard selection follows its terminal id and falls back by row",
   () => {
     const selection: DashboardSelection = { id: "bt-7", index: 6 };
@@ -36,7 +36,7 @@ NodeTest(
   },
 );
 
-NodeTest("sanitizeText strips ANSI, tabs, and control characters", () => {
+await NodeTest("sanitizeText strips ANSI, tabs, and control characters", () => {
   NodeAssert.equal(sanitizeText("\u001b[31mred\u001b[0m"), "red");
   NodeAssert.equal(sanitizeText("\u001b[12345Cshifted"), "shifted");
   NodeAssert.equal(sanitizeText("\u001b]0;window title\u0007output"), "output");
@@ -51,7 +51,7 @@ NodeTest("sanitizeText strips ANSI, tabs, and control characters", () => {
   NodeAssert.equal(sanitizeText("a\u0007b\u0000c"), "abc");
 });
 
-NodeTest(
+await NodeTest(
   "output line cache reuses a version/width key and invalidates either dimension",
   () => {
     const cache = createOutputLineCache();
@@ -70,7 +70,7 @@ NodeTest(
   },
 );
 
-NodeTest(
+await NodeTest(
   "buildOutputLines wraps long lines and keeps only the final CR segment",
   () => {
     const lines = buildOutputLines("progress 1\rprogress 2\rdone\nnext", 80);
@@ -85,7 +85,7 @@ NodeTest(
   },
 );
 
-NodeTest(
+await NodeTest(
   "buildOutputLines drops one trailing empty line from a trailing newline",
   () => {
     NodeAssert.deepEqual(buildOutputLines("a\nb\n", 80), ["a", "b"]);

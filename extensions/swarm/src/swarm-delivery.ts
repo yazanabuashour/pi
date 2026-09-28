@@ -51,15 +51,18 @@ export class SwarmDelivery {
 
   forwardCompletion(snapshot: AgentSnapshot) {
     const parentId = snapshot.parentId;
+
     if (parentId === "root" || snapshot.outcome === "interrupted") return;
     const runtimeId = this.owner.identity;
     const content = buildAgentCompletionText(snapshot);
+
     const delivery = this.forward(parentId, content, runtimeId)
       .catch((error) => {
         console.error(
           `swarm: completion forwarding to ${parentId} failed`,
           error,
         );
+
         // The root already gets the result. Expose failed parent delivery there,
         // without retrying an admission whose outcome could be uncertain.
         if (this.owner.isCurrent(runtimeId))
@@ -68,17 +71,19 @@ export class SwarmDelivery {
             `Could not forward ${snapshot.id}'s completion to ${parentId}: ${String(error)}`,
           );
       })
+      .finally(() => this.pending.delete(delivery))
       .catch((error) =>
         console.error("swarm: delivery diagnostic failed", error),
       );
+
     this.pending.add(delivery);
-    void delivery.finally(() => this.pending.delete(delivery));
   }
 
   private async forward(parentId: string, content: string, runtimeId: string) {
     const manager = await this.owner.getManager();
     this.owner.assertCurrent(runtimeId);
     const parent = manager.view.get(parentId);
+
     if (
       !parent ||
       parent.origin !== "model" ||

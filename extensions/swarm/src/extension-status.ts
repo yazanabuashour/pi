@@ -26,16 +26,21 @@ export function updateSwarmStatus(
   manager: SwarmManagerService,
 ) {
   const snapshots = manager.view.list();
+
   if (snapshots.length === 0) {
     ui.setStatus("swarm", undefined);
+
     return;
   }
+
   const running = snapshots.filter(
     (snapshot) => snapshot.status === "running",
   ).length;
+
   const failed = snapshots.filter(
     (snapshot) => snapshot.status === "error",
   ).length;
+
   ui.setStatus(
     "swarm",
     formatActivityStatus(ui.theme, "swarm", {

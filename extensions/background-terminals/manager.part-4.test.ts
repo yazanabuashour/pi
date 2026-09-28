@@ -16,7 +16,7 @@ import type { TerminalSnapshot } from "./src/domain.ts";
 import { MAX_TRACKED, TerminalManager } from "./src/manager.ts";
 import { createTerminalRuntime, runTool } from "./src/runtime.ts";
 
-NodeTest(
+await NodeTest(
   "pruning drops the oldest settled entries past MAX_TRACKED, never running ones",
   async () => {
     await withManager(async (manager, runtime) => {
@@ -31,13 +31,16 @@ NodeTest(
 
       const settledIds: string[] = [];
       let oldestLog: string | undefined;
+
       for (let i = 0; i < MAX_TRACKED + 4; i++) {
         const snap = await runTool(
           runtime,
           manager.start({ command: "true", title: `quick-${i}`, cwd }),
         );
+
         settledIds.push(snap.id);
         await settlement(manager, snap.id);
+
         if (i === 0) oldestLog = snap.stdout.spillPath;
       }
 
@@ -71,25 +74,30 @@ NodeTest(
   },
 );
 
-NodeTest("runtime disposal removes the private spill directory", async () => {
-  const runtime = createTerminalRuntime();
-  const manager = await runtime.runPromise(TerminalManager);
-  const snap = await runTool(
-    runtime,
-    manager.start({ command: "node --version", title: "cleanup", cwd }),
-  );
-  const { snap: done } = await settlement(manager, snap.id);
-  const spillPath = done.stdout.spillPath;
-  NodeAssert.ok(spillPath);
-  const spillDir = NodePath.dirname(spillPath);
-  NodeAssert.equal(NodeFS.existsSync(spillDir), true);
+await NodeTest(
+  "runtime disposal removes the private spill directory",
+  async () => {
+    const runtime = createTerminalRuntime();
+    const manager = await runtime.runPromise(TerminalManager);
 
-  await runtime.dispose();
+    const snap = await runTool(
+      runtime,
+      manager.start({ command: "node --version", title: "cleanup", cwd }),
+    );
 
-  NodeAssert.equal(NodeFS.existsSync(spillDir), false);
-});
+    const { snap: done } = await settlement(manager, snap.id);
+    const spillPath = done.stdout.spillPath;
+    NodeAssert.ok(spillPath);
+    const spillDir = NodePath.dirname(spillPath);
+    NodeAssert.equal(NodeFS.existsSync(spillDir), true);
 
-NodeTest(
+    await runtime.dispose();
+
+    NodeAssert.equal(NodeFS.existsSync(spillDir), false);
+  },
+);
+
+await NodeTest(
   "an unknown command settles failed with the platform shell's non-zero exit",
   async () => {
     await withManager(async (manager, runtime) => {
@@ -101,6 +109,7 @@ NodeTest(
           cwd,
         }),
       );
+
       const { snap: failed } = await settlement(manager, snap.id);
       NodeAssert.equal(failed.status, "failed");
       // The platform shell reports a non-zero exit and explains the failure.
@@ -113,7 +122,7 @@ NodeTest(
   },
 );
 
-NodeTest(
+await NodeTest(
   "a process 'error' event settles failed with errorText and no bogus exit code",
   async () => {
     await withManager(async (manager, runtime) => {
@@ -127,6 +136,7 @@ NodeTest(
           cwd: "/definitely/not/a/real/dir-12345",
         }),
       );
+
       const { snap: failed } = await settlement(manager, snap.id);
       NodeAssert.equal(failed.status, "failed");
       NodeAssert.match(failed.errorText ?? "", /ENOENT/);
@@ -138,7 +148,7 @@ NodeTest(
   },
 );
 
-NodeTest(
+await NodeTest(
   "the spill file holds the complete capture when the settle hook fires, beyond the in-memory cap",
   async () => {
     await withManager(async (manager, runtime) => {
@@ -147,6 +157,7 @@ NodeTest(
       const totalBytes = chunk * writes;
 
       let spillSizeAtSettle = -1;
+
       const settledOnce = new Promise<TerminalSnapshot>((resolve) => {
         manager.view.setOnSettled((snap) => {
           // Measured inside the hook: the full capture must already be on disk
@@ -154,6 +165,7 @@ NodeTest(
           if (snap.stdout.spillPath) {
             spillSizeAtSettle = NodeFS.statSync(snap.stdout.spillPath).size;
           }
+
           resolve(snap);
         });
       });
@@ -168,6 +180,7 @@ NodeTest(
           cwd,
         }),
       );
+
       const done = await settledOnce;
       NodeAssert.equal(done.id, snap.id);
       NodeAssert.equal(done.status, "done");
@@ -181,6 +194,7 @@ NodeTest(
         Buffer.byteLength(done.stdout.text) <= 2 * 1024 * 1024,
         "retained text within the cap",
       );
+
       if (done.stdout.spillPath) {
         NodeAssert.equal(
           spillSizeAtSettle,

@@ -76,7 +76,7 @@ function parallelToolMessages(): AgentSession["messages"] {
   ];
 }
 
-NodeTest(
+await NodeTest(
   "completed parallel tool calls pair lifecycle timings with calls and results",
   () => {
     const timings = new Map<string, ToolExecutionTiming>();
@@ -126,6 +126,7 @@ NodeTest(
 
     const transcript = transcriptFromMessages(parallelToolMessages(), timings);
     const toolEntries = transcript.filter((entry) => entry.role === "tool");
+
     const resultEntries = transcript.filter(
       (entry) => entry.role === "toolResult",
     );
@@ -157,7 +158,7 @@ NodeTest(
   },
 );
 
-NodeTest(
+await NodeTest(
   "in-flight aborted tool calls retain start timing without completion",
   () => {
     const timings = new Map<string, ToolExecutionTiming>();
@@ -176,6 +177,7 @@ NodeTest(
       parallelToolMessages().slice(0, 2),
       timings,
     );
+
     const first = transcript.find((entry) => entry.toolCallId === "call-a");
 
     NodeAssert.equal(first?.startedAt, 2_000);
@@ -188,10 +190,12 @@ NodeTest(
   },
 );
 
-NodeTest(
+await NodeTest(
   "first-response watchdog aborts a silent provider request",
-  async () => {
+  async (test) => {
+    test.mock.timers.enable({ apis: ["setTimeout"] });
     let aborted = false;
+
     const watchdog = createFirstResponseWatchdog(
       async () => {
         aborted = true;
@@ -199,15 +203,18 @@ NodeTest(
       { timeoutMs: 10, model: "fixture-model" },
     );
 
-    await NodeAssert.rejects(
+    const rejected = NodeAssert.rejects(
       watchdog.waitFor(new Promise<never>(() => {})),
       /no assistant response event for fixture-model within 10 ms.*stalled/i,
     );
+
+    test.mock.timers.tick(10);
+    await rejected;
     NodeAssert.equal(aborted, true);
   },
 );
 
-NodeTest(
+await NodeTest(
   "first assistant response disarms the watchdog without limiting the run",
   async () => {
     const watchdog = createFirstResponseWatchdog(
@@ -216,16 +223,18 @@ NodeTest(
       },
       { timeoutMs: 10 },
     );
+
     watchdog.markResponse();
 
     const result = await watchdog.waitFor(
       new Promise<string>((resolve) => setTimeout(() => resolve("done"), 20)),
     );
+
     NodeAssert.equal(result, "done");
   },
 );
 
-NodeTest(
+await NodeTest(
   "workflow children guard structured, normal, and dynamically registered tools",
   async () => {
     const structuredResult = {
@@ -233,6 +242,7 @@ NodeTest(
       details: { value: "fixture" },
       terminate: true,
     };
+
     const structured = {
       name: "structured_output",
       label: "Structured Output",
@@ -242,15 +252,19 @@ NodeTest(
         return structuredResult;
       },
     } satisfies ToolDefinition;
+
     const definitions = new Map<string, ToolDefinition>([
       [structured.name, structured],
     ]);
+
     let listener: AgentSessionEventListener | undefined;
+
     const session = {
       getAllTools: () => [...definitions.keys()].map((name) => ({ name })),
       getToolDefinition: (name: string) => definitions.get(name),
       subscribe(next: AgentSessionEventListener) {
         listener = next;
+
         return () => {
           listener = undefined;
         };
@@ -261,20 +275,24 @@ NodeTest(
     NodeAssert.equal(await structured.execute(), structuredResult);
 
     let dynamicSignal: AbortSignal | undefined;
+
     const dynamic = {
       name: "dynamic_fixture",
       label: "Dynamic Fixture",
       description: "fixture",
       parameters: Type.Object({}),
       async execute(
+        this: void,
         _toolCallId: string,
         _params: Record<string, never>,
         signal?: AbortSignal,
       ) {
         dynamicSignal = signal;
+
         return new Promise<never>(() => {});
       },
     } satisfies ToolDefinition;
+
     const originalDynamicExecute = dynamic.execute;
     definitions.set(dynamic.name, dynamic);
     listener?.({ type: "agent_start" });

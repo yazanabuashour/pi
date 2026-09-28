@@ -21,33 +21,37 @@ function startBackground(session: WorkflowExtensionSession, run: WorkflowRun) {
     })
     .then(() => {
       const details = run.details;
+
       if (!session.ownsCurrentSession(details)) return;
-      try {
-        session.delivery.send(
-          {
-            customType: "workflow-result",
-            content: buildBackgroundWorkflowFollowUp({
-              runId: details.runId,
-              status: details.status,
-              result: buildWorkflowResultMessage(details, run.runDir),
-            }),
-            display: true,
-            details: compactToolDetails(details),
-          },
-          { deliverAs: "followUp", triggerTurn: true },
-        );
-      } catch (error) {
-        console.error("workflows: failed to deliver completion", error);
-      }
+
+      session.delivery.send(
+        {
+          customType: "workflow-result",
+          content: buildBackgroundWorkflowFollowUp({
+            runId: details.runId,
+            status: details.status,
+            result: buildWorkflowResultMessage(details, run.runDir),
+          }),
+          display: true,
+          details: compactToolDetails(details),
+        },
+        { deliverAs: "followUp", triggerTurn: true },
+      );
+    })
+    .catch((error) => {
+      console.error("workflows: failed to deliver completion", error);
     });
   const details = run.details;
+
   const launch: Parameters<typeof buildBackgroundWorkflowLaunchResult>[0] = {
     runId: details.runId,
     runDir: run.runDir,
     wakePolicy: session.delivery.policy,
   };
+
   if (details.name !== undefined) launch.name = details.name;
   const launchResult = buildBackgroundWorkflowLaunchResult(launch);
+
   return {
     content: [{ type: "text" as const, text: launchResult }],
     details: compactToolDetails(details),
@@ -70,11 +74,14 @@ export async function executeWorkflow(
     onUpdate,
     context,
   });
+
   if (run.details.background) return startBackground(session, run);
   await run.completion;
   const details = run.details;
   const message = buildWorkflowResultMessage(details, run.runDir);
+
   if (details.status !== "completed") throw new Error(message);
+
   return {
     content: [{ type: "text" as const, text: message }],
     details: compactToolDetails(details),

@@ -20,17 +20,21 @@ import { PiPromptLifecycle, type PromptSession } from "./src/session.ts";
 export function receipt<T = void>() {
   let resolve: ((value: T) => void) | undefined;
   let reject: ((cause: unknown) => void) | undefined;
+
   const promise = new Promise<T>((done, failed) => {
     resolve = done;
     reject = failed;
   });
+
   NodeAssert.ok(resolve);
   NodeAssert.ok(reject);
+
   return { promise, resolve, reject };
 }
 
 export function fixture() {
   const messages: PromptSession["messages"] = [];
+
   const session = {
     prompt: vi.fn<PromptSession["prompt"]>(),
     abort: vi.fn(async () => {}),
@@ -44,13 +48,17 @@ export function fixture() {
     agent: { hasQueuedMessages: vi.fn(() => false) },
     sendCustomMessage: vi.fn<PromptSession["sendCustomMessage"]>(),
   };
+
   const finished = receipt();
+
   const hooks = {
     started: vi.fn(),
     settled: vi.fn((_error?: SendError) => finished.resolve()),
     interrupted: vi.fn(),
   };
+
   const lifecycle = new PiPromptLifecycle(session, hooks);
+
   return { session, hooks, lifecycle, finished };
 }
 
@@ -63,8 +71,10 @@ export async function factoryFixture(customTools: ToolDefinition[] = []) {
     allowModelNetwork: false,
     refreshOnCreate: false,
   });
+
   const model = modelRuntime.getModel("anthropic", "claude-sonnet-4-5");
   NodeAssert.ok(model);
+
   const task: SpawnTask = {
     prompt: "not dispatched by the factory",
     title: "factory fixture",
@@ -75,7 +85,9 @@ export async function factoryFixture(customTools: ToolDefinition[] = []) {
       inheritedModel: model,
     },
   };
+
   const settingsManager = SettingsManager.inMemory();
+
   const loader = new DefaultResourceLoader({
     cwd: task.cwd,
     agentDir: task.cwd,
@@ -86,7 +98,9 @@ export async function factoryFixture(customTools: ToolDefinition[] = []) {
     noThemes: true,
     noContextFiles: true,
   });
+
   await loader.reload();
+
   const { session } = await createAgentSession({
     modelRuntime,
     resourceLoader: loader,
@@ -95,8 +109,14 @@ export async function factoryFixture(customTools: ToolDefinition[] = []) {
     noTools: "builtin",
     customTools,
   });
-  session.prompt = vi.fn<AgentSession["prompt"]>();
-  session.bindExtensions = vi.fn(session.bindExtensions.bind(session));
-  session.dispose = vi.fn(session.dispose.bind(session));
-  return { task, session };
+
+  const mocks = {
+    prompt: vi.fn<AgentSession["prompt"]>(),
+    bindExtensions: vi.fn(session.bindExtensions.bind(session)),
+    dispose: vi.fn(session.dispose.bind(session)),
+  };
+
+  Object.assign(session, mocks);
+
+  return { task, session, mocks };
 }

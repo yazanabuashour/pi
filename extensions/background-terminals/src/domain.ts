@@ -97,6 +97,7 @@ export function backgroundTerminalDetails(
           : snapshot.status === "killed"
             ? "interrupted"
             : undefined;
+
   const details: MutableBackgroundTerminalDetailsV1 = {
     schemaVersion: 1,
     event,
@@ -107,21 +108,31 @@ export function backgroundTerminalDetails(
     status: event === "started" ? "running" : snapshot.status,
     createdAt: snapshot.createdAt,
   };
+
   if (snapshot.pid !== undefined) details.pid = snapshot.pid;
+
   if (outcome !== undefined) details.outcome = outcome;
+
   if (event !== "started") {
     if (snapshot.stopRequested !== undefined)
       details.stopRequested = snapshot.stopRequested;
+
     if (snapshot.cleanupIncomplete !== undefined)
       details.cleanupIncomplete = snapshot.cleanupIncomplete;
+
     if (snapshot.settledAt !== undefined)
       details.settledAt = snapshot.settledAt;
+
     if (snapshot.exitCode !== undefined) details.exitCode = snapshot.exitCode;
+
     if (snapshot.signal !== undefined) details.signal = snapshot.signal;
+
     if (snapshot.errorText !== undefined)
       details.errorText = snapshot.errorText;
   }
+
   if (shutdownReason !== undefined) details.shutdownReason = shutdownReason;
+
   return details;
 }
 
@@ -130,6 +141,7 @@ export function formatElapsed(snap: TerminalSnapshot) {
   const totalSeconds = Math.max(0, Math.round((end - snap.createdAt) / 1000));
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
+
   return minutes > 0
     ? `${minutes}m${seconds.toString().padStart(2, "0")}s`
     : `${seconds}s`;
@@ -138,8 +150,11 @@ export function formatElapsed(snap: TerminalSnapshot) {
 /** "exit 0", "exit 137", "SIGTERM", or "running". */
 export function formatExit(snap: TerminalSnapshot) {
   if (snap.status === "running") return "running";
+
   if (snap.signal) return snap.signal;
+
   if (snap.exitCode !== undefined) return `exit ${snap.exitCode}`;
+
   return snap.status;
 }
 

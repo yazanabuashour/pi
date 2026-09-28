@@ -70,6 +70,7 @@ const QueryArgumentsSchema = Type.Object(
   },
   { additionalProperties: true },
 );
+
 type QueryArguments = Static<typeof QueryArgumentsSchema>;
 
 const ToolResultSchema = Type.Object({
@@ -92,6 +93,7 @@ function openWriter(
   state: TelemetryState,
 ) {
   const descriptor = NodeFS.openSync(path, "a", 0o600);
+
   const close = () => {
     try {
       NodeFS.closeSync(descriptor);
@@ -99,16 +101,20 @@ function openWriter(
       console.error("pi-telemetry-close-failed:", cause);
     }
   };
+
   try {
     NodeFS.fchmodSync(descriptor, 0o600);
   } catch (cause) {
     close();
     throw cause;
   }
+
   let failed = false;
+
   return {
     append(event: TelemetryEvent) {
       if (failed) return;
+
       try {
         const line = JSON.stringify({
           schema: "pi-automation-telemetry/v1",
@@ -118,6 +124,7 @@ function openWriter(
           runId,
           ...event,
         });
+
         NodeFS.writeSync(descriptor, `${line}\n`);
         NodeFS.fdatasyncSync(descriptor);
       } catch (cause) {
@@ -136,11 +143,14 @@ function registerToolEvents(
 ) {
   pi.on("tool_execution_start", (event) => {
     const now = process.hrtime.bigint();
+
     const args: QueryArguments = Check(QueryArgumentsSchema, event.args)
       ? event.args
       : {};
+
     const queryCount =
       args.query !== undefined ? 1 : (args.queries?.length ?? 0);
+
     state.active.set(event.toolCallId, { name: event.toolName, started: now });
     state.calls += 1;
     state.queries += queryCount;
@@ -159,8 +169,11 @@ function registerToolEvents(
     const tool = state.active.get(event.toolCallId);
     state.active.delete(event.toolCallId);
     const duration = tool ? milliseconds(tool.started, now) : null;
+
     if (duration !== null) state.totalToolMilliseconds += duration;
+
     if (event.isError) state.errors += 1;
+
     const partialRateLimit =
       Check(ToolResultSchema, event.result) &&
       event.result.content.some(
@@ -168,6 +181,7 @@ function registerToolEvents(
           part.type === "text" &&
           /(?:rate[ _-]?limit|\b429\b)/i.test(part.text ?? ""),
       );
+
     if (partialRateLimit) state.rateLimits += 1;
     append({
       event: "tool_end",
@@ -184,10 +198,12 @@ function registerToolEvents(
 
 export default function automationTelemetry(pi: ExtensionAPI) {
   const path = process.env["PI_AUTOMATION_TELEMETRY_PATH"];
+
   if (!path) return;
 
   const automation = process.env["PI_AUTOMATION_NAME"] ?? "unknown";
   const runId = process.env["PI_AUTOMATION_RUN_ID"] ?? "unknown";
+
   const state: TelemetryState = {
     active: new Map(),
     started: process.hrtime.bigint(),
@@ -200,7 +216,9 @@ export default function automationTelemetry(pi: ExtensionAPI) {
     providerResponses: 0,
     rateLimits: 0,
   };
+
   let writer: ReturnType<typeof openWriter> | undefined;
+
   const append = (event: TelemetryEvent) => {
     writer?.append(event);
   };
@@ -208,12 +226,15 @@ export default function automationTelemetry(pi: ExtensionAPI) {
   registerToolEvents(pi, state, append);
   pi.on("session_start", (_event, ctx) => {
     state.started = process.hrtime.bigint();
+
     try {
       writer = openWriter(path, automation, runId, state);
     } catch (cause) {
       console.error("pi-telemetry-open-failed: collection disabled", cause);
+
       return;
     }
+
     append({
       event: "session_start",
       model: ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : null,
@@ -223,6 +244,7 @@ export default function automationTelemetry(pi: ExtensionAPI) {
   pi.on("after_provider_response", (event) => {
     state.providerResponses += 1;
     const rateLimited = event.status === 429;
+
     if (rateLimited) state.rateLimits += 1;
     append({ event: "provider_response", status: event.status, rateLimited });
   });
@@ -240,6 +262,7 @@ export default function automationTelemetry(pi: ExtensionAPI) {
           durationMs: Number(milliseconds(tool.started).toFixed(3)),
         });
       }
+
       append({
         event: "summary",
         settled: state.settled,

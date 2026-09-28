@@ -12,15 +12,22 @@ import { CHILD_EXCLUDED_TOOL_NAMES } from "../shared/child-session.ts";
 import { runAgent } from "./agent-run.ts";
 import type { RunAgentOptions } from "./runner.ts";
 
+// Saved before spying; every invocation supplies the owning session with .call().
+// oxlint-disable-next-line typescript/unbound-method
 const bindSdkExtensions = Pi.AgentSession.prototype.bindExtensions;
+
+// oxlint-disable-next-line typescript/unbound-method -- invoked only with .call(session)
 const disposeSdkSession = Pi.AgentSession.prototype.dispose;
+
 const sessions = new Set<Pi.AgentSession>();
 
 function receipt() {
   let resolve!: () => void;
+
   const promise = new Promise<void>((accept) => {
     resolve = accept;
   });
+
   return { promise, resolve };
 }
 
@@ -45,8 +52,10 @@ async function fixture() {
     allowModelNetwork: false,
     refreshOnCreate: false,
   });
+
   const model = modelRuntime.getModel("anthropic", "claude-sonnet-4-5");
   NodeAssert.ok(model);
+
   const options: RunAgentOptions = {
     prompt: "fixture task",
     cwd: NodeProcess.cwd(),
@@ -54,30 +63,35 @@ async function fixture() {
     model,
     modelRegistry: new Pi.ModelRegistry(modelRuntime),
   };
+
   const runtime = vi
     .spyOn(Pi.ModelRuntime, "create")
     .mockResolvedValue(modelRuntime);
+
   const prompt = vi
     .spyOn(Pi.AgentSession.prototype, "prompt")
     .mockResolvedValue();
+
   const bind = vi
     .spyOn(Pi.AgentSession.prototype, "bindExtensions")
     .mockImplementation(async function (this: Pi.AgentSession, handlers) {
       sessions.add(this);
       await bindSdkExtensions.call(this, handlers);
     });
+
   const dispose = vi
     .spyOn(Pi.AgentSession.prototype, "dispose")
     .mockImplementation(function (this: Pi.AgentSession) {
       sessions.add(this);
       disposeSdkSession.call(this);
     });
+
   return { options, model, modelRuntime, runtime, prompt, bind, dispose };
 }
 
 it("settles resource, factory, and extension setup failures and cleans acquired sessions", async () => {
   const f = await fixture();
-  vi.mocked(Pi.DefaultResourceLoader.prototype.reload).mockRejectedValueOnce(
+  vi.spyOn(Pi.DefaultResourceLoader.prototype, "reload").mockRejectedValueOnce(
     new Error("resource loading failed"),
   );
   const resources = await runAgent(f.options);
@@ -101,25 +115,30 @@ it("settles resource, factory, and extension setup failures and cleans acquired 
 
 it("pre-aborted runs acquire nothing and retain the cancellation reason", async () => {
   const f = await fixture();
+
   const outcome = await runAgent({
     ...f.options,
     signal: AbortSignal.abort(new Error("cancel before acquisition")),
   });
+
   NodeAssert.equal(outcome.aborted, true);
   NodeAssert.match(outcome.error ?? "", /cancel before acquisition/);
-  NodeAssert.equal(vi.mocked(Pi.SettingsManager.create).mock.calls.length, 0);
+  NodeAssert.equal(vi.spyOn(Pi.SettingsManager, "create").mock.calls.length, 0);
   NodeAssert.equal(f.runtime.mock.calls.length, 0);
 });
 
 it("owns ignored acquisition through late creation or binding before disposing once", async () => {
   const f = await fixture();
+
   for (const stage of ["resources", "creation", "binding"]) {
     const entered = receipt();
     const released = receipt();
     const shutdown = vi.fn(async () => undefined);
+
     if (stage === "resources") {
-      vi.mocked(
-        Pi.DefaultResourceLoader.prototype.reload,
+      vi.spyOn(
+        Pi.DefaultResourceLoader.prototype,
+        "reload",
       ).mockImplementationOnce(async () => {
         entered.resolve();
         await released.promise;
@@ -128,6 +147,7 @@ it("owns ignored acquisition through late creation or binding before disposing o
       f.runtime.mockImplementationOnce(async () => {
         entered.resolve();
         await released.promise;
+
         return f.modelRuntime;
       });
     } else {
@@ -142,17 +162,21 @@ it("owns ignored acquisition through late creation or binding before disposing o
         },
       );
     }
+
     const beforeDispose = f.dispose.mock.calls.length;
     const beforeRuntime = f.runtime.mock.calls.length;
     const beforeBind = f.bind.mock.calls.length;
     const controller = new AbortController();
     let completed = false;
+
     const running = runAgent({ ...f.options, signal: controller.signal }).then(
       (result) => {
         completed = true;
+
         return result;
       },
     );
+
     await entered.promise;
     controller.abort(new Error(`cancel ${stage}`));
     await NodeTimersPromises.setImmediate();
@@ -167,10 +191,13 @@ it("owns ignored acquisition through late creation or binding before disposing o
       f.dispose.mock.calls.length - beforeDispose,
       stage === "resources" ? 0 : 1,
     );
+
     if (stage === "resources")
       NodeAssert.equal(f.runtime.mock.calls.length, beforeRuntime);
+
     if (stage === "creation")
       NodeAssert.equal(f.bind.mock.calls.length, beforeBind);
+
     if (stage === "binding") NodeAssert.equal(shutdown.mock.calls.length, 1);
   }
 });
@@ -180,12 +207,15 @@ it("preserves inherited model, tools, transcript, and the terminating structured
   f.prompt.mockImplementationOnce(async function (this: Pi.AgentSession) {
     NodeAssert.equal(this.model, f.model);
     NodeAssert.equal(this.thinkingLevel, "high");
+
     for (const excluded of CHILD_EXCLUDED_TOOL_NAMES)
       NodeAssert.equal(this.getActiveToolNames().includes(excluded), false);
     NodeAssert.ok(this.getActiveToolNames().includes("read"));
+
     const tool = this.agent.state.tools.find(
       (candidate) => candidate.name === "structured_output",
     );
+
     NodeAssert.ok(tool);
     const recorded = await tool.execute("structured-call", { answer: 42 });
     NodeAssert.equal(recorded.terminate, true);
@@ -197,11 +227,13 @@ it("preserves inherited model, tools, transcript, and the terminating structured
       },
     ];
   });
+
   const result = await runAgent({
     ...f.options,
     thinkingLevel: "high",
     schema: { type: "object", properties: { answer: { type: "number" } } },
   });
+
   NodeAssert.equal(result.ok, true);
   NodeAssert.equal(JSON.stringify(result.structured), '{"answer":42}');
   NodeAssert.equal(result.output, "completed");

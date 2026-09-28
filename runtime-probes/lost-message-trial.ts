@@ -16,7 +16,9 @@ import { Parse } from "typebox/value";
 import { SwarmExtensionSession } from "../extensions/swarm/src/extension-session.ts";
 
 const marker = "pi-trial1-child-progress-7e38932d";
+
 const hostPrompt = "pi-trial-explicit-host-turn";
+
 const configuration = Type.Object({
   mode: Type.Union([
     Type.Literal("busy"),
@@ -126,16 +128,20 @@ function registerTrialProvider(
     // Fixed chunking; no simulated wall-clock delays.
     tokenSize: { min: 1, max: 1 },
   });
+
   const finish = (context: Context) => {
     capture(context);
+
     return fauxAssistantMessage("pi-lost-message-trial-ok", { timestamp: 0 });
   };
+
   faux.setResponses(
     mode === "idle" || mode === "host-idle"
       ? [finish]
       : [
           (context) => {
             capture(context);
+
             return fauxAssistantMessage(
               fauxToolCall("trial_pending_tool", {}, { id: "trial-tool" }),
               { stopReason: "toolUse", timestamp: 0 },
@@ -152,8 +158,10 @@ export default function (pi: ExtensionAPI) {
     mode: process.env["PI_TRIAL_MODE"],
     receipt: process.env["PI_TRIAL_RECEIPT"],
   });
+
   const record = (entry: TrialReceipt) =>
     NodeFS.appendFileSync(receipt, `${JSON.stringify(entry)}\n`);
+
   const owner = new SwarmExtensionSession(pi);
   let currentContext: ExtensionContext | undefined;
   let request = 0;
@@ -230,6 +238,7 @@ export default function (pi: ExtensionAPI) {
       // result releases the tool; native Pi owns turn end and continuation.
       send(ctx, owner, record);
       record({ event: "tool_release" });
+
       return {
         content: [{ type: "text", text: "tool-completed" }],
         details: {},
@@ -241,6 +250,7 @@ export default function (pi: ExtensionAPI) {
     handler: async (_args, ctx) => {
       send(ctx, owner, record);
       await ctx.waitForIdle();
+
       if (mode === "host-idle") {
         // Let queued callbacks run before the CLI supplies its separate prompt.
         await NodeTimersPromises.setImmediate();

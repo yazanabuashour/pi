@@ -26,12 +26,13 @@ function assertExited(pid: number) {
   NodeAssert.throws(() => process.kill(pid, 0), { code: "ESRCH" });
 }
 
-NodeTest(
+await NodeTest(
   "worker runs trusted host APIs without loading ambient config",
   async () => {
     const cwd = NodeFS.mkdtempSync(
       NodePath.join(NodeOS.tmpdir(), "workflow-host-"),
     );
+
     try {
       NodeFS.writeFileSync(NodePath.join(cwd, "input.txt"), "trusted");
       NodeFS.writeFileSync(
@@ -48,6 +49,7 @@ NodeTest(
       );
       const phases: string[] = [];
       const signal = new AbortController().signal;
+
       const result = await run(
         `
       const fs = await import("node:fs");
@@ -73,6 +75,7 @@ NodeTest(
           onPhase: (title) => phases.push(title),
         },
       );
+
       NodeAssert.deepEqual(result, {
         text: "TRUSTED",
         dynamic: 7,
@@ -93,7 +96,7 @@ NodeTest(
   },
 );
 
-NodeTest(
+await NodeTest(
   "worker preserves lazy single dispatch, options, bounded fanout and input order",
   async () => {
     const calls: string[] = [];
@@ -101,10 +104,13 @@ NodeTest(
     let active = 0;
     let peak = 0;
     let firstResolve: (() => void) | undefined;
+
     const first = new Promise<void>((resolve) => {
       firstResolve = resolve;
     });
+
     const phases: string[] = [];
+
     const result = await run(
       `
     const lazy = agent("once", { label: "label", phase: "gather", schema: { type: "object" }, model: "ignored", provider: "ignored", role: "ignored", effort: "low" });
@@ -124,6 +130,7 @@ NodeTest(
         },
         onAgent: async (prompt, options) => {
           calls.push(prompt);
+
           if (prompt === "once")
             NodeAssert.deepEqual(options, {
               label: "label",
@@ -133,14 +140,18 @@ NodeTest(
             });
           active++;
           peak = Math.max(peak, active);
+
           if (prompt === "one") await first;
           completed.push(prompt);
           active--;
+
           if (prompt === "two") firstResolve?.();
+
           return { ok: true, output: prompt };
         },
       },
     );
+
     NodeAssert.deepEqual(result, ["once", "one", "two", "three"]);
     NodeAssert.deepEqual(calls, ["once", "one", "two", "three"]);
     NodeAssert.equal(completed[1], "two");
@@ -149,16 +160,19 @@ NodeTest(
   },
 );
 
-NodeTest(
+await NodeTest(
   "worker rejects unconsumed calls and malformed accounting-wrapper source without dispatch",
   async () => {
     let calls = 0;
+
     const overrides = {
       onAgent: async () => {
         calls++;
+
         return { ok: true, output: "unexpected" };
       },
     };
+
     await NodeAssert.rejects(
       run('agent("orphan"); return "done";', overrides),
       /unawaited agent/,
@@ -173,7 +187,7 @@ NodeTest(
   },
 );
 
-NodeTest(
+await NodeTest(
   "worker rejects return with an in-flight call and observes its late failure",
   async () => {
     let rejectAgent: ((error: Error) => void) | undefined;
@@ -195,6 +209,7 @@ NodeTest(
             if (prompt === "ready")
               return Promise.resolve({ ok: true, output: "ready" });
             signal = invocation;
+
             return new Promise((_resolve, reject) => {
               rejectAgent = reject;
             });
@@ -210,7 +225,7 @@ NodeTest(
   },
 );
 
-NodeTest(
+await NodeTest(
   "worker cancellation stops sync, post-await and repeated-await loops and awaits exit",
   async () => {
     for (const body of [
@@ -221,6 +236,7 @@ NodeTest(
       const controller = new AbortController();
       const reason = new Error("cancel loop fixture");
       let pid = 0;
+
       const pending = run(`phase(String(process.pid)); ${body}`, {
         signal: controller.signal,
         onPhase: (title) => {
@@ -228,6 +244,7 @@ NodeTest(
           controller.abort(reason);
         },
       });
+
       await NodeAssert.rejects(pending, (error) => error === reason);
       assertExited(pid);
       NodeAssert.equal(
@@ -239,7 +256,7 @@ NodeTest(
   },
 );
 
-NodeTest(
+await NodeTest(
   "worker converts synchronous and asynchronous agent errors to results",
   async () => {
     for (const onAgent of [
@@ -258,7 +275,7 @@ NodeTest(
   },
 );
 
-NodeTest(
+await NodeTest(
   "worker awaits exit on script error, early exit, IPC disconnect and phase callback error",
   async () => {
     for (const body of [
@@ -277,6 +294,7 @@ NodeTest(
       );
       assertExited(pid);
     }
+
     let pid = 0;
     await NodeAssert.rejects(
       run("phase(String(process.pid)); while (true) {}", {

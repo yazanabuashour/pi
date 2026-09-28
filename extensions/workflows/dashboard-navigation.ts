@@ -38,15 +38,18 @@ export function phaseNavigation(
       action: "select" as const,
     };
   }
+
   if (data === "g" || data === "G") {
     return {
       phaseIndex: data === "g" ? 0 : Math.max(0, phaseCount - 1),
       action: "select" as const,
     };
   }
+
   if ((keys.right || keys.confirm) && selectedAgentCount > 0) {
     return { phaseIndex, action: "agents" as const };
   }
+
   return {
     phaseIndex,
     action: keys.cancel ? ("back" as const) : ("none" as const),
@@ -66,16 +69,20 @@ export function agentNavigation(
       action: "none" as const,
     };
   }
+
   if (data === "g" || data === "G") {
     return {
       agentIndex: data === "g" ? 0 : Math.max(0, agentCount - 1),
       action: "none" as const,
     };
   }
+
   if (keys.left || keys.cancel)
     return { agentIndex, action: "phases" as const };
+
   if (keys.confirm && hasSelectedAgent)
     return { agentIndex, action: "transcript" as const };
+
   return { agentIndex, action: "none" as const };
 }
 
@@ -90,6 +97,7 @@ export function transcriptNavigation(
   const max = Math.max(0, rowCount - viewportSize);
   const step = data === "j" || data === "k" ? fastScrollStep : 1;
   const page = Math.max(1, viewportSize - 2);
+
   if (keys.up) scroll = Math.max(0, scroll - step);
   else if (keys.down) scroll = Math.min(max, scroll + step);
   else if (matchesKey(data, Key.ctrl("u"))) scroll = Math.max(0, scroll - page);
@@ -97,5 +105,6 @@ export function transcriptNavigation(
     scroll = Math.min(max, scroll + page);
   else if (data === "g") scroll = 0;
   else if (data === "G") scroll = max;
+
   return { scroll, back: keys.cancel || keys.left };
 }

@@ -10,12 +10,16 @@ interface ToolRegistry {
 function formatTimeout(timeoutMs: number) {
   if (timeoutMs % 60_000 === 0) {
     const minutes = timeoutMs / 60_000;
+
     return `${minutes} minute${minutes === 1 ? "" : "s"}`;
   }
+
   if (timeoutMs % 1_000 === 0) {
     const seconds = timeoutMs / 1_000;
+
     return `${seconds} second${seconds === 1 ? "" : "s"}`;
   }
+
   return `${timeoutMs} ms`;
 }
 
@@ -36,11 +40,14 @@ export async function runWithToolCallTimeout<T>(
 ) {
   signal?.throwIfAborted();
   const timeoutController = new AbortController();
+
   const executionSignal = signal
     ? AbortSignal.any([signal, timeoutController.signal])
     : timeoutController.signal;
+
   const timeoutError = new ToolCallTimeoutError(toolName, timeoutMs);
   let timer: ReturnType<typeof setTimeout> | undefined;
+
   const timeout = new Promise<never>((_resolve, reject) => {
     timer = setTimeout(() => {
       reject(timeoutError);
@@ -49,15 +56,20 @@ export async function runWithToolCallTimeout<T>(
   });
 
   let removeAbortListener: (() => void) | undefined;
+
   const aborted = new Promise<never>((_resolve, reject) => {
     if (!signal) return;
+
     const onAbort = () => {
       reject(signal.reason);
     };
+
     if (signal.aborted) {
       onAbort();
+
       return;
     }
+
     signal.addEventListener("abort", onAbort, { once: true });
     removeAbortListener = () => signal.removeEventListener("abort", onAbort);
   });
@@ -84,26 +96,22 @@ export function createToolCallTimeoutGuard(
     if (wrapped.has(definition)) return;
     wrapped.add(definition);
 
-    const execute = definition.execute;
+    const execute = definition.execute.bind(definition);
     definition.execute = async (toolCallId, params, signal, onUpdate, ctx) =>
       runWithToolCallTimeout(definition.name, timeoutMs, signal, (signal) => {
         const operation = Promise.resolve().then(() => {
           signal.throwIfAborted();
-          return execute.call(
-            definition,
-            toolCallId,
-            params,
-            signal,
-            onUpdate,
-            ctx,
-          );
+
+          return execute(toolCallId, params, signal, onUpdate, ctx);
         });
+
         pending.set(operation, `${definition.name}:${toolCallId}`);
         // The caller's timeout is not a receipt that the raw tool has stopped.
         void operation.then(
           () => pending.delete(operation),
           () => pending.delete(operation),
         );
+
         return operation;
       });
   };
@@ -116,6 +124,7 @@ export function createToolCallTimeoutGuard(
     apply(session: ToolRegistry) {
       for (const { name } of session.getAllTools()) {
         const definition = session.getToolDefinition(name);
+
         if (definition) wrap(definition);
       }
     },

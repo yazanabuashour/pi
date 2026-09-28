@@ -5,12 +5,13 @@ import * as NodePath from "node:path";
 import NodeTest from "node:test";
 import { createChildResources } from "./child-session.ts";
 
-NodeTest(
+await NodeTest(
   "child settings preserve scopes without writing source files",
   async () => {
     const directory = await NodeFSP.mkdtemp(
       NodePath.join(NodeOS.tmpdir(), "pi-child-settings-"),
     );
+
     try {
       const cwd = NodePath.join(directory, "project");
       const agentDir = NodePath.join(directory, "agent");
@@ -35,6 +36,7 @@ NodeTest(
         agentDir,
         projectTrusted: true,
       });
+
       NodeAssert.equal(settingsManager.getRetryEnabled(), false);
       NodeAssert.equal(settingsManager.getRetrySettings().maxRetries, 4);
 
@@ -56,10 +58,11 @@ NodeTest(
   },
 );
 
-NodeTest("invalid child settings fail visibly", async () => {
+await NodeTest("invalid child settings fail visibly", async () => {
   const directory = await NodeFSP.mkdtemp(
     NodePath.join(NodeOS.tmpdir(), "pi-child-settings-invalid-"),
   );
+
   try {
     const agentDir = NodePath.join(directory, "agent");
     await NodeFSP.mkdir(agentDir, { recursive: true });

@@ -1,7 +1,9 @@
 type Rgb = [number, number, number];
 
 export const RESET = "\x1b[0m";
+
 export const BOLD = "\x1b[1m";
+
 const PALETTE: Rgb[] = [
   [22, 83, 189],
   [48, 129, 247],
@@ -10,6 +12,7 @@ const PALETTE: Rgb[] = [
   [93, 171, 255],
   [48, 129, 247],
 ];
+
 export const TITLE_LINES = [
   "  ██████╗  ██╗ ",
   "  ██╔══██╗ ██║ ",
@@ -18,18 +21,22 @@ export const TITLE_LINES = [
   "  ██║      ██║ ",
   "  ╚═╝      ╚═╝ ",
 ];
+
 const OSC_PATTERN = new RegExp(
   String.raw`(?:\u001b\]|\u009d)(?:[^\u0007\u001b\u009c]|\u001b(?!\\))*(?:\u0007|\u001b\\|\u009c)`,
   "g",
 );
+
 const CSI_PATTERN = new RegExp(
   String.raw`(?:\u001b\[|\u009b)[0-?]*[ -/]*[@-~]`,
   "g",
 );
+
 const ESCAPE_PATTERN = new RegExp(
   String.raw`\u001b(?:[()][0-2A-Z]|[ -/]*[@-~])`,
   "g",
 );
+
 const CONTROL_PATTERN = new RegExp(
   String.raw`[\u0000-\u001f\u007f-\u009f]`,
   "g",
@@ -55,6 +62,7 @@ function sampleGradient(position: number) {
   const amount = scaled - index;
   const start = PALETTE[index];
   const end = PALETTE[nextIndex];
+
   if (!start || !end) throw new Error("Gradient palette must not be empty");
 
   return [
@@ -69,7 +77,11 @@ function foreground([red, green, blue]: Rgb, text: string) {
 }
 
 export function gradientText(text: string, phase: number) {
-  const characters = [...text];
+  const characters = Array.from(
+    new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(text),
+    ({ segment }) => segment,
+  );
+
   const span = Math.max(characters.length - 1, 1);
 
   return characters

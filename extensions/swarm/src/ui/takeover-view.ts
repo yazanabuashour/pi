@@ -19,7 +19,9 @@ function configuredKeys(
 
 function statusGlyph(snap: AgentSnapshot, theme: Theme): string {
   if (snap.status === "running") return theme.fg("warning", "■");
+
   if (snap.status === "done") return theme.fg("success", "■");
+
   return theme.fg("error", "■");
 }
 
@@ -72,6 +74,7 @@ export class TakeoverView implements Component, Focusable {
     this.ticker = setInterval(() => this.tui.requestRender(), 1000);
     this.input.onSubmit = (value: string) => {
       const text = value.trim();
+
       if (!text) return;
       this.input.setValue("");
       this.view.requestSend(this.id, text);
@@ -90,6 +93,7 @@ export class TakeoverView implements Component, Focusable {
     // view cannot starve input handling or make the child look frozen.
     this.renderTimer = setTimeout(() => {
       this.renderTimer = undefined;
+
       if (!this.closed) this.tui.requestRender();
     }, 50);
   }
@@ -99,8 +103,10 @@ export class TakeoverView implements Component, Focusable {
     this.closed = true;
     this.unsubscribe();
     clearInterval(this.ticker);
+
     if (this.renderTimer) clearTimeout(this.renderTimer);
     this.renderTimer = undefined;
+
     return true;
   }
 
@@ -115,48 +121,62 @@ export class TakeoverView implements Component, Focusable {
   handleInput(data: string): void {
     if (this.keybindings.matches(data, "app.clear")) {
       const snap = this.snap();
+
       if (snap?.status === "running") this.view.requestAbort(this.id);
+
       return;
     }
+
     if (
       this.keybindings.matches(data, "app.interrupt") ||
       this.keybindings.matches(data, "tui.select.cancel")
     ) {
       this.close();
+
       return;
     }
+
     if (this.keybindings.matches(data, "tui.editor.cursorUp")) {
       this.scrollOffset += TRANSCRIPT_SCROLL_STEP;
       this.tui.requestRender();
+
       return;
     }
+
     if (this.keybindings.matches(data, "tui.editor.cursorDown")) {
       this.scrollOffset = Math.max(
         0,
         this.scrollOffset - TRANSCRIPT_SCROLL_STEP,
       );
       this.tui.requestRender();
+
       return;
     }
+
     if (this.keybindings.matches(data, "tui.editor.pageUp")) {
       this.scrollOffset += this.viewportHeight();
       this.tui.requestRender();
+
       return;
     }
+
     if (this.keybindings.matches(data, "tui.editor.pageDown")) {
       this.scrollOffset = Math.max(
         0,
         this.scrollOffset - this.viewportHeight(),
       );
       this.tui.requestRender();
+
       return;
     }
+
     this.input.handleInput(data);
     this.tui.requestRender();
   }
 
   private viewportHeight(): number {
     const rows = this.tui.terminal.rows || 30;
+
     // The complete view renders viewport + 7 chrome rows. Using rows - 8
     // makes the overlay exactly terminal rows - 1.
     return Math.max(6, rows - 8);
@@ -172,11 +192,13 @@ export class TakeoverView implements Component, Focusable {
       lines.push(border);
       lines.push(theme.fg("dim", `${this.id} is no longer tracked`));
       lines.push(border);
+
       return lines;
     }
 
     lines.push(border);
     const utilization = formatContextUtilization(snap.usage);
+
     const header =
       `${statusGlyph(snap, theme)} ` +
       theme.fg("accent", theme.bold(`${snap.id} · ${snap.title}`)) +
@@ -186,6 +208,7 @@ export class TakeoverView implements Component, Focusable {
         : "") +
       theme.fg("dim", ` · pi: ${snap.meta.modelLabel ?? "?"}`) +
       (utilization ? theme.fg("dim", ` · ${utilization}`) : "");
+
     lines.push(truncateToWidth(header, width));
     lines.push(border);
 
@@ -197,9 +220,11 @@ export class TakeoverView implements Component, Focusable {
     const scrollRows = this.scrollOffset > 0 ? 1 : 0;
     const transcriptCapacity = Math.max(1, viewport - errorRows - scrollRows);
     const maxOffset = Math.max(0, transcript.length - transcriptCapacity);
+
     if (this.scrollOffset > maxOffset) this.scrollOffset = maxOffset;
 
     const body: string[] = [];
+
     if (snap.errorText) {
       body.push(
         truncateToWidth(theme.fg("error", `error: ${snap.errorText}`), width),
@@ -210,8 +235,10 @@ export class TakeoverView implements Component, Focusable {
       1,
       viewport - body.length - (this.scrollOffset > 0 ? 1 : 0),
     );
+
     const end = transcript.length - this.scrollOffset;
     const visible = transcript.slice(Math.max(0, end - capacity), end);
+
     if (visible.length === 0) body.push(theme.fg("dim", "(no output yet)"));
     else body.push(...visible);
 
@@ -223,6 +250,7 @@ export class TakeoverView implements Component, Focusable {
         ),
       );
     }
+
     while (body.length < viewport) body.push("");
     lines.push(...body.slice(0, viewport));
 
@@ -238,6 +266,7 @@ export class TakeoverView implements Component, Focusable {
       ),
     );
     lines.push(border);
+
     return lines;
   }
 

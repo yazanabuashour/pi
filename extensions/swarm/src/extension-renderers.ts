@@ -24,6 +24,7 @@ export function renderSwarmToolCall<Args extends object>(
   const header =
     theme.fg("toolTitle", theme.bold(name)) +
     (target ? ` ${theme.fg("muted", target)}` : "");
+
   return new Text(
     expanded ? `${header}\n${JSON.stringify(args, null, 2)}` : header,
     0,
@@ -39,13 +40,16 @@ export const renderSwarmToolResult: NonNullable<
       .filter((part) => part.type === "text")
       .map((part) => part.text)
       .join("\n");
+
     return new Text(
       theme.fg(context.isError ? "error" : "toolOutput", text),
       0,
       0,
     );
   }
+
   const id = detailString(result.details, "id");
+
   return new Text(
     theme.fg(
       "dim",
@@ -65,6 +69,7 @@ function renderResultBody(
   if (expanded) {
     const markdown = new Markdown(body, 0, 0, getMarkdownTheme());
     const container = new Text(header, 0, 0);
+
     return {
       render: (width: number) => [
         ...container.render(width),
@@ -76,12 +81,16 @@ function renderResultBody(
       },
     };
   }
+
   const lines = body.split("\n");
   let text = header;
+
   for (const line of lines.slice(0, 8))
     text += `\n${theme.fg("toolOutput", line)}`;
+
   if (lines.length > 8)
     text += `\n${theme.fg("dim", "... (ctrl+o to expand)")}`;
+
   return new Text(text, 0, 0);
 }
 
@@ -92,12 +101,15 @@ export function registerSwarmRenderers(pi: ExtensionAPI) {
     const title = detailString(message.details, "title") ?? "";
     const failed = status === "error";
     const icon = failed ? theme.fg("error", "x") : theme.fg("success", "■");
+
     const header =
       `${icon} ` +
       theme.fg("accent", theme.bold(`agent ${id}`)) +
       theme.fg("muted", ` · ${title} · ${failed ? "failed" : "finished"}`);
+
     const content = isString(message.content) ? message.content : "";
     const body = content.split("\n").slice(1).join("\n").trim();
+
     return expanded
       ? renderResultBody(header, body, true, theme)
       : new Text(header + theme.fg("dim", " · /swarm"), 0, 0);
@@ -109,6 +121,7 @@ export function registerSwarmRenderers(pi: ExtensionAPI) {
       const data = entry.data;
       const failed = data?.status === "error";
       const icon = failed ? theme.fg("error", "x") : theme.fg("success", "■");
+
       const header =
         `${icon} ` +
         theme.fg("accent", theme.bold(`by the way · ${data?.title ?? "?"}`)) +
@@ -116,12 +129,14 @@ export function registerSwarmRenderers(pi: ExtensionAPI) {
           "muted",
           ` · ${failed ? "failed" : "answered"} · ${data?.id ?? "?"}`,
         );
+
       const body = [
         data?.errorText ? `Error: ${data.errorText}` : "",
         data?.answer ?? "(no answer)",
       ]
         .filter(Boolean)
         .join("\n\n");
+
       return renderResultBody(header, body, expanded, theme);
     },
   );

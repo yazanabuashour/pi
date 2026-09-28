@@ -1,3 +1,4 @@
+import { Match } from "effect";
 import {
   agentContext,
   aggregateUsage,
@@ -12,6 +13,7 @@ import {
 
 export function buildReport(details: WorkflowDetails): string {
   const { done, failed } = countStates(details);
+
   const lines: string[] = [
     `# Workflow ${details.name ?? details.runId}`,
     "",
@@ -20,24 +22,30 @@ export function buildReport(details: WorkflowDetails): string {
     `- Agents: ${done}/${details.agents.length} ok${failed ? `, ${failed} failed` : ""}`,
     `- Elapsed: ${formatElapsed(details.startedAt, details.finishedAt)}`,
   ];
+
   const totals = formatUsage(aggregateUsage(details.agents));
+
   if (totals) lines.push(`- Usage: ${totals}`);
+
   if (details.description) lines.push("", details.description);
+
   if (details.error) lines.push("", `**Error:** ${details.error}`);
 
   for (const group of phaseGroups(details, true)) {
     lines.push("", `## ${group.title}`, "");
+
     if (group.agents.length === 0) {
       lines.push("_no agents_");
       continue;
     }
+
     for (const agent of group.agents) {
-      const status =
-        agent.state === "done"
-          ? "ok"
-          : agent.state === "error"
-            ? "FAILED"
-            : "running";
+      const status = Match.value(agent.state).pipe(
+        Match.when("done", () => "ok"),
+        Match.when("error", () => "FAILED"),
+        Match.orElse(() => "running"),
+      );
+
       const stats = [
         agent.model,
         agentContext(agent),
@@ -45,9 +53,11 @@ export function buildReport(details: WorkflowDetails): string {
       ]
         .filter(Boolean)
         .join(" · ");
+
       lines.push(
         `- **${agent.label}** — ${status}${stats ? ` (${stats})` : ""}`,
       );
+
       if (agent.error) lines.push(`  - error: ${agent.error}`);
     }
   }
@@ -62,6 +72,8 @@ export function buildReport(details: WorkflowDetails): string {
       "```",
     );
   }
+
   lines.push("");
+
   return lines.join("\n");
 }

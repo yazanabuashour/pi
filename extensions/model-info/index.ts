@@ -12,11 +12,13 @@ import {
 // Not subscription billing; excludes nested tool work and summaries.
 function getBranchAssistantEstimatedCost(ctx: ExtensionContext) {
   let cost = 0;
+
   for (const entry of ctx.sessionManager.getBranch()) {
     if (entry.type === "message" && entry.message.role === "assistant") {
       cost += entry.message.usage.cost.total;
     }
   }
+
   return cost;
 }
 
@@ -46,6 +48,7 @@ export default function modelInfo(pi: ExtensionAPI) {
   const stopRefreshListener = pi.events.on(REFRESH_CHANNEL, () => {
     if (currentContext) refresh(currentContext);
   });
+
   pi.on("session_start", (_event, ctx) => refresh(ctx));
   pi.on("model_select", (_event, ctx) => refresh(ctx));
   pi.on("thinking_level_select", (event) => {

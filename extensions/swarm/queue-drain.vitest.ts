@@ -108,15 +108,18 @@ it("interruption observes an ignored queue drain and never wakes its late queue 
   });
   f.session.clearQueue.mockImplementation(() => {
     f.session.agent.hasQueuedMessages.mockReturnValue(false);
+
     return { steering: [], followUp: [] };
   });
   f.session.abort.mockImplementation(async () => aborted.resolve());
   await Effect.runPromise(f.lifecycle.send("first"));
   await drainStarted.promise;
   let interrupted = false;
+
   const interrupt = Effect.runPromise(f.lifecycle.interrupt).then(() => {
     interrupted = true;
   });
+
   await aborted.promise;
   NodeAssert.equal(interrupted, false);
   drainFinished.resolve();
@@ -147,6 +150,7 @@ it("interruption waits for a late steering submission and clears it before any r
   });
   f.session.clearQueue.mockImplementation(() => {
     f.session.agent.hasQueuedMessages.mockReturnValue(false);
+
     return { steering: [], followUp: [] };
   });
   f.session.abort.mockImplementation(async () => aborted.resolve());
@@ -154,9 +158,11 @@ it("interruption waits for a late steering submission and clears it before any r
   const steer = Effect.runPromise(f.lifecycle.steer("late"));
   await steerStarted.promise;
   let interrupted = false;
+
   const interrupt = Effect.runPromise(f.lifecycle.interrupt).then(() => {
     interrupted = true;
   });
+
   await aborted.promise;
   promptFinished.resolve();
   NodeAssert.equal(interrupted, false);

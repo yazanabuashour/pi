@@ -30,6 +30,7 @@ export function registerResultRenderer(pi: ExtensionAPI) {
       const incomplete = detailString(message.details, "cleanupIncomplete");
       const failed = status === "failed";
       const killed = status === "killed";
+
       const icon = incomplete
         ? theme.fg("warning", "■")
         : failed
@@ -37,24 +38,31 @@ export function registerResultRenderer(pi: ExtensionAPI) {
           : killed
             ? theme.fg("muted", "■")
             : theme.fg("success", "■");
+
       const signal = detailString(message.details, "signal");
       const exitCode = detailNumber(message.details, "exitCode");
+
       const how = incomplete
         ? `cleanup incomplete · ${status === "running" ? "exit unobserved" : (signal ?? `exit ${exitCode ?? "?"}`)}`
         : killed
           ? "killed"
           : (signal ?? `exit ${exitCode ?? "?"}`);
+
       const id = detailString(message.details, "id") ?? "?";
       const title = detailString(message.details, "title") ?? "";
+
       const header =
         `${icon} ` +
         theme.fg("accent", theme.bold(`terminal ${id}`)) +
         theme.fg("muted", ` · ${title} · ${how}`);
+
       const content = isString(message.content) ? message.content : "";
       const body = sanitizeText(content.split("\n").slice(1).join("\n").trim());
+
       if (expanded) {
         const markdown = new Markdown(body, 0, 0, getMarkdownTheme());
         const container = new Text(header, 0, 0);
+
         return {
           render: (width: number) => [
             ...container.render(width),
@@ -66,14 +74,18 @@ export function registerResultRenderer(pi: ExtensionAPI) {
           },
         };
       }
+
       const lines = body.split("\n");
       let text = header;
+
       for (const line of lines.slice(0, 8)) {
         text += `\n${theme.fg("toolOutput", line)}`;
       }
+
       if (lines.length > 8) {
         text += `\n${theme.fg("dim", "... (ctrl+o to expand)")}`;
       }
+
       return new Text(text, 0, 0);
     },
   );

@@ -5,7 +5,7 @@ import {
   type DashboardSelection,
 } from "./src/ui/takeover.ts";
 
-NodeTest(
+await NodeTest(
   "dashboard selection follows its agent id and falls back by row",
   () => {
     const selection: DashboardSelection = { id: "sa-7", index: 6 };

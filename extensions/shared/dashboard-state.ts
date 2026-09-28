@@ -1,8 +1,11 @@
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 import { isNumber, isRuntimeRecord, isString } from "./runtime-values.ts";
+
 export const MODEL_INFO_CHANNEL = "dashboard:model-info";
+
 export const GIT_INFO_CHANNEL = "dashboard:git-info";
+
 export const REFRESH_CHANNEL = "dashboard:refresh";
 
 export interface ModelInfoState {
@@ -19,6 +22,7 @@ export const pullRequestInfoSchema = Type.Object({
   url: Type.String({ pattern: "^https://[^\\s\\u0000-\\u001f\\u007f]+$" }),
   isDraft: Type.Boolean(),
 });
+
 export type PullRequestInfo = Static<typeof pullRequestInfoSchema>;
 
 const gitInfoStateSchema = Type.Union([
@@ -31,6 +35,7 @@ const gitInfoStateSchema = Type.Union([
     pullRequest: Type.Union([pullRequestInfoSchema, Type.Null()]),
   }),
 ]);
+
 export type GitInfoState = Static<typeof gitInfoStateSchema>;
 
 export function emptyModelInfoState(): ModelInfoState {

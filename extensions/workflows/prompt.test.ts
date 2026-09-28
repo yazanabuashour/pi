@@ -8,7 +8,7 @@ const skill = NodeFS.readFileSync(
   "utf8",
 );
 
-NodeTest("lazy workflow metadata stays compact", () => {
+await NodeTest("lazy workflow metadata stays compact", () => {
   const definition = JSON.stringify(workflowToolMetadata);
   // Receipt: the compact definition is below 1 KiB; the former always-active
   // definition was 3,871 bytes before guidance moved into the skill.
@@ -17,6 +17,9 @@ NodeTest("lazy workflow metadata stays compact", () => {
   NodeAssert.equal("promptGuidelines" in workflowToolMetadata, false);
 });
 
-NodeTest("workflow authoring skill is hidden from model discovery", () => {
-  NodeAssert.match(skill, /^disable-model-invocation: true$/m);
-});
+await NodeTest(
+  "workflow authoring skill is hidden from model discovery",
+  () => {
+    NodeAssert.match(skill, /^disable-model-invocation: true$/m);
+  },
+);

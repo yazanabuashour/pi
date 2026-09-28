@@ -2,7 +2,7 @@ import * as NodeAssert from "node:assert/strict";
 import NodeTest from "node:test";
 import { createDeferredResultDelivery } from "./result-delivery.ts";
 
-NodeTest("a result consumed by a tool is not delivered", () => {
+await NodeTest("a result consumed by a tool is not delivered", () => {
   const delivery = createDeferredResultDelivery<{
     id: string;
     output: string;
@@ -14,13 +14,14 @@ NodeTest("a result consumed by a tool is not delivered", () => {
   NodeAssert.deepEqual(delivery.drain(), []);
 });
 
-NodeTest(
+await NodeTest(
   "consuming a reused agent's generation does not erase an earlier completion",
   () => {
     const delivery = createDeferredResultDelivery<{
       id: string;
       generation: number;
     }>((result) => `${result.id}:${result.generation}`);
+
     const first = { id: "sa-1", generation: 1 };
     delivery.defer(first);
     delivery.defer({ id: "sa-1", generation: 2 });
@@ -29,12 +30,13 @@ NodeTest(
   },
 );
 
-NodeTest(
+await NodeTest(
   "results drain once in order and can be explicitly re-deferred",
   () => {
     const delivery = createDeferredResultDelivery<{ id: string }>(
       (result) => result.id,
     );
+
     const first = { id: "bt-1" };
     const second = { id: "bt-2" };
 
@@ -44,17 +46,19 @@ NodeTest(
     const drained = delivery.drain();
     NodeAssert.deepEqual(drained, [first, second]);
     NodeAssert.deepEqual(delivery.drain(), []);
+
     for (const result of drained) delivery.defer(result);
     NodeAssert.deepEqual(delivery.drain(), [first, second]);
   },
 );
 
-NodeTest(
+await NodeTest(
   "re-deferring a key replaces its result without changing order",
   () => {
     const delivery = createDeferredResultDelivery<{ id: string; n: number }>(
       (result) => result.id,
     );
+
     delivery.defer({ id: "bt-1", n: 1 });
     delivery.defer({ id: "bt-2", n: 1 });
     delivery.defer({ id: "bt-1", n: 2 });

@@ -29,6 +29,7 @@ async function withTempDir(run: (directory: string) => Promise<void>) {
   const directory = await NodeFSP.mkdtemp(
     NodePath.join(NodeOS.tmpdir(), "pi-child-policy-"),
   );
+
   try {
     await run(directory);
   } finally {
@@ -57,9 +58,11 @@ function assertChildTools(session: AgentSession, starts: number) {
   NodeAssert.equal(activeTools.has("fixture_extension_tool"), true);
   NodeAssert.equal(allTools.has("structured_output"), true);
   NodeAssert.equal(activeTools.has("structured_output"), true);
+
   for (const denied of CHILD_EXCLUDED_TOOL_NAMES) {
     NodeAssert.equal(allTools.has(denied), false, `${denied} should be denied`);
   }
+
   for (const builtin of ["read", "bash", "edit", "write"]) {
     NodeAssert.equal(
       activeTools.has(builtin),
@@ -69,15 +72,17 @@ function assertChildTools(session: AgentSession, starts: number) {
   }
 }
 
-NodeTest(
+await NodeTest(
   "child denylist keeps extension and workflow structured tools available",
   async () => {
     await withTempDir(async (directory) => {
       let starts = 0;
       let shutdowns = 0;
+
       const settingsManager = SettingsManager.inMemory(undefined, {
         projectTrusted: false,
       });
+
       const inlineLoader = new DefaultResourceLoader({
         cwd: directory,
         agentDir: NodePath.join(directory, "inline-agent"),
@@ -91,6 +96,7 @@ NodeTest(
               shutdowns++;
               throw new Error("fixture SDK shutdown failure");
             });
+
             for (const name of [
               "fixture_extension_tool",
               ...CHILD_EXCLUDED_TOOL_NAMES,
@@ -111,6 +117,7 @@ NodeTest(
           },
         ],
       });
+
       await inlineLoader.reload();
 
       const structuredOutput = defineTool({
@@ -125,6 +132,7 @@ NodeTest(
           };
         },
       });
+
       const { session } = await createAgentSession({
         cwd: directory,
         agentDir: NodePath.join(directory, "inline-agent"),
@@ -134,6 +142,7 @@ NodeTest(
         customTools: [structuredOutput],
         ...childToolPolicy(),
       });
+
       await bindChildSessionExtensions(session);
 
       assertChildTools(session, starts);
@@ -153,7 +162,7 @@ NodeTest(
   },
 );
 
-NodeTest(
+await NodeTest(
   "resource loading gates project extensions but retains global extensions",
   async () => {
     await withTempDir(async (directory) => {
@@ -165,6 +174,7 @@ NodeTest(
       await NodeFSP.mkdir(NodePath.join(agentDir, "extensions"), {
         recursive: true,
       });
+
       const extensionSource = (name: string) => `
       export default function (pi) {
         pi.registerTool({
@@ -174,6 +184,7 @@ NodeTest(
         });
       }
     `;
+
       await NodeFSP.writeFile(
         NodePath.join(agentDir, "extensions", "global.ts"),
         extensionSource("global_fixture"),
@@ -188,11 +199,13 @@ NodeTest(
         agentDir,
         projectTrusted: false,
       });
+
       const untrustedTools = new Set(
         untrusted.loader
           .getExtensions()
           .extensions.flatMap((extension) => [...extension.tools.keys()]),
       );
+
       NodeAssert.equal(untrustedTools.has("global_fixture"), true);
       NodeAssert.equal(untrustedTools.has("project_fixture"), false);
 
@@ -201,18 +214,20 @@ NodeTest(
         agentDir,
         projectTrusted: true,
       });
+
       const trustedTools = new Set(
         trusted.loader
           .getExtensions()
           .extensions.flatMap((extension) => [...extension.tools.keys()]),
       );
+
       NodeAssert.equal(trustedTools.has("global_fixture"), true);
       NodeAssert.equal(trustedTools.has("project_fixture"), true);
     });
   },
 );
 
-NodeTest(
+await NodeTest(
   "alternate standalone cwd only uses explicit saved trust",
   async () => {
     await withTempDir(async (directory) => {
@@ -255,11 +270,12 @@ NodeTest(
   },
 );
 
-NodeTest(
+await NodeTest(
   "shutdown helper balances hooks and disposal despite errors",
   async () => {
     let emits = 0;
     let disposals = 0;
+
     const session: DisposableChildSession = {
       extensionRunner: {
         hasHandlers: () => true,
@@ -291,22 +307,26 @@ NodeTest(
   },
 );
 
-NodeTest("shutdown helper bounds a stuck hook before disposal", async () => {
-  let disposals = 0;
-  const session: DisposableChildSession = {
-    extensionRunner: {
-      hasHandlers: () => true,
-      emit: () => new Promise(() => {}),
-    },
-    dispose() {
-      disposals++;
-    },
-  };
+await NodeTest(
+  "shutdown helper bounds a stuck hook before disposal",
+  async () => {
+    let disposals = 0;
 
-  await shutdownAndDisposeChildSession(session, { timeoutMs: 10 });
-  NodeAssert.equal(disposals, 1);
-  NodeAssert.match(
-    (await shutdownChildSessionReport(session)).failures.join("; "),
-    /hook settlement is still pending/,
-  );
-});
+    const session: DisposableChildSession = {
+      extensionRunner: {
+        hasHandlers: () => true,
+        emit: () => new Promise(() => {}),
+      },
+      dispose() {
+        disposals++;
+      },
+    };
+
+    await shutdownAndDisposeChildSession(session, { timeoutMs: 10 });
+    NodeAssert.equal(disposals, 1);
+    NodeAssert.match(
+      (await shutdownChildSessionReport(session)).failures.join("; "),
+      /hook settlement is still pending/,
+    );
+  },
+);

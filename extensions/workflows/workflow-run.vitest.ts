@@ -19,9 +19,11 @@ import { executeWorkflow } from "./workflow-execute.ts";
 
 function receipt<T>() {
   let resolve!: (value: T) => void;
+
   const promise = new Promise<T>((accept) => {
     resolve = accept;
   });
+
   return { promise, resolve };
 }
 
@@ -34,25 +36,31 @@ function readWorkflow(runDir: string): WorkflowDetails {
 
 async function fixture() {
   vi.useFakeTimers();
+
   const directory = NodeFS.mkdtempSync(
     NodePath.join(NodeOS.tmpdir(), "workflow-run-test-"),
   );
+
   vi.stubEnv("PI_CODING_AGENT_DIR", directory);
   vi.spyOn(Worker, "runWorkflowWorker");
   vi.spyOn(Agent, "runAgent");
+
   type Handler = (
     event: { reason: string },
     context: ExtensionContext,
   ) => void | Promise<void>;
+
   const handlers = new Map<string, Handler>();
   const appendEntry = vi.fn<ExtensionAPI["appendEntry"]>();
   const sendMessage = vi.fn<ExtensionAPI["sendMessage"]>();
+
   const pi: ExtensionAPI = Object.assign(Object.create(null), {
     on: (name: string, handler: Handler) => handlers.set(name, handler),
     appendEntry,
     sendMessage,
     getThinkingLevel: () => "off",
   });
+
   const context: ExtensionContext = Object.assign(Object.create(null), {
     cwd: directory,
     hasUI: false,
@@ -61,6 +69,7 @@ async function fixture() {
     isProjectTrusted: () => false,
     sessionManager: { getSessionId: () => "fixture-session" },
   });
+
   const session = new WorkflowExtensionSession(pi);
   await handlers.get("session_start")?.({ reason: "startup" }, context);
   onTestFinished(async () => {
@@ -70,10 +79,12 @@ async function fixture() {
     vi.useRealTimers();
     NodeFS.rmSync(directory, { recursive: true, force: true });
   });
+
   const lifecycle = () =>
     appendEntry.mock.calls.flatMap(([kind, data]) =>
       kind === "workflow-lifecycle" && isRuntimeRecord(data) ? [data] : [],
     );
+
   return {
     directory,
     pi,
@@ -87,10 +98,12 @@ async function fixture() {
 
 it("persists admission before dispatch and exposes isolated settled snapshots", async () => {
   const f = await fixture();
+
   const params = {
     script: 'phase("Inspect"); return args;',
     args: '{"ok":true}',
   };
+
   vi.mocked(Worker.runWorkflowWorker).mockImplementation(async (options) => {
     const admitted = f.lifecycle();
     expect(admitted).toHaveLength(1);
@@ -105,6 +118,7 @@ it("persists admission before dispatch and exposes isolated settled snapshots", 
       NodeFS.readFileSync(NodePath.join(runDir, "args.json"), "utf8"),
     ).toBe(params.args);
     options.onPhase("Inspect");
+
     return { ok: true };
   });
   const run = WorkflowRun.start({ ...f, params });
@@ -137,8 +151,10 @@ it.each(["automatic", "host"])(
     f.sendMessage.mockImplementation(() => delivered.resolve());
     vi.mocked(Worker.runWorkflowWorker).mockImplementation(async () => {
       await finish.promise;
+
       return "background result";
     });
+
     const launch = await executeWorkflow(
       f.pi,
       f.session,
@@ -150,11 +166,13 @@ it.each(["automatic", "host"])(
       undefined,
       f.context,
     );
+
     expect(launch.details).toMatchObject({
       background: true,
       status: "running",
     });
     expect(f.sendMessage).not.toHaveBeenCalled();
+
     if (policy === "host")
       expect(launch.content[0]?.text).toContain("without waking an idle agent");
     finish.resolve();
@@ -185,6 +203,7 @@ it("forces settlement once and rejects late worker and agent updates", async () 
   const agentFinished = receipt<AgentOutcome>();
   vi.mocked(Agent.runAgent).mockImplementation((options) => {
     agentStarted.resolve(options);
+
     return agentFinished.promise;
   });
   vi.mocked(Worker.runWorkflowWorker).mockImplementation(async (options) => {
@@ -193,12 +212,15 @@ it("forces settlement once and rejects late worker and agent updates", async () 
     await workerFinished.promise;
     options.onPhase("stale phase");
     await agent;
+
     return "stale result";
   });
+
   const run = WorkflowRun.start({
     ...f,
     params: { script: 'return agent("inspect");' },
   });
+
   const options = await agentStarted.promise;
   run.abort("Session is shutting down");
   run.forceInterrupted();
@@ -239,14 +261,17 @@ it("reports failed final lifecycle persistence in both snapshot and artifact", a
   });
   vi.mocked(Worker.runWorkflowWorker).mockImplementation(async (options) => {
     options.onPhase("Finish");
+
     return undefined;
   });
   const updates: WorkflowDetails[] = [];
+
   const run = WorkflowRun.start({
     ...f,
     params: { script: "return undefined;" },
     onUpdate: (update) => updates.push(update.details),
   });
+
   await expect(run.completion).rejects.toThrow(/lifecycle/i);
   expect(updates.at(-1)?.status).toBe("failed");
   const persisted = readWorkflow(run.runDir);
@@ -262,12 +287,15 @@ it("persists a failed final state after a transient artifact write failure", asy
   vi.mocked(Worker.runWorkflowWorker).mockImplementation(async (options) => {
     options.onPhase("Finish");
     await finish.promise;
+
     return undefined;
   });
+
   const run = WorkflowRun.start({
     ...f,
     params: { script: "return undefined;" },
   });
+
   const write = Serialization.writeFileAtomic;
   let failed = false;
   vi.spyOn(Serialization, "writeFileAtomic").mockImplementation(
@@ -276,6 +304,7 @@ it("persists a failed final state after a transient artifact write failure", asy
         failed = true;
         throw new Error("transient write failure");
       }
+
       return write(path, content);
     },
   );

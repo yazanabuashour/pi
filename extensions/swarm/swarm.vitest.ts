@@ -22,11 +22,13 @@ it("binds child identity and enforces snapshotted delegation grants", async () =
   expect((await h.call(tools, "swarm_list")).details).toMatchObject({
     self: child.id,
   });
+
   // An accidentally exposed tool still cannot bypass the stored grant.
   const overexposed = createSwarmTools(h.session, {
     id: child.id,
     runtimeId: h.session.identity,
   });
+
   await expect(
     h.call(overexposed, "swarm_spawn", {
       prompt: "denied",
@@ -48,12 +50,14 @@ it.each(["automatic", "host"])(
     const tools = h.toolsFor("sender");
     const send = tools.find((tool) => tool.name === "swarm_send");
     NodeAssert.ok(send);
+
     const params = {
       to: peer.id,
       message: "coordinate",
       from: "root",
       runtimeId: "forged",
     };
+
     expect(Value.Check(send.parameters, params)).toBe(false);
     // Binding also holds when a host skips schema validation.
     const result = await h.call(tools, "swarm_send", params);
@@ -78,12 +82,14 @@ it.each(["automatic", "host"])(
       ),
     });
     h.context.isIdle = () => false;
+
     const receipt = await sendSwarmMessage(
       h.session,
       { id: sender.id, runtimeId: h.session.identity },
       "root",
       "question",
     );
+
     expect(h.messages.at(-1)).toEqual([
       {
         customType: "swarm-message",
@@ -101,6 +107,7 @@ it.each(["automatic", "host"])(
         ? { deliverAs: "steer", triggerTurn: true }
         : { deliverAs: "steer" },
     ]);
+
     if (policy === "host") {
       expect(h.appendEntry).toHaveBeenCalledWith("background-delivery", {
         schemaVersion: 1,
@@ -117,6 +124,7 @@ it.each(["automatic", "host"])(
 it("excludes private by-the-way sessions from addressing, inspection, and controls", async () => {
   const h = await harness();
   const child = await h.spawn(h.root, "visible");
+
   const btw = await h.runtime.runPromise(
     h.manager.spawn({
       origin: "btw",
@@ -126,9 +134,11 @@ it("excludes private by-the-way sessions from addressing, inspection, and contro
       parent: { projectTrusted: false },
     }),
   );
+
   expect((await h.call(h.root, "swarm_list")).details).toMatchObject({
     agents: [{ id: child.id }],
   });
+
   for (const [name, params] of [
     ["swarm_check", { id: btw.id }],
     ["swarm_send", { to: btw.id, message: "not visible" }],
@@ -139,6 +149,7 @@ it("excludes private by-the-way sessions from addressing, inspection, and contro
       /Unknown swarm agent/,
     );
   }
+
   await expect(
     sendSwarmMessage(
       h.session,
@@ -159,10 +170,12 @@ it("reuses idle sessions but rejects stale/cancelled senders and peer restarts",
     generation: 2,
     meta: { sessionFilePath: child.meta.sessionFilePath },
   });
+
   const stale = createSwarmTools(h.session, {
     id: child.id,
     runtimeId: "previous-runtime",
   });
+
   await expect(h.call(stale, "swarm_list")).rejects.toThrow(
     /session is no longer active/,
   );
@@ -198,9 +211,11 @@ it("cancels a delegated branch without cancelling an unrelated sibling", async (
   expect(h.manager.view.canAct(parent.id)).toBe(true);
   expect(h.manager.view.canAct(child.id)).toBe(true);
   await h.call(h.root, "swarm_cancel", { ids: [parent.id] });
+
   for (const agent of [parent, child, grandchild]) {
     expect(h.manager.view.get(agent.id)?.outcome).toBe("interrupted");
   }
+
   expect(h.manager.view.canAct(sibling.id)).toBe(true);
 });
 
@@ -211,17 +226,21 @@ it("persists shutdown cleanup failures without fabricating or replacing executio
       yield* Effect.addFinalizer(() =>
         Effect.die(new Error(`cleanup failed: ${task.title}`)),
       );
+
       return task.title === "unconfirmed"
         ? { ...child, interrupt: Effect.die(new Error("abort failed")) }
         : child;
     }),
   );
+
   const completed = await h.spawn(h.root, "completed");
   await h.runtime.runPromise(h.manager.waitFor([completed.id]));
   const unconfirmed = await h.spawn(h.root, "unconfirmed");
+
   const report = await h.call(h.root, "swarm_cancel", {
     ids: [unconfirmed.id],
   });
+
   expect(report.details).toMatchObject({
     results: [
       {

@@ -32,26 +32,33 @@ import {
 
 function formatTokens(tokens: number) {
   if (tokens < 1_000) return `${tokens}`;
+
   if (tokens < 1_000_000) return `${Math.round(tokens / 1_000)}k`;
+
   return `${(tokens / 1_000_000).toFixed(1)}m`;
 }
 
 function formatDirectory(cwd: string) {
   const home = NodeOS.homedir();
+
   if (cwd === home) return "~";
+
   const display = cwd.startsWith(`${home}/`)
     ? `~/${NodePath.relative(home, cwd)}`
     : cwd;
+
   return sanitizeTerminalLabel(display);
 }
 
 function center(text: string, width: number) {
   const padding = Math.max(0, Math.floor((width - visibleWidth(text)) / 2));
+
   return truncateToWidth(`${" ".repeat(padding)}${text}`, width);
 }
 
 function columns(left: string, right: string, width: number) {
   const gap = width - visibleWidth(left) - visibleWidth(right);
+
   return `${left}${" ".repeat(gap)}${right}`;
 }
 
@@ -66,18 +73,24 @@ function renderGit(gitInfo: UiState["gitInfo"]) {
   if (gitInfo.unavailable !== null)
     return sanitizeTerminalLabel(gitInfo.unavailable);
   const fileLabel = gitInfo.changedFiles === 1 ? "file" : "files";
+
   const changes =
     gitInfo.changedFiles === 0
       ? "clean"
       : `${gitInfo.changedFiles} ${fileLabel} changed`;
+
   let git = gitInfo.branch ? `${gitInfo.branch} · ${changes}` : "";
+
   if (gitInfo.pullRequest) {
     const prLabel = `PR #${gitInfo.pullRequest.number}`;
+
     const linkedPr = getCapabilities().hyperlinks
       ? hyperlink(prLabel, gitInfo.pullRequest.url)
       : prLabel;
+
     git += ` · ${linkedPr}`;
   }
+
   return git;
 }
 
@@ -90,19 +103,24 @@ function renderFooter(
 ) {
   const directory = theme.fg("text", formatDirectory(ctx.cwd));
   const git = renderGit(state.gitInfo);
+
   const contextPercent =
     state.modelInfo.contextPercent === null
       ? "?"
       : `${Math.round(state.modelInfo.contextPercent)}`;
+
   const contextWindow =
     state.modelInfo.contextWindow > 0
       ? formatTokens(state.modelInfo.contextWindow)
       : "?";
+
   const usage = `${contextPercent}%/${contextWindow} · ~$${state.modelInfo.cost.toFixed(2)}`;
   const location = git ? `${directory} · ${theme.fg("muted", git)}` : directory;
+
   const model = state.modelInfo.provider
     ? `${state.modelInfo.provider}/${state.modelInfo.modelId} · ${state.modelInfo.thinking}`
     : state.modelInfo.modelId;
+
   const lines = [
     ...(visibleWidth(location) + visibleWidth(model) + 1 <= width
       ? [columns(location, theme.fg("muted", model), width)]
@@ -112,12 +130,15 @@ function renderFooter(
         ]),
     ...wrapTextWithAnsi(theme.fg("muted", usage), width),
   ];
+
   const statuses = footerData.getExtensionStatuses();
+
   for (const statusLine of Array.from(statuses.entries())
     .sort(([a], [b]) => a.localeCompare(b))
     .flatMap(([, text]) => text.split("\n"))) {
     lines.push(truncateToWidth(statusLine, width, theme.fg("dim", "...")));
   }
+
   return lines;
 }
 
@@ -125,15 +146,18 @@ function install(pi: ExtensionAPI, state: UiState, ctx: ExtensionContext) {
   if (ctx.mode !== "tui") return;
   ctx.ui.setHeader((tui) => {
     state.requestRender = () => tui.requestRender();
+
     return {
       render(width: number) {
         const art = TITLE_LINES.map((line, row) =>
           center(gradientText(line, row * 0.045), width),
         );
+
         const subtitle = center(
           `${BOLD}${gradientText(state.title, 0.18)}${RESET}`,
           width,
         );
+
         return ["", ...art, subtitle, ""];
       },
       invalidate() {},
@@ -141,6 +165,7 @@ function install(pi: ExtensionAPI, state: UiState, ctx: ExtensionContext) {
   });
   ctx.ui.setFooter((tui, theme, footerData) => {
     state.requestRender = () => tui.requestRender();
+
     return {
       invalidate() {},
       render: (width: number) =>
@@ -182,6 +207,7 @@ export default function uiCustomization(pi: ExtensionAPI) {
     stopModelListener();
     stopGitListener();
     state.requestRender = undefined;
+
     if (ctx.mode === "tui") {
       ctx.ui.setHeader(undefined);
       ctx.ui.setFooter(undefined);

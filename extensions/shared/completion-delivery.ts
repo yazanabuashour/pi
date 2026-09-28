@@ -3,6 +3,7 @@ import { Type, type Static } from "typebox";
 import { Parse } from "typebox/value";
 
 type CompletionMessage = Parameters<ExtensionAPI["sendMessage"]>[0];
+
 type DeliveryOptions = NonNullable<Parameters<ExtensionAPI["sendMessage"]>[1]>;
 
 const WakePolicy = Type.Union([
@@ -26,8 +27,10 @@ export class BackgroundDelivery {
   send(message: CompletionMessage, options: DeliveryOptions) {
     if (this.policy === "automatic") {
       this.pi.sendMessage(message, options);
+
       return;
     }
+
     // Omission preserves active steering. Explicit false can make an active
     // message history-only; true can race settlement and start an unowned run.
     const { triggerTurn: _triggerTurn, ...hostOptions } = options;

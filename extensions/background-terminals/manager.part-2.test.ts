@@ -20,7 +20,7 @@ import {
 } from "./manager.test-support.ts";
 import { runTool } from "./src/runtime.ts";
 
-NodeTest(
+await NodeTest(
   "concurrent overlapping multi-id kills observe each settlement exactly once",
   async () => {
     await withManager(async (manager, runtime) => {
@@ -28,6 +28,7 @@ NodeTest(
       manager.view.setOnSettled((snap, consumed) =>
         settled.push({ id: snap.id, consumed }),
       );
+
       const [first, second] = await runTool(
         runtime,
         Effect.forEach(
@@ -75,7 +76,7 @@ NodeTest(
   },
 );
 
-NodeTest(
+await NodeTest(
   "kill terminates descendants that remain in the process group",
   { skip: hostPlatform === "win32" },
   async () => {
@@ -83,7 +84,9 @@ NodeTest(
       const sentinelDir = NodeFS.mkdtempSync(
         NodePath.join(NodeOS.tmpdir(), "bt-tree-test-"),
       );
+
       const sentinel = NodePath.join(sentinelDir, "heartbeat");
+
       const snap = await runTool(
         runtime,
         manager.start({
@@ -136,7 +139,7 @@ NodeTest(
   },
 );
 
-NodeTest(
+await NodeTest(
   "a shell exit with inherited pipes open settles naturally and reaps descendants",
   { skip: hostPlatform === "win32" },
   async () => {
@@ -149,15 +152,18 @@ NodeTest(
           cwd,
         }),
       );
+
       NodeAssert.ok(
         await pollUntil(() =>
           (manager.view.get(snap.id)?.stdout.text ?? "").includes("child:"),
         ),
         "descendant pid was printed",
       );
+
       const match = /child:(\d+)/.exec(
         manager.view.get(snap.id)?.stdout.text ?? "",
       );
+
       NodeAssert.ok(match);
       const grandchild = Number(match[1]);
       const pid = snap.pid;

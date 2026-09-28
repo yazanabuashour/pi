@@ -22,10 +22,13 @@ export async function runEffect<A, E>(
     effect,
     options.signal ? { signal: options.signal } : undefined,
   );
+
   if (Exit.isSuccess(exit)) return exit.value;
+
   if (Cause.hasInterruptsOnly(exit.cause)) {
     throw new Error(options.interruptMessage ?? "Operation was aborted.");
   }
+
   const [first] = Cause.prettyErrors(exit.cause);
   throw new Error(first?.message ?? Cause.pretty(exit.cause));
 }

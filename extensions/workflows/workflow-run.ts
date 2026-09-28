@@ -29,6 +29,7 @@ interface StartWorkflowOptions {
 
 function parsedArgs(value: string | undefined): RuntimeValue {
   if (value === undefined) return undefined;
+
   try {
     return toSerializable(JSON.parse(value));
   } catch {
@@ -56,8 +57,10 @@ export class WorkflowRun {
 
   private constructor(options: StartWorkflowOptions) {
     const { pi, session, params, context, signal, onUpdate } = options;
+
     if (session.isClosing)
       throw new Error("Workflow session is shutting down.");
+
     try {
       this.prepared = prepareWorkflowScript(params.script);
     } catch (error) {
@@ -65,6 +68,7 @@ export class WorkflowRun {
         cause: error,
       });
     }
+
     const runId = `wf_${NodeCrypto.randomBytes(6).toString("hex")}`;
     this.runDir = NodePath.join(getAgentDir(), "workflows", runId);
     this.context = context;
@@ -80,9 +84,12 @@ export class WorkflowRun {
       agents: [],
     };
     const sessionId = context.sessionManager.getSessionId();
+
     if (sessionId !== undefined) this.state.sessionId = sessionId;
+
     if (this.prepared.meta.name !== undefined)
       this.state.name = this.prepared.meta.name;
+
     if (this.prepared.meta.description !== undefined)
       this.state.description = this.prepared.meta.description;
     this.admit(params);
@@ -121,8 +128,10 @@ export class WorkflowRun {
 
   private admit(params: WorkflowInput) {
     writeFileAtomic(NodePath.join(this.runDir, "script.js"), params.script);
+
     if (params.args !== undefined)
       writeFileAtomic(NodePath.join(this.runDir, "args.json"), params.args);
+
     if (!this.session.acceptsSession(this.state.sessionId)) {
       this.state.status = "aborted";
       this.state.finishedAt = Date.now();
@@ -130,7 +139,9 @@ export class WorkflowRun {
       persistWorkflowJson(this.runDir, this.state);
       throw new Error(this.state.error);
     }
+
     persistWorkflowJson(this.runDir, this.state);
+
     if (!this.session.recordStarted(this.state)) {
       this.state.status = "failed";
       this.state.finishedAt = Date.now();
@@ -144,6 +155,7 @@ export class WorkflowRun {
     if (!this.progress.active) return;
     const text = String(title);
     this.state.currentPhase = text;
+
     if (!this.state.phases.some((phase) => phase.title === text))
       this.state.phases.push({ title: text });
     this.progress.emit();
@@ -167,8 +179,10 @@ export class WorkflowRun {
 
   private async executeScript(): Promise<WorkflowDetails["status"]> {
     if (this.finalized) return "aborted";
+
     try {
       this.controller.signal.throwIfAborted();
+
       const result = await runWorkflowWorker({
         source: this.prepared.source,
         args: this.args,
@@ -177,15 +191,18 @@ export class WorkflowRun {
         onAgent: this.agents.agent,
         onPhase: this.phase,
       });
+
       if (this.finalized) return "aborted";
       this.controller.signal.throwIfAborted();
       this.state.result = result;
+
       return "completed";
     } catch (error) {
       if (this.finalized) return "aborted";
       this.state.error = errorText(error);
       const status = this.controller.signal.aborted ? "aborted" : "failed";
       this.controller.abort("Workflow script failed");
+
       return status;
     }
   }
@@ -193,17 +210,20 @@ export class WorkflowRun {
   private persistFinal() {
     try {
       this.progress.flushPersistence();
+
       return false;
     } catch (error) {
       this.state.status = "failed";
       this.state.error = this.state.error
         ? `${this.state.error}; artifact persistence failed: ${errorText(error)}`
         : `Artifact persistence failed: ${errorText(error)}`;
+
       try {
         persistWorkflowJson(this.runDir, this.state);
       } catch (retryError) {
         this.state.error += `; failed-state persistence failed: ${errorText(retryError)}`;
       }
+
       return true;
     }
   }
@@ -214,11 +234,13 @@ export class WorkflowRun {
     this.state.error = this.state.error
       ? `${this.state.error}; workflow settlement lifecycle could not be persisted`
       : "Workflow settlement lifecycle could not be persisted";
+
     try {
       persistWorkflowJson(this.runDir, this.state);
     } catch (error) {
       this.state.error += `; artifact persistence failed: ${errorText(error)}`;
     }
+
     return true;
   }
 
@@ -233,22 +255,28 @@ export class WorkflowRun {
     this.state.status = status;
     this.state.finishedAt = Date.now();
     const persistenceFailed = this.recordFinalLifecycle(this.persistFinal());
+
     if (!forced) this.progress.finish();
+
     return persistenceFailed;
   }
 
   private async execute() {
     let status = await this.executeScript();
+
     const settled = await this.controller.settle({
       abort: status !== "completed",
     });
+
     if (this.finalized) return;
+
     if (!settled) {
       this.state.error = this.state.error
         ? `${this.state.error}; agent shutdown deadline exceeded`
         : "Agent shutdown deadline exceeded";
       status = "failed";
     }
+
     if (this.finalize(status)) throw new Error(this.state.error);
   }
 }

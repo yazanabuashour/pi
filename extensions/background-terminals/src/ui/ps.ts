@@ -56,6 +56,7 @@ export async function openTerminalPicker(
   while (true) {
     if (view.size() === 0) {
       ctx.ui.notify("No background terminals", "info");
+
       return;
     }
 
@@ -69,6 +70,7 @@ export async function openTerminalPicker(
     );
 
     if (!picked) return;
+
     if (!view.get(picked)) continue;
 
     await ctx.ui.custom<null>(
@@ -97,6 +99,7 @@ export function reconcileDashboardSelection(
   const stableIndex = selection.id
     ? terminals.findIndex((snap) => snap.id === selection.id)
     : -1;
+
   selection.index =
     stableIndex >= 0
       ? stableIndex
@@ -147,6 +150,7 @@ class TerminalDashboard implements Component {
     this.closed = true;
     clearInterval(this.ticker);
     this.unsubChange();
+
     return true;
   }
 
@@ -164,13 +168,18 @@ class TerminalDashboard implements Component {
 
     if (this.keybindings.matches(data, "tui.select.cancel")) {
       this.close(null);
+
       return;
     }
+
     if (this.keybindings.matches(data, "tui.select.confirm")) {
       const snap = terminals[this.selection.index];
+
       if (snap) this.close(snap.id);
+
       return;
     }
+
     if (this.keybindings.matches(data, "tui.select.up") || data === "k") {
       if (terminals.length > 0) {
         this.selection.index =
@@ -178,34 +187,44 @@ class TerminalDashboard implements Component {
         this.selection.id = terminals[this.selection.index]?.id;
         this.tui.requestRender();
       }
+
       return;
     }
+
     if (this.keybindings.matches(data, "tui.select.down") || data === "j") {
       if (terminals.length > 0) {
         this.selection.index = (this.selection.index + 1) % terminals.length;
         this.selection.id = terminals[this.selection.index]?.id;
         this.tui.requestRender();
       }
+
       return;
     }
+
     if (data === "x") {
       const snap = terminals[this.selection.index];
+
       if (snap && snap.status === "running") this.view.requestKill(snap.id);
+
       return;
     }
   }
 
   private pad(text: string, width: number): string {
     const truncated = truncateToWidth(text, width);
+
     return truncated + " ".repeat(Math.max(0, width - visibleWidth(truncated)));
   }
 
   private borderSegment(width: number, title: string): string {
     const theme = this.theme;
+
     const label = title
       ? ` ${truncateToWidth(title, Math.max(0, width - 3))} `
       : "";
+
     const labelWidth = visibleWidth(label);
+
     return (
       theme.fg("border", "─") +
       (label ? theme.fg("text", label) : "") +
@@ -229,14 +248,17 @@ class TerminalDashboard implements Component {
 
     // Header: title left, count right
     const headerLeft = theme.fg("accent", theme.bold("Background terminals"));
+
     const headerRight = theme.fg(
       "muted",
       `${terminals.length} terminal${terminals.length === 1 ? "" : "s"}`,
     );
+
     const headerPad = Math.max(
       1,
       width - visibleWidth(headerLeft) - visibleWidth(headerRight) - 4,
     );
+
     lines.push(
       truncateToWidth(
         `  ${headerLeft}${" ".repeat(headerPad)}${headerRight}  `,
@@ -258,6 +280,7 @@ class TerminalDashboard implements Component {
     // Rows
     const divider = theme.fg("border", "│");
     const rowLines = this.renderRows(terminals, innerWidth, bodyHeight);
+
     for (let i = 0; i < bodyHeight; i++) {
       lines.push(divider + this.pad(rowLines[i] ?? "", innerWidth) + divider);
     }
@@ -293,29 +316,35 @@ class TerminalDashboard implements Component {
 
     // Scroll window around selection
     let start = 0;
+
     if (terminals.length > height) {
       start = Math.min(
         Math.max(0, this.selection.index - Math.floor(height / 2)),
         terminals.length - height,
       );
     }
+
     const visible = terminals.slice(start, start + height);
 
     for (let i = 0; i < visible.length; i++) {
       const snap = visible[i];
+
       if (!snap) continue;
       const index = start + i;
       const isSelected = index === this.selection.index;
 
       // Left: marker, status square, title, dim id
       const marker = isSelected ? theme.fg("accent", "❯") : " ";
+
       const title = isSelected
         ? theme.fg("accent", oneLine(snap.title))
         : theme.fg("text", oneLine(snap.title));
+
       const left = ` ${marker} ${statusGlyph(snap, theme)} ${title} ${theme.fg("dim", snap.id)}`;
 
       // Right: pid · elapsed · exit/status
       const dot = theme.fg("dim", " · ");
+
       const rightParts = [
         theme.fg("muted", `pid ${snap.pid ?? "?"}`),
         theme.fg("muted", formatElapsed(snap)),
@@ -328,6 +357,7 @@ class TerminalDashboard implements Component {
               )
             : theme.fg("muted", formatExit(snap)),
       ];
+
       const right = `${rightParts.join(dot)} `;
 
       const rightWidth = visibleWidth(right);
@@ -340,12 +370,14 @@ class TerminalDashboard implements Component {
     if (start > 0) {
       out[0] = truncateToWidth(theme.fg("dim", `   ... ${start} more`), width);
     }
+
     if (start + height < terminals.length) {
       out[out.length - 1] = truncateToWidth(
         theme.fg("dim", `   ... ${terminals.length - start - height} more`),
         width,
       );
     }
+
     return out;
   }
 

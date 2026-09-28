@@ -5,20 +5,24 @@ import { ChangedFilesComponent } from "./changed-files-component.ts";
 import { runCommand, type CommandResult } from "./process.ts";
 
 const MAX_DIFF_LINES = 20_000;
+
 // Strip terminal control sequences from repository-controlled paths and diff
 // text before applying trusted theme styling.
 const OSC_PATTERN = new RegExp(
   String.raw`(?:\u001b\]|\u009d)(?:[^\u0007\u001b\u009c]|\u001b(?!\\))*(?:\u0007|\u001b\\|\u009c)`,
   "g",
 );
+
 const CSI_PATTERN = new RegExp(
   String.raw`(?:\u001b\[|\u009b)[0-?]*[ -/]*[@-~]`,
   "g",
 );
+
 const ESCAPE_PATTERN = new RegExp(
   String.raw`\u001b(?:[()][0-2A-Z]|[ -/]*[@-~])`,
   "g",
 );
+
 const CONTROL_PATTERN = new RegExp(
   String.raw`[\u0000-\u0008\u000b-\u001f\u007f-\u009f]`,
   "g",
@@ -51,6 +55,7 @@ function parseChangedPaths(output: string) {
 
   for (let index = 0; index < records.length; index += 1) {
     const record = records[index];
+
     if (!record || record.length < 4) continue;
 
     const status = record.slice(0, 2);
@@ -66,9 +71,11 @@ function parseChangedPaths(output: string) {
 
 function parseNumstat(output: string) {
   const line = output.split("\n").find(Boolean);
+
   if (!line) return { additions: 0, deletions: 0 };
 
   const [added, deleted] = line.split("\t");
+
   return {
     additions: added === "-" ? null : Number.parseInt(added ?? "0", 10),
     deletions: deleted === "-" ? null : Number.parseInt(deleted ?? "0", 10),
@@ -84,6 +91,7 @@ const run = (cwd: string, args: string[]) =>
 
 function commandFailure(operation: string, result: CommandResult) {
   const detail = sanitizeTerminalText(result.stderr).trim();
+
   return new Error(
     `git ${operation} unavailable (exit ${result.code})${detail ? `: ${detail}` : ""}`,
   );
@@ -95,6 +103,7 @@ const loadFile = Effect.fn("git-info.loadFile")(function* (
   hasHead: boolean,
 ) {
   const useNoIndex = changedPath.status === "??" || !hasHead;
+
   const diffArguments = useNoIndex
     ? [
         "diff",
@@ -115,22 +124,28 @@ const loadFile = Effect.fn("git-info.loadFile")(function* (
         "--",
         changedPath.path,
       ];
+
   const statArguments = useNoIndex
     ? ["diff", "--no-index", "--numstat", "--", "/dev/null", changedPath.path]
     : ["diff", "--numstat", "HEAD", "--", changedPath.path];
+
   const [diffResult, statResult] = yield* Effect.all(
     [run(repoRoot, diffArguments), run(repoRoot, statArguments)],
     { concurrency: "unbounded" },
   );
+
   if (diffResult.code !== 0 && !(useNoIndex && diffResult.code === 1))
     return yield* Effect.fail(commandFailure("diff", diffResult));
+
   if (statResult.code !== 0 && !(useNoIndex && statResult.code === 1))
     return yield* Effect.fail(commandFailure("diff --numstat", statResult));
   const stats = parseNumstat(statResult.stdout);
+
   const allDiffLines = diffResult.stdout
     .trimEnd()
     .split("\n")
     .map(sanitizeTerminalText);
+
   const diff =
     allDiffLines.length > MAX_DIFF_LINES
       ? [
@@ -153,18 +168,21 @@ const loadFile = Effect.fn("git-info.loadFile")(function* (
 export const loadChangedFiles = Effect.fn("git-info.loadChangedFiles")(
   function* (cwd: string) {
     const rootResult = yield* run(cwd, ["rev-parse", "--show-toplevel"]);
+
     if (rootResult.code !== 0) {
       if (
         rootResult.code === 128 &&
         /^fatal: not a git repository[ (:]/.test(rootResult.stderr)
       )
         return null;
+
       return yield* Effect.fail(
         commandFailure("rev-parse --show-toplevel", rootResult),
       );
     }
 
     const repoRoot = rootResult.stdout.trim();
+
     const [statusResult, headResult] = yield* Effect.all(
       [
         run(repoRoot, [
@@ -177,8 +195,10 @@ export const loadChangedFiles = Effect.fn("git-info.loadChangedFiles")(
       ],
       { concurrency: "unbounded" },
     );
+
     if (statusResult.code !== 0)
       return yield* Effect.fail(commandFailure("status", statusResult));
+
     if (
       headResult.code !== 0 &&
       !(headResult.code === 1 && !headResult.stderr.trim())
@@ -189,6 +209,7 @@ export const loadChangedFiles = Effect.fn("git-info.loadChangedFiles")(
 
     const changedPaths = parseChangedPaths(statusResult.stdout);
     const files: ChangedFile[] = [];
+
     for (const changedPath of changedPaths) {
       files.push(yield* loadFile(repoRoot, changedPath, headResult.code === 0));
     }

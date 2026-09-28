@@ -22,6 +22,7 @@ export class GitInfoRefresh {
 
   get snapshot(): GitInfoState {
     if (this.state.unavailable !== null) return { ...this.state };
+
     return {
       ...this.state,
       pullRequest: this.state.pullRequest
@@ -52,6 +53,7 @@ export class GitInfoRefresh {
   private load(cwd: string, forcePullRequest: boolean, generation: number) {
     return Effect.suspend(() => {
       if (generation !== this.generation) return Effect.void;
+
       return this.loadRepositoryState(cwd, forcePullRequest, generation).pipe(
         Effect.catch((error) =>
           Effect.sync(() => {
@@ -71,7 +73,9 @@ export class GitInfoRefresh {
   ) {
     return Effect.gen({ self: this }, function* () {
       const repo = yield* loadRepository(cwd);
+
       if (generation !== this.generation) return;
+
       if (!repo || !repo.branchName) {
         this.queriedPr = null;
         this.pullRequest = Result.succeed(null);
@@ -83,10 +87,12 @@ export class GitInfoRefresh {
         const pullRequest = yield* lookupPullRequest(cwd, repo.branchName).pipe(
           Effect.result,
         );
+
         if (generation !== this.generation) return;
         this.queriedPr = { cwd, branch: repo.branchName };
         this.pullRequest = pullRequest;
       }
+
       if (Result.isFailure(this.pullRequest))
         return yield* Effect.fail(this.pullRequest.failure);
       this.state = {

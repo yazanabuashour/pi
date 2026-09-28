@@ -44,23 +44,28 @@ function snapshotSettingsManager(
   projectTrusted: boolean,
 ) {
   const errors = source.drainErrors();
+
   if (errors.length > 0) {
     const details = errors
       .map(({ scope, error }) => `${scope}: ${error.message}`)
       .join("; ");
+
     throw new AggregateError(
       errors.map(({ error }) => error),
       `Could not load child settings: ${details}`,
     );
   }
+
   const settings = {
     global: JSON.stringify(source.getGlobalSettings()),
     project: JSON.stringify(source.getProjectSettings()),
   };
+
   return SettingsManager.fromStorage(
     {
       withLock(scope, update) {
         const next = update(settings[scope]);
+
         if (next !== undefined) settings[scope] = next;
       },
     },
@@ -71,12 +76,14 @@ function snapshotSettingsManager(
 /** Load normal resources with a settings snapshot that children cannot persist. */
 export async function createChildResources(options: ChildResourceOptions) {
   const agentDir = options.agentDir ?? getAgentDir();
+
   const settingsManager = snapshotSettingsManager(
     SettingsManager.create(options.cwd, agentDir, {
       projectTrusted: options.projectTrusted,
     }),
     options.projectTrusted,
   );
+
   const loaderOptions: ConstructorParameters<typeof DefaultResourceLoader>[0] =
     {
       cwd: options.cwd,
@@ -92,10 +99,12 @@ export async function createChildResources(options: ChildResourceOptions) {
         ),
       }),
     };
+
   if (options.appendSystemPrompt)
     loaderOptions.appendSystemPrompt = options.appendSystemPrompt;
   const loader = new DefaultResourceLoader(loaderOptions);
   await loader.reload();
+
   return { loader, settingsManager };
 }
 
@@ -115,8 +124,10 @@ export function resolveStandaloneChildProjectTrust(options: {
   ) {
     return options.parentTrusted;
   }
+
   try {
     const trustStore = new ProjectTrustStore(options.agentDir ?? getAgentDir());
+
     return trustStore.get(options.childCwd) === true;
   } catch {
     return false;
@@ -164,17 +175,20 @@ export function shutdownChildSessionReport(
   options: { timeoutMs?: number } = {},
 ): Promise<ChildShutdownReport> {
   const existing = childShutdowns.get(session);
+
   if (existing) return existing;
 
   const shutdown = (async () => {
     const failures: string[] = [];
     let timer: ReturnType<typeof setTimeout> | undefined;
     let unsubscribe: (() => void) | undefined;
+
     try {
       unsubscribe = session.extensionRunner.onError?.((error) => {
         if (error.event === "session_shutdown")
           failures.push(`${error.extensionPath}: ${error.error}`);
       });
+
       if (session.extensionRunner.hasHandlers("session_shutdown")) {
         await Promise.race([
           session.extensionRunner.emit({
@@ -199,15 +213,18 @@ export function shutdownChildSessionReport(
     } finally {
       if (timer) clearTimeout(timer);
       unsubscribe?.();
+
       try {
         session.dispose();
       } catch (error) {
         failures.push(`session.dispose: ${String(error)}`);
       }
     }
+
     return { failures };
   })();
 
   childShutdowns.set(session, shutdown);
+
   return shutdown;
 }
