@@ -18,6 +18,12 @@ export async function runEffect<A, E>(
     interruptMessage?: string | undefined;
   } = {},
 ) {
+  if (options.signal?.aborted) {
+    throw new Error(options.interruptMessage ?? "Operation was aborted.", {
+      cause: options.signal.reason,
+    });
+  }
+
   const exit = await runtime.runPromiseExit(
     effect,
     options.signal ? { signal: options.signal } : undefined,
@@ -26,9 +32,13 @@ export async function runEffect<A, E>(
   if (Exit.isSuccess(exit)) return exit.value;
 
   if (Cause.hasInterruptsOnly(exit.cause)) {
-    throw new Error(options.interruptMessage ?? "Operation was aborted.");
+    throw new Error(options.interruptMessage ?? "Operation was aborted.", {
+      cause: options.signal?.aborted ? options.signal.reason : exit.cause,
+    });
   }
 
   const [first] = Cause.prettyErrors(exit.cause);
-  throw new Error(first?.message ?? Cause.pretty(exit.cause));
+  throw new Error(first?.message ?? Cause.pretty(exit.cause), {
+    cause: exit.cause,
+  });
 }

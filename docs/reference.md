@@ -128,6 +128,10 @@ prove throttling; telemetry does not establish business-action completion.
 
 ## Development policies
 
+`@effect/vitest@4.0.0` requires Vitest 5. Vite is an explicit development
+dependency because Vitest 5 declares it as a peer and the required
+`--legacy-peer-deps` install does not install peers.
+
 Both development policies use commit-pinned Git dependencies locked in
 `package-lock.json`; neither ships in the installed package:
 
@@ -150,7 +154,7 @@ published declarations. With the locked dependencies, `npm run typecheck --
   `node_modules/undici-types/index.d.ts` paths.
 - Its `@google/genai@1.52.0` declarations reference an absent MCP SDK and browser
   `ErrorEvent` and `CloseEvent` globals in this Node-only project.
-- `effect@4.0.0-rc.111` references the browser `TextDecoderOptions` global.
+- `effect@4.0.0` references the browser `TextDecoderOptions` global.
 
 Adding browser globals or changing module resolution would misrepresent the
 runtime and would not repair the malformed imports. Remove this override when
