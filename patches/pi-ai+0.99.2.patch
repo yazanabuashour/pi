@@ -1,0 +1,336 @@
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/amazon-bedrock.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/amazon-bedrock.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/amazon-bedrock.json";
++import values from "./data/amazon-bedrock.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const AMAZON_BEDROCK_MODELS: ChatModelCatalog<typeof values, "amazon-bedrock">;
+ export declare const AMAZON_BEDROCK_IMAGE_MODELS: ImageModelCatalog<typeof values, "amazon-bedrock">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/ant-ling.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/ant-ling.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/ant-ling.json";
++import values from "./data/ant-ling.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const ANT_LING_MODELS: ChatModelCatalog<typeof values, "ant-ling">;
+ export declare const ANT_LING_IMAGE_MODELS: ImageModelCatalog<typeof values, "ant-ling">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/anthropic.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/anthropic.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/anthropic.json";
++import values from "./data/anthropic.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const ANTHROPIC_MODELS: ChatModelCatalog<typeof values, "anthropic">;
+ export declare const ANTHROPIC_IMAGE_MODELS: ImageModelCatalog<typeof values, "anthropic">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/azure-openai-responses.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/azure-openai-responses.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/azure-openai-responses.json";
++import values from "./data/azure-openai-responses.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const AZURE_OPENAI_RESPONSES_MODELS: ChatModelCatalog<typeof values, "azure-openai-responses">;
+ export declare const AZURE_OPENAI_RESPONSES_IMAGE_MODELS: ImageModelCatalog<typeof values, "azure-openai-responses">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/baseten.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/baseten.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/baseten.json";
++import values from "./data/baseten.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const BASETEN_MODELS: ChatModelCatalog<typeof values, "baseten">;
+ export declare const BASETEN_IMAGE_MODELS: ImageModelCatalog<typeof values, "baseten">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/cerebras.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/cerebras.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/cerebras.json";
++import values from "./data/cerebras.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const CEREBRAS_MODELS: ChatModelCatalog<typeof values, "cerebras">;
+ export declare const CEREBRAS_IMAGE_MODELS: ImageModelCatalog<typeof values, "cerebras">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/cloudflare-ai-gateway.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/cloudflare-ai-gateway.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/cloudflare-ai-gateway.json";
++import values from "./data/cloudflare-ai-gateway.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const CLOUDFLARE_AI_GATEWAY_MODELS: ChatModelCatalog<typeof values, "cloudflare-ai-gateway">;
+ export declare const CLOUDFLARE_AI_GATEWAY_IMAGE_MODELS: ImageModelCatalog<typeof values, "cloudflare-ai-gateway">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/cloudflare-workers-ai.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/cloudflare-workers-ai.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/cloudflare-workers-ai.json";
++import values from "./data/cloudflare-workers-ai.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const CLOUDFLARE_WORKERS_AI_MODELS: ChatModelCatalog<typeof values, "cloudflare-workers-ai">;
+ export declare const CLOUDFLARE_WORKERS_AI_IMAGE_MODELS: ImageModelCatalog<typeof values, "cloudflare-workers-ai">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/deepseek.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/deepseek.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/deepseek.json";
++import values from "./data/deepseek.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const DEEPSEEK_MODELS: ChatModelCatalog<typeof values, "deepseek">;
+ export declare const DEEPSEEK_IMAGE_MODELS: ImageModelCatalog<typeof values, "deepseek">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/fireworks.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/fireworks.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/fireworks.json";
++import values from "./data/fireworks.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const FIREWORKS_MODELS: ChatModelCatalog<typeof values, "fireworks">;
+ export declare const FIREWORKS_IMAGE_MODELS: ImageModelCatalog<typeof values, "fireworks">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/github-copilot.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/github-copilot.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/github-copilot.json";
++import values from "./data/github-copilot.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const GITHUB_COPILOT_MODELS: ChatModelCatalog<typeof values, "github-copilot">;
+ export declare const GITHUB_COPILOT_IMAGE_MODELS: ImageModelCatalog<typeof values, "github-copilot">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/google-vertex.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/google-vertex.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/google-vertex.json";
++import values from "./data/google-vertex.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const GOOGLE_VERTEX_MODELS: ChatModelCatalog<typeof values, "google-vertex">;
+ export declare const GOOGLE_VERTEX_IMAGE_MODELS: ImageModelCatalog<typeof values, "google-vertex">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/google.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/google.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/google.json";
++import values from "./data/google.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const GOOGLE_MODELS: ChatModelCatalog<typeof values, "google">;
+ export declare const GOOGLE_IMAGE_MODELS: ImageModelCatalog<typeof values, "google">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/groq.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/groq.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/groq.json";
++import values from "./data/groq.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const GROQ_MODELS: ChatModelCatalog<typeof values, "groq">;
+ export declare const GROQ_IMAGE_MODELS: ImageModelCatalog<typeof values, "groq">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/huggingface.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/huggingface.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/huggingface.json";
++import values from "./data/huggingface.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const HUGGINGFACE_MODELS: ChatModelCatalog<typeof values, "huggingface">;
+ export declare const HUGGINGFACE_IMAGE_MODELS: ImageModelCatalog<typeof values, "huggingface">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/kimi-coding.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/kimi-coding.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/kimi-coding.json";
++import values from "./data/kimi-coding.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const KIMI_CODING_MODELS: ChatModelCatalog<typeof values, "kimi-coding">;
+ export declare const KIMI_CODING_IMAGE_MODELS: ImageModelCatalog<typeof values, "kimi-coding">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/meta.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/meta.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/meta.json";
++import values from "./data/meta.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const META_MODELS: ChatModelCatalog<typeof values, "meta">;
+ export declare const META_IMAGE_MODELS: ImageModelCatalog<typeof values, "meta">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/minimax-cn.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/minimax-cn.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/minimax-cn.json";
++import values from "./data/minimax-cn.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const MINIMAX_CN_MODELS: ChatModelCatalog<typeof values, "minimax-cn">;
+ export declare const MINIMAX_CN_IMAGE_MODELS: ImageModelCatalog<typeof values, "minimax-cn">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/minimax.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/minimax.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/minimax.json";
++import values from "./data/minimax.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const MINIMAX_MODELS: ChatModelCatalog<typeof values, "minimax">;
+ export declare const MINIMAX_IMAGE_MODELS: ImageModelCatalog<typeof values, "minimax">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/mistral.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/mistral.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/mistral.json";
++import values from "./data/mistral.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const MISTRAL_MODELS: ChatModelCatalog<typeof values, "mistral">;
+ export declare const MISTRAL_IMAGE_MODELS: ImageModelCatalog<typeof values, "mistral">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/moonshotai-cn.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/moonshotai-cn.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/moonshotai-cn.json";
++import values from "./data/moonshotai-cn.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const MOONSHOTAI_CN_MODELS: ChatModelCatalog<typeof values, "moonshotai-cn">;
+ export declare const MOONSHOTAI_CN_IMAGE_MODELS: ImageModelCatalog<typeof values, "moonshotai-cn">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/moonshotai.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/moonshotai.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/moonshotai.json";
++import values from "./data/moonshotai.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const MOONSHOTAI_MODELS: ChatModelCatalog<typeof values, "moonshotai">;
+ export declare const MOONSHOTAI_IMAGE_MODELS: ImageModelCatalog<typeof values, "moonshotai">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/nvidia.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/nvidia.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/nvidia.json";
++import values from "./data/nvidia.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const NVIDIA_MODELS: ChatModelCatalog<typeof values, "nvidia">;
+ export declare const NVIDIA_IMAGE_MODELS: ImageModelCatalog<typeof values, "nvidia">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/openai-codex.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/openai-codex.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/openai-codex.json";
++import values from "./data/openai-codex.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const OPENAI_CODEX_MODELS: ChatModelCatalog<typeof values, "openai-codex">;
+ export declare const OPENAI_CODEX_IMAGE_MODELS: ImageModelCatalog<typeof values, "openai-codex">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/openai.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/openai.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/openai.json";
++import values from "./data/openai.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const OPENAI_MODELS: ChatModelCatalog<typeof values, "openai">;
+ export declare const OPENAI_IMAGE_MODELS: ImageModelCatalog<typeof values, "openai">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/opencode-go.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/opencode-go.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/opencode-go.json";
++import values from "./data/opencode-go.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const OPENCODE_GO_MODELS: ChatModelCatalog<typeof values, "opencode-go">;
+ export declare const OPENCODE_GO_IMAGE_MODELS: ImageModelCatalog<typeof values, "opencode-go">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/opencode.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/opencode.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/opencode.json";
++import values from "./data/opencode.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const OPENCODE_MODELS: ChatModelCatalog<typeof values, "opencode">;
+ export declare const OPENCODE_IMAGE_MODELS: ImageModelCatalog<typeof values, "opencode">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/openrouter.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/openrouter.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/openrouter.json";
++import values from "./data/openrouter.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const OPENROUTER_MODELS: ChatModelCatalog<typeof values, "openrouter">;
+ export declare const OPENROUTER_IMAGE_MODELS: ImageModelCatalog<typeof values, "openrouter">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/qwen-token-plan-cn.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/qwen-token-plan-cn.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/qwen-token-plan-cn.json";
++import values from "./data/qwen-token-plan-cn.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const QWEN_TOKEN_PLAN_CN_MODELS: ChatModelCatalog<typeof values, "qwen-token-plan-cn">;
+ export declare const QWEN_TOKEN_PLAN_CN_IMAGE_MODELS: ImageModelCatalog<typeof values, "qwen-token-plan-cn">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/qwen-token-plan-individual.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/qwen-token-plan-individual.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/qwen-token-plan-individual.json";
++import values from "./data/qwen-token-plan-individual.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const QWEN_TOKEN_PLAN_INDIVIDUAL_MODELS: ChatModelCatalog<typeof values, "qwen-token-plan-individual">;
+ export declare const QWEN_TOKEN_PLAN_INDIVIDUAL_IMAGE_MODELS: ImageModelCatalog<typeof values, "qwen-token-plan-individual">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/qwen-token-plan.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/qwen-token-plan.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/qwen-token-plan.json";
++import values from "./data/qwen-token-plan.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const QWEN_TOKEN_PLAN_MODELS: ChatModelCatalog<typeof values, "qwen-token-plan">;
+ export declare const QWEN_TOKEN_PLAN_IMAGE_MODELS: ImageModelCatalog<typeof values, "qwen-token-plan">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/radius.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/radius.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/radius.json";
++import values from "./data/radius.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const RADIUS_MODELS: ChatModelCatalog<typeof values, "radius">;
+ export declare const RADIUS_IMAGE_MODELS: ImageModelCatalog<typeof values, "radius">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/together.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/together.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/together.json";
++import values from "./data/together.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const TOGETHER_MODELS: ChatModelCatalog<typeof values, "together">;
+ export declare const TOGETHER_IMAGE_MODELS: ImageModelCatalog<typeof values, "together">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/typesafe.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/typesafe.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/typesafe.json";
++import values from "./data/typesafe.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const TYPESAFE_MODELS: ChatModelCatalog<typeof values, "typesafe">;
+ export declare const TYPESAFE_IMAGE_MODELS: ImageModelCatalog<typeof values, "typesafe">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/vercel-ai-gateway.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/vercel-ai-gateway.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/vercel-ai-gateway.json";
++import values from "./data/vercel-ai-gateway.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const VERCEL_AI_GATEWAY_MODELS: ChatModelCatalog<typeof values, "vercel-ai-gateway">;
+ export declare const VERCEL_AI_GATEWAY_IMAGE_MODELS: ImageModelCatalog<typeof values, "vercel-ai-gateway">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/xai.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/xai.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/xai.json";
++import values from "./data/xai.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const XAI_MODELS: ChatModelCatalog<typeof values, "xai">;
+ export declare const XAI_IMAGE_MODELS: ImageModelCatalog<typeof values, "xai">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/xiaomi-token-plan-ams.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/xiaomi-token-plan-ams.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/xiaomi-token-plan-ams.json";
++import values from "./data/xiaomi-token-plan-ams.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const XIAOMI_TOKEN_PLAN_AMS_MODELS: ChatModelCatalog<typeof values, "xiaomi-token-plan-ams">;
+ export declare const XIAOMI_TOKEN_PLAN_AMS_IMAGE_MODELS: ImageModelCatalog<typeof values, "xiaomi-token-plan-ams">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/xiaomi-token-plan-cn.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/xiaomi-token-plan-cn.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/xiaomi-token-plan-cn.json";
++import values from "./data/xiaomi-token-plan-cn.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const XIAOMI_TOKEN_PLAN_CN_MODELS: ChatModelCatalog<typeof values, "xiaomi-token-plan-cn">;
+ export declare const XIAOMI_TOKEN_PLAN_CN_IMAGE_MODELS: ImageModelCatalog<typeof values, "xiaomi-token-plan-cn">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/xiaomi-token-plan-sgp.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/xiaomi-token-plan-sgp.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/xiaomi-token-plan-sgp.json";
++import values from "./data/xiaomi-token-plan-sgp.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const XIAOMI_TOKEN_PLAN_SGP_MODELS: ChatModelCatalog<typeof values, "xiaomi-token-plan-sgp">;
+ export declare const XIAOMI_TOKEN_PLAN_SGP_IMAGE_MODELS: ImageModelCatalog<typeof values, "xiaomi-token-plan-sgp">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/xiaomi.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/xiaomi.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/xiaomi.json";
++import values from "./data/xiaomi.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const XIAOMI_MODELS: ChatModelCatalog<typeof values, "xiaomi">;
+ export declare const XIAOMI_IMAGE_MODELS: ImageModelCatalog<typeof values, "xiaomi">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/zai-coding-cn.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/zai-coding-cn.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/zai-coding-cn.json";
++import values from "./data/zai-coding-cn.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const ZAI_CODING_CN_MODELS: ChatModelCatalog<typeof values, "zai-coding-cn">;
+ export declare const ZAI_CODING_CN_IMAGE_MODELS: ImageModelCatalog<typeof values, "zai-coding-cn">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/zai.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/zai.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/zai.json";
++import values from "./data/zai.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const ZAI_MODELS: ChatModelCatalog<typeof values, "zai">;
+ export declare const ZAI_IMAGE_MODELS: ImageModelCatalog<typeof values, "zai">;

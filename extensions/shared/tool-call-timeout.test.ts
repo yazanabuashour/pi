@@ -2,7 +2,7 @@ import * as NodeAssert from "node:assert/strict";
 import NodeTest from "node:test";
 import type {
   ToolDefinition,
-  ExtensionContext,
+  ExtensionToolContext,
 } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import {
@@ -151,7 +151,7 @@ await NodeTest(
       getToolDefinition: () => definition,
     });
     // SAFETY: this fixture tool does not read its extension context.
-    const context = {} as ExtensionContext;
+    const context = {} as ExtensionToolContext;
     await NodeAssert.rejects(
       definition.execute("call-1", {}, undefined, undefined, context),
       ToolCallTimeoutError,

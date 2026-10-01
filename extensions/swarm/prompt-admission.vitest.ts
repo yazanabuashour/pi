@@ -2,7 +2,7 @@ import * as NodeAssert from "node:assert/strict";
 import { Effect, Exit, Scope } from "effect";
 import {
   defineTool,
-  type ExtensionContext,
+  type ExtensionToolContext,
 } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { SessionFactory } from "./src/session.ts";
@@ -44,9 +44,9 @@ it("keeps ignored raw tool execution owned after SDK prompt abort and bounds dis
   const tool = f.session.getToolDefinition("ignored_abort");
   NodeAssert.ok(tool);
   f.mocks.prompt.mockImplementation(async (_text, options) => {
-    options?.preflightResult?.(true);
+    options?.preflightResult?.("started");
     // SAFETY: this fixture tool does not read its extension context.
-    const context = {} as ExtensionContext;
+    const context = {} as ExtensionToolContext;
     await tool.execute("call-1", {}, controller.signal, undefined, context);
   });
   f.session.abort = async () => {
@@ -112,7 +112,7 @@ it("steering at the SDK idle boundary returns for manager readmission rather tha
       streaming = false;
     }),
     prompt: vi.fn(async (text, options) => {
-      options?.preflightResult?.(true);
+      options?.preflightResult?.("started");
 
       if (text === "first") await firstFinished.promise;
       else {
@@ -120,7 +120,7 @@ it("steering at the SDK idle boundary returns for manager readmission rather tha
         await secondFinished.promise;
       }
     }),
-    steer: vi.fn(async () => {}),
+    steer: vi.fn<PromptSession["steer"]>(async () => "queued"),
     clearQueue: () => ({ steering: [], followUp: [] }),
     abort: async () => {},
   };
@@ -169,9 +169,11 @@ it("cancelling a pending peer steer observes it without aborting the recipient",
     agent: { hasQueuedMessages: () => false },
     sendCustomMessage: vi.fn(async () => {}),
     prompt: vi.fn(async () => {}),
-    steer: vi.fn(async () => {
+    steer: vi.fn<PromptSession["steer"]>(async () => {
       steerStarted.resolve();
       await steerFinished.promise;
+
+      return "queued";
     }),
     clearQueue: () => ({ steering: [], followUp: [] }),
     abort: vi.fn(async () => {}),

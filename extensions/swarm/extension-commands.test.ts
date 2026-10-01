@@ -3,6 +3,7 @@ import NodeTest from "node:test";
 import type {
   ExtensionAPI,
   ExtensionCommandContext,
+  ExtensionToolContext,
   ModelRegistry,
 } from "@earendil-works/pi-coding-agent";
 import { Effect } from "effect";
@@ -85,9 +86,8 @@ await NodeTest(
     // SAFETY: The command passes the registry through opaquely; this test never calls it.
     const modelRegistry = Object.create(null) as ModelRegistry;
 
-    const context: ExtensionCommandContext = Object.assign(
-      Object.create(null),
-      {
+    const context: ExtensionCommandContext & ExtensionToolContext =
+      Object.assign(Object.create(null), {
         mode: "tui",
         hasUI: true,
         cwd: process.cwd(),
@@ -104,8 +104,7 @@ await NodeTest(
           input: async () => undefined,
           notify: () => undefined,
         },
-      },
-    );
+      });
 
     registerSwarmCommands(api, session);
     NodeAssert.deepEqual([...commands.keys()].sort(), ["btw", "swarm"]);

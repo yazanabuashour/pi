@@ -38,7 +38,7 @@ export function fixture() {
   const session = {
     prompt: vi.fn<PromptSession["prompt"]>(),
     abort: vi.fn(async () => {}),
-    steer: vi.fn(async (_text: string) => {}),
+    steer: vi.fn<PromptSession["steer"]>(async () => "queued"),
     clearQueue: vi.fn(() => ({ steering: [], followUp: [] })),
     isStreaming: false,
     waitForIdle: vi.fn(async () => {

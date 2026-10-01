@@ -1,0 +1,11 @@
+--- a/node_modules/effect/dist/Channel.d.ts
++++ b/node_modules/effect/dist/Channel.d.ts
+@@ -4988,7 +4988,7 @@
+  * @category decoding
+  * @since 4.0.0
+  */
+-export declare const decodeText: <Err, Done>(encoding?: string, options?: TextDecoderOptions) => Channel<Arr.NonEmptyReadonlyArray<string>, Err, Done, Arr.NonEmptyReadonlyArray<Uint8Array>, Err, Done>;
++export declare const decodeText: <Err, Done>(encoding?: string, options?: ConstructorParameters<typeof TextDecoder>[1]) => Channel<Arr.NonEmptyReadonlyArray<string>, Err, Done, Arr.NonEmptyReadonlyArray<Uint8Array>, Err, Done>;
+ /**
+  * Encodes incoming string chunks into `Uint8Array` values using `TextEncoder`.
+  *

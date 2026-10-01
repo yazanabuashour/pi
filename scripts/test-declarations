@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+temporary="$(mktemp -d "$ROOT/runtime-probes/declaration-check.XXXXXX")"
+trap 'rm -rf -- "$temporary"' EXIT
+
+# The normal check must succeed first. This control proves that its tsconfig
+# also checks declarations, instead of hiding future upstream failures.
+printf 'export declare const probe: PiDeclarationNegativeControl;\n' \
+  >"$temporary/invalid.d.ts"
+if node_modules/.bin/tsc --noEmit >"$temporary/result" 2>&1; then
+  printf 'Declaration negative control unexpectedly passed.\n' >&2
+  exit 1
+fi
+cat "$temporary/result"
+[[ $(grep -c 'error TS' "$temporary/result") == 1 ]]
+grep -Fq "error TS2304: Cannot find name 'PiDeclarationNegativeControl'." "$temporary/result"
+printf 'Declaration negative control detected the invalid dependency type.\n'

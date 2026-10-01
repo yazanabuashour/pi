@@ -13,7 +13,7 @@ it("owns late steering submission and repeated queue drains until their settleme
   const drainStarted = receipt();
   const drainFinished = receipt();
   f.session.prompt.mockImplementation(async (_text, options) => {
-    options?.preflightResult?.(true);
+    options?.preflightResult?.("started");
     f.session.isStreaming = true;
     await promptFinished.promise;
     f.session.isStreaming = false;
@@ -23,6 +23,8 @@ it("owns late steering submission and repeated queue drains until their settleme
     steerStarted.resolve();
     await steerFinished.promise;
     f.session.agent.hasQueuedMessages.mockReturnValue(true);
+
+    return "queued";
   });
   f.session.sendCustomMessage.mockImplementation(async () => {
     drainStarted.resolve();
@@ -66,7 +68,7 @@ it("waits for an extension-started continuation before draining its remaining qu
   const waiting = receipt();
   const continued = receipt();
   f.session.prompt.mockImplementation(async (_text, options) => {
-    options?.preflightResult?.(true);
+    options?.preflightResult?.("started");
     f.session.isStreaming = true;
     f.session.agent.hasQueuedMessages.mockReturnValue(true);
   });
@@ -98,7 +100,7 @@ it("interruption observes an ignored queue drain and never wakes its late queue 
   const drainFinished = receipt();
   const aborted = receipt();
   f.session.prompt.mockImplementation(async (_text, options) => {
-    options?.preflightResult?.(true);
+    options?.preflightResult?.("started");
     f.session.agent.hasQueuedMessages.mockReturnValue(true);
   });
   f.session.sendCustomMessage.mockImplementation(async () => {
@@ -138,7 +140,7 @@ it("interruption waits for a late steering submission and clears it before any r
   const steerFinished = receipt();
   const aborted = receipt();
   f.session.prompt.mockImplementation(async (_text, options) => {
-    options?.preflightResult?.(true);
+    options?.preflightResult?.("started");
     f.session.isStreaming = true;
     await promptFinished.promise;
     f.session.isStreaming = false;
@@ -147,6 +149,8 @@ it("interruption waits for a late steering submission and clears it before any r
     steerStarted.resolve();
     await steerFinished.promise;
     f.session.agent.hasQueuedMessages.mockReturnValue(true);
+
+    return "queued";
   });
   f.session.clearQueue.mockImplementation(() => {
     f.session.agent.hasQueuedMessages.mockReturnValue(false);
@@ -179,7 +183,7 @@ it("interruption waits for a late steering submission and clears it before any r
 it("does not wake queued work after an SDK-reported abort", async () => {
   const f = fixture();
   f.session.prompt.mockImplementation(async (_text, options) => {
-    options?.preflightResult?.(true);
+    options?.preflightResult?.("started");
     f.session.messages.push(
       fauxAssistantMessage("partial", { stopReason: "aborted" }),
     );
@@ -196,7 +200,7 @@ it("reports drain rejection as run failure and clears undelivered work", async (
   const f = fixture();
   const cause = new Error("wake failed");
   f.session.prompt.mockImplementation(async (_text, options) => {
-    options?.preflightResult?.(true);
+    options?.preflightResult?.("started");
     f.session.agent.hasQueuedMessages.mockReturnValue(true);
   });
   f.session.sendCustomMessage.mockRejectedValue(cause);

@@ -1,0 +1,9 @@
+{
+  "name": "pi-integration-dependencies",
+  "private": true,
+  "version": "1.0.0",
+  "dependencies": {
+    "pi-web-access": "0.35.0",
+    "agent-browser": "0.38.1"
+  }
+}

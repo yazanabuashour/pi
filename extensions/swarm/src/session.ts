@@ -111,9 +111,9 @@ export class PiPromptLifecycle {
         this.hooks.started();
         await this.session.prompt(text, {
           expandPromptTemplates: false,
-          preflightResult: (success) => {
-            // false precedes the SDK rejection; retain its actual error.
-            if (!success) return;
+          preflightResult: (disposition) => {
+            // Intercepted input settles with prompt(); only a started run admits early.
+            if (disposition !== "started") return;
             this.assertAdmission(signal, generation);
             accepted = true;
             // Let the SDK enter its run before admitting the next sender.

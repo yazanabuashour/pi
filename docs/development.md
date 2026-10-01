@@ -50,8 +50,22 @@ It uses a temporary HOME and synthetic provider; obtain authorization before
 using real provider or browser accounts.
 
 The gate includes the [native delivery regression](lost-message-trial.md), which
-checks provider input independently of history and display. Linux CI runs that
-regression with pinned native Pi; source checks also run on macOS.
+checks provider input independently of history and display. Linux CI runs the full integration gate with native Pi 0.99.2,
+`pi-web-access` 0.35.0, and `agent-browser` 0.38.1. The external packages use
+`runtime-probes/integration-deps/package-lock.json`; source checks also run on
+macOS. These are the tested versions. Other installed versions must pass the
+same capability checks before deployment.
+
+The web extension registers `web_search`, `fetch_content`, `get_search_content`,
+and `source_check` directly. The gate requires them in parent and child provider
+input. Its missing-tool negative control must fail before tool execution.
+The probe reads native transcript state through `getCurrentSystemPrompt` and
+`getCurrentTools`; it does not depend on a separate activation tool.
+
+The gate prints a retained receipt directory with runtime versions, provider
+and tool events, telemetry, and delivery evidence. Pass a new directory as the
+optional fifth argument to select its location. No real web searches or browser
+sessions run.
 
 ## Install the checked changes
 

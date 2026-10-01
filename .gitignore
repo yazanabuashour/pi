@@ -1,5 +1,6 @@
 # Dependencies and generated package entry points
 /node_modules
+/runtime-probes/integration-deps/node_modules
 /dist/
 /coverage/
 *.tgz

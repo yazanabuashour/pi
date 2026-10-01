@@ -25,7 +25,7 @@ it("serializes startup admission without waiting for the accepted run to finish"
   f.session.prompt.mockImplementation(async (_text, options) => {
     called.resolve();
     await preflight.promise;
-    options?.preflightResult?.(true);
+    options?.preflightResult?.("started");
     f.session.isStreaming = true;
     await finish.promise;
     f.session.isStreaming = false;
@@ -47,8 +47,7 @@ it("serializes startup admission without waiting for the accepted run to finish"
 it("retains preflight rejection context rather than acknowledging a send", async () => {
   const f = fixture();
   const cause = new Error("Authentication failed for fixture-provider");
-  f.session.prompt.mockImplementation(async (_text, options) => {
-    options?.preflightResult?.(false);
+  f.session.prompt.mockImplementation(async () => {
     throw cause;
   });
 
@@ -58,6 +57,36 @@ it("retains preflight rejection context rather than acknowledging a send", async
 
   NodeAssert.equal(failure.message, cause.message);
   NodeAssert.equal(failure.cause, cause);
+  await f.lifecycle.dispose();
+});
+
+it("waits for handled input to settle and does not lose its final failure", async () => {
+  const f = fixture();
+  const handled = receipt();
+  const finish = receipt();
+  const cause = new Error("input handler failed during settlement");
+  f.session.prompt.mockImplementation(async (_text, options) => {
+    options?.preflightResult?.("handled");
+    handled.resolve();
+    await finish.promise;
+    throw cause;
+  });
+  let acknowledged = false;
+
+  const sent = Effect.runPromise(Effect.flip(f.lifecycle.send("handled"))).then(
+    (failure) => {
+      acknowledged = true;
+
+      return failure;
+    },
+  );
+
+  await handled.promise;
+  NodeAssert.equal(acknowledged, false);
+  NodeAssert.equal(f.hooks.settled.mock.calls.length, 0);
+  finish.resolve();
+  NodeAssert.equal((await sent).cause, cause);
+  NodeAssert.equal(f.session.prompt.mock.calls.length, 1);
   await f.lifecycle.dispose();
 });
 
@@ -85,7 +114,7 @@ it("cancelled preflight awaits ignored work and prevents late dispatch", async (
   f.session.prompt.mockImplementation(async (_text, options) => {
     called.resolve();
     await release.promise;
-    options?.preflightResult?.(true);
+    options?.preflightResult?.("started");
     dispatched = true;
   });
   const controller = new AbortController();
@@ -114,7 +143,7 @@ it("interruption awaits prompt and abort receipts despite idle flags and late re
   const aborted = receipt();
   const abortFinish = receipt();
   f.session.prompt.mockImplementation(async (_text, options) => {
-    options?.preflightResult?.(true);
+    options?.preflightResult?.("started");
     await finish.promise;
   });
   f.session.abort.mockImplementation(async () => {
@@ -143,7 +172,7 @@ it("reports accepted-run failure through settlement, not send admission", async 
   const f = fixture();
   const finish = receipt();
   f.session.prompt.mockImplementation(async (_text, options) => {
-    options?.preflightResult?.(true);
+    options?.preflightResult?.("started");
     await finish.promise;
   });
   await Effect.runPromise(f.lifecycle.send("first"));
@@ -160,7 +189,7 @@ it("does not turn abort failure into successful interruption or disposal", async
   const f = fixture();
   const finish = receipt();
   f.session.prompt.mockImplementation(async (_text, options) => {
-    options?.preflightResult?.(true);
+    options?.preflightResult?.("started");
     await finish.promise;
   });
   await Effect.runPromise(f.lifecycle.send("start"));
@@ -183,7 +212,7 @@ it.each(["aborted", "stop"] as const)(
     const f = await factoryFixture();
     const finished = receipt();
     f.mocks.prompt.mockImplementation(async (_text, options) => {
-      options?.preflightResult?.(true);
+      options?.preflightResult?.("started");
       await finished.promise;
     });
     f.session.abort = async () => {

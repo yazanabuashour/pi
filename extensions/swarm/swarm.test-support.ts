@@ -2,6 +2,7 @@ import * as NodeAssert from "node:assert/strict";
 import type {
   ExtensionAPI,
   ExtensionContext,
+  ExtensionToolContext,
   ExtensionEvent,
   ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
@@ -92,7 +93,7 @@ export async function harness(
     ),
   );
 
-  const context: ExtensionContext = Object.assign(Object.create(null), {
+  const context: ExtensionToolContext = Object.assign(Object.create(null), {
     cwd: process.cwd(),
     hasUI: false,
     isIdle: () => true,

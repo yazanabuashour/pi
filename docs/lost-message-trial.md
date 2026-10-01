@@ -57,12 +57,13 @@ does not validate the oracle.
 
 ## Interpret CI failures
 
-Linux CI downloads native Pi 0.87.1 with a pinned SHA-256, installs an isolated
-candidate, and runs `test:delivery`. It retains receipts as `native-pi-delivery`.
-The gate needs neither web nor browser packages and is separate from `npm test`.
+Linux CI downloads native Pi 0.99.2 with a pinned SHA-256, installs an isolated
+candidate, and runs `test:integration`, which includes this gate. It retains
+receipts as `native-pi-integration`, with delivery evidence under `delivery/`.
+Standalone `test:delivery` needs neither web nor browser packages and remains
+separate from `npm test`.
 
-Use native Pi, not the checkout's 0.84.4 development SDK. Pi 0.87.1 delivers the
-earlier `triggerTurn: false` cases, so they are no longer negative controls.
+Use native Pi so the fixture cannot resolve SDK imports from the checkout.
 Context omission keeps provider visibility distinct from history and message events.
 
 ## Check coverage before relying on a pass

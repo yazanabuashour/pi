@@ -4,7 +4,9 @@ import {
   fauxAssistantMessage,
   fauxProvider,
   fauxToolCall,
-  type Context,
+  getCurrentSystemPrompt,
+  getCurrentTools,
+  type TranscriptContext,
   type FauxResponseFactory,
   type ToolCall,
 } from "@earendil-works/pi-ai";
@@ -28,7 +30,6 @@ const requiredTools = [
   "read",
   "edit",
   "write",
-  "web_enable",
   "fetch_content",
   "get_search_content",
   "source_check",
@@ -91,7 +92,7 @@ function callTool(name: string, args: ToolCall["arguments"]) {
   );
 }
 
-function toolResult(context: Context, name: string) {
+function toolResult(context: TranscriptContext, name: string) {
   const result = context.messages.find(
     (message) => message.role === "toolResult" && message.toolName === name,
   );
@@ -104,7 +105,7 @@ function toolResult(context: Context, name: string) {
   return result;
 }
 
-function parentResponse(context: Context) {
+function parentResponse(context: TranscriptContext) {
   const probe = toolResult(context, "package_probe");
 
   if (!probe) return callTool("package_probe", { value: "probe-receipt" });
@@ -158,67 +159,16 @@ function parentResponse(context: Context) {
   return fauxAssistantMessage("dotfiles-package-probe-ok");
 }
 
-const systemResourcesSchema = Type.Object({
-  role: Type.Literal("system"),
-  content: Type.Union([
-    Type.String(),
-    Type.Array(
-      Type.Object({ type: Type.Literal("text"), text: Type.String() }),
-    ),
-  ]),
-  sections: Type.Optional(
-    Type.Record(Type.String(), Type.Union([Type.String(), Type.Null()])),
-  ),
-  toolsAdded: Type.Optional(
-    Type.Array(
-      Type.Object({ name: Type.String(), parameters: Type.Unknown() }),
-    ),
-  ),
-  toolsRemoved: Type.Optional(Type.Array(Type.Object({ name: Type.String() }))),
-});
-
-/** Pi 0.86 carries provider-visible prompt and tool deltas in system messages. */
-function providerResources(context: Context) {
-  const prompts = [context.systemPrompt ?? ""];
-  const sections = new Map<string, string>();
-
-  const tools = new Map<string, { name: string; parameters: unknown }>(
-    context.tools?.map((tool) => [tool.name, tool]),
-  );
-
-  const messages: ReadonlyArray<unknown> = context.messages;
-
-  for (const message of messages) {
-    if (!Check(systemResourcesSchema, message)) continue;
-    prompts.push(
-      Array.isArray(message.content)
-        ? message.content.map((part) => part.text).join("\n")
-        : message.content,
-    );
-
-    for (const [name, content] of Object.entries(message.sections ?? {})) {
-      if (content === null) sections.delete(name);
-      else sections.set(name, content);
-    }
-
-    for (const tool of message.toolsAdded ?? []) tools.set(tool.name, tool);
-
-    for (const tool of message.toolsRemoved ?? []) tools.delete(tool.name);
-  }
-
-  return {
-    systemPrompt: [...prompts, ...sections.values()].join("\n"),
-    tools: [...tools.values()],
-  };
-}
-
 function checkResources(
   pi: ExtensionAPI,
-  context: Context,
+  context: TranscriptContext,
   browserSkillName: string | undefined,
   child: boolean,
 ) {
-  const resources = providerResources(context);
+  const resources = {
+    systemPrompt: getCurrentSystemPrompt(context.messages),
+    tools: getCurrentTools(context.messages),
+  };
 
   if (
     !browserSkillName ||
@@ -282,6 +232,12 @@ function checkResources(
 
 export default function (pi: ExtensionAPI) {
   let browserSkillName: string | undefined;
+  pi.on("session_start", () => {
+    if (process.env["DOTFILES_PI_PROBE_MISSING_TOOL"] === "1")
+      pi.setActiveTools(
+        pi.getActiveTools().filter((name) => name !== "web_search"),
+      );
+  });
   pi.on("before_agent_start", (event) => {
     const expectedSkill = process.env["DOTFILES_PI_PROBE_BROWSER_SKILL"];
     browserSkillName = event.systemPromptOptions.skills?.find(
@@ -316,7 +272,6 @@ export default function (pi: ExtensionAPI) {
         message.role === "user" && Check(childPromptSchema, message.content),
     );
 
-    if (!toolResult(context, "web_enable")) return callTool("web_enable", {});
     checkResources(pi, context, browserSkillName, child);
 
     if (!child) return parentResponse(context);

@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+# Installs deliberately ignore lifecycle scripts. Typecheck applies these
+# declaration-only repairs explicitly, before checking every dependency.
+for spec in '@earendil-works/pi-ai@0.99.2' '@google/genai@2.21.0' \
+  '@modelcontextprotocol/sdk@1.31.0' 'effect@4.0.0'; do
+  package="${spec%@*}"
+  version="${spec##*@}"
+  jq -e --arg expected "$version" '.version == $expected' \
+    "node_modules/$package/package.json" >/dev/null || {
+    printf 'Reassess declaration patches for changed dependency: %s\n' "$package" >&2
+    exit 1
+  }
+done
+
+patches=(patches/*.patch)
+if git -c core.whitespace=cr-at-eol apply --reverse --check "${patches[@]}" 2>/dev/null; then
+  exit 0
+fi
+git -c core.whitespace=cr-at-eol apply --check "${patches[@]}"
+git -c core.whitespace=cr-at-eol apply "${patches[@]}"
