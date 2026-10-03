@@ -78,7 +78,9 @@ export interface BackgroundTerminalDetailsV1 {
 }
 
 type MutableBackgroundTerminalDetailsV1 = {
-  -readonly [Key in keyof BackgroundTerminalDetailsV1]: BackgroundTerminalDetailsV1[Key];
+  -readonly [
+    Key in keyof BackgroundTerminalDetailsV1
+  ]: BackgroundTerminalDetailsV1[Key];
 };
 
 export function backgroundTerminalDetails(

@@ -151,16 +151,17 @@ it("owns ignored acquisition through late creation or binding before disposing o
         return f.modelRuntime;
       });
     } else {
-      f.bind.mockImplementationOnce(
-        async function (this: Pi.AgentSession, handlers) {
-          sessions.add(this);
-          entered.resolve();
-          await released.promise;
-          await bindSdkExtensions.call(this, handlers);
-          vi.spyOn(this.extensionRunner, "hasHandlers").mockReturnValue(true);
-          vi.spyOn(this.extensionRunner, "emit").mockImplementation(shutdown);
-        },
-      );
+      f.bind.mockImplementationOnce(async function (
+        this: Pi.AgentSession,
+        handlers,
+      ) {
+        sessions.add(this);
+        entered.resolve();
+        await released.promise;
+        await bindSdkExtensions.call(this, handlers);
+        vi.spyOn(this.extensionRunner, "hasHandlers").mockReturnValue(true);
+        vi.spyOn(this.extensionRunner, "emit").mockImplementation(shutdown);
+      });
     }
 
     const beforeDispose = f.dispose.mock.calls.length;
