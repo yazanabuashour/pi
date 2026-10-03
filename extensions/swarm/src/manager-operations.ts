@@ -148,28 +148,27 @@ export function cancelAgents(state: ManagerState, ids: ReadonlyArray<string>) {
           pruneSettled(state);
         }),
       ),
-      Effect.map(
-        (): ReadonlyArray<CancelResult> =>
-          unique.map((id) => {
-            const snapshot = state.entries.get(id)?.snapshot;
+      Effect.map((): ReadonlyArray<CancelResult> =>
+        unique.map((id) => {
+          const snapshot = state.entries.get(id)?.snapshot;
 
-            const result: CancelResult = {
-              id,
-              title: snapshot?.title ?? "?",
-              status: snapshot?.status ?? "error",
-              cancelled:
-                runningIds.includes(id) && snapshot?.outcome === "interrupted",
-              stopRequested: runningIds.includes(id),
-            };
+          const result: CancelResult = {
+            id,
+            title: snapshot?.title ?? "?",
+            status: snapshot?.status ?? "error",
+            cancelled:
+              runningIds.includes(id) && snapshot?.outcome === "interrupted",
+            stopRequested: runningIds.includes(id),
+          };
 
-            return snapshot?.cleanupIncomplete
-              ? {
-                  ...result,
-                  cleanupIncomplete: snapshot.cleanupIncomplete,
-                  pendingResources: snapshot.pendingResources,
-                }
-              : result;
-          }),
+          return snapshot?.cleanupIncomplete
+            ? {
+                ...result,
+                cleanupIncomplete: snapshot.cleanupIncomplete,
+                pendingResources: snapshot.pendingResources,
+              }
+            : result;
+        }),
       ),
     );
   });
