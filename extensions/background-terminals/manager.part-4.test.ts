@@ -98,31 +98,6 @@ await NodeTest(
 );
 
 await NodeTest(
-  "an unknown command settles failed with the platform shell's non-zero exit",
-  async () => {
-    await withManager(async (manager, runtime) => {
-      const snap = await runTool(
-        runtime,
-        manager.start({
-          command: "definitely-not-a-real-binary-12345",
-          title: "bogus",
-          cwd,
-        }),
-      );
-
-      const { snap: failed } = await settlement(manager, snap.id);
-      NodeAssert.equal(failed.status, "failed");
-      // The platform shell reports a non-zero exit and explains the failure.
-      NodeAssert.notEqual(failed.exitCode, 0);
-      NodeAssert.ok(
-        failed.stderr.text.length > 0,
-        "stderr explains the failure",
-      );
-    });
-  },
-);
-
-await NodeTest(
   "a process 'error' event settles failed with errorText and no bogus exit code",
   async () => {
     await withManager(async (manager, runtime) => {
@@ -195,13 +170,12 @@ await NodeTest(
         "retained text within the cap",
       );
 
-      if (done.stdout.spillPath) {
-        NodeAssert.equal(
-          spillSizeAtSettle,
-          totalBytes,
-          "spill file was fully flushed before the settle hook",
-        );
-      }
+      NodeAssert.ok(done.stdout.spillPath);
+      NodeAssert.equal(
+        spillSizeAtSettle,
+        totalBytes,
+        "spill file was fully flushed before the settle hook",
+      );
     });
   },
 );

@@ -54,31 +54,28 @@ await NodeTest(
       ]);
 
       // Spill files hold the full capture.
-      if (done.stdout.spillPath) {
+      NodeAssert.ok(done.stdout.spillPath);
+      NodeAssert.equal(
+        NodeFS.readFileSync(done.stdout.spillPath, "utf8"),
+        "out-line\n",
+      );
+
+      if (hostPlatform !== "win32") {
         NodeAssert.equal(
-          NodeFS.readFileSync(done.stdout.spillPath, "utf8"),
-          "out-line\n",
+          NodeFS.statSync(done.stdout.spillPath).mode & 0o777,
+          0o600,
         );
-
-        if (hostPlatform !== "win32") {
-          NodeAssert.equal(
-            NodeFS.statSync(done.stdout.spillPath).mode & 0o777,
-            0o600,
-          );
-          NodeAssert.equal(
-            NodeFS.statSync(NodePath.dirname(done.stdout.spillPath)).mode &
-              0o777,
-            0o700,
-          );
-        }
-      }
-
-      if (done.stderr.spillPath) {
         NodeAssert.equal(
-          NodeFS.readFileSync(done.stderr.spillPath, "utf8"),
-          "err-line\n",
+          NodeFS.statSync(NodePath.dirname(done.stdout.spillPath)).mode & 0o777,
+          0o700,
         );
       }
+
+      NodeAssert.ok(done.stderr.spillPath);
+      NodeAssert.equal(
+        NodeFS.readFileSync(done.stderr.spillPath, "utf8"),
+        "err-line\n",
+      );
     });
   },
 );

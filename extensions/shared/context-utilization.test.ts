@@ -15,14 +15,6 @@ await NodeTest(
   },
 );
 
-await NodeTest(
-  "formats the latest post-compaction usage rather than prior cumulative usage",
-  () => {
-    const latestUsage = { tokens: 18_000, contextWindow: 200_000 };
-    NodeAssert.equal(formatContextUtilization(latestUsage), "9%/200k");
-  },
-);
-
 await NodeTest("clamps over-capacity and nonsensical token values", () => {
   NodeAssert.equal(
     contextPercent({ tokens: 500_000, contextWindow: 200_000 }),

@@ -8,8 +8,15 @@ import * as NodeModule from "node:module";
 // oxlint-disable-next-line project/namespace-node-imports
 import NodeChildProcess from "node:child_process";
 
-const delay = (milliseconds: number) =>
-  new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+function receipt() {
+  let resolve!: () => void;
+
+  const promise = new Promise<void>((accept) => {
+    resolve = accept;
+  });
+
+  return { promise, resolve };
+}
 
 await NodeTest(
   "RunController reserves calls synchronously and caps global fanout",
@@ -18,16 +25,25 @@ await NodeTest(
     let active = 0;
     let peak = 0;
 
+    const started = receipt();
+    const release = receipt();
+
     const tasks = Array.from({ length: 12 }, (_, index) =>
       controller.schedule(async () => {
         active++;
         peak = Math.max(peak, active);
-        await delay(5);
+
+        if (active === 4) started.resolve();
+        await release.promise;
         active--;
 
         return index;
       }),
     );
+
+    await started.promise;
+    NodeAssert.equal(active, 4);
+    release.resolve();
 
     NodeAssert.deepEqual(
       await Promise.all(tasks),

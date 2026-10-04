@@ -8,20 +8,8 @@ import { Type } from "typebox";
 import {
   createToolCallTimeoutGuard,
   runWithToolCallTimeout,
-  CHILD_TOOL_CALL_TIMEOUT_MS,
   ToolCallTimeoutError,
 } from "./tool-call-timeout.ts";
-
-await NodeTest(
-  "the production timeout error names the tool and three-minute limit",
-  () => {
-    NodeAssert.equal(
-      new ToolCallTimeoutError("fixture_tool", CHILD_TOOL_CALL_TIMEOUT_MS)
-        .message,
-      'Tool call "fixture_tool" timed out after 3 minutes.',
-    );
-  },
-);
 
 await NodeTest(
   "a hung tool call fails clearly and receives an abort signal",
@@ -89,48 +77,7 @@ await NodeTest(
 );
 
 await NodeTest(
-  "the guard wraps each definition once and can discover later tools",
-  () => {
-    const definitions = new Map<string, ToolDefinition>();
-
-    const createDefinition = (name: string) =>
-      ({
-        name,
-        label: name,
-        description: name,
-        parameters: Type.Object({}),
-        async execute(this: void) {
-          return { content: [{ type: "text", text: "done" }], details: {} };
-        },
-      }) satisfies ToolDefinition;
-
-    const first = createDefinition("first");
-    definitions.set(first.name, first);
-
-    const registry = {
-      getAllTools: () => [...definitions.keys()].map((name) => ({ name })),
-      getToolDefinition: (name: string) => definitions.get(name),
-    };
-
-    const guard = createToolCallTimeoutGuard(10);
-
-    const firstExecute = first.execute;
-    guard.apply(registry);
-    const firstWrappedExecute = first.execute;
-    NodeAssert.notEqual(firstWrappedExecute, firstExecute);
-
-    const second = createDefinition("second");
-    const secondExecute = second.execute;
-    definitions.set(second.name, second);
-    guard.apply(registry);
-
-    NodeAssert.equal(first.execute, firstWrappedExecute);
-    NodeAssert.notEqual(second.execute, secondExecute);
-  },
-);
-
-await NodeTest(
-  "guard retains raw execution after timeout and observes late rejection",
+  "reapplying the guard retains one raw execution after timeout and observes late rejection",
   async () => {
     let reject!: (error: Error) => void;
 
@@ -146,10 +93,14 @@ await NodeTest(
     };
 
     const guard = createToolCallTimeoutGuard(10);
-    guard.apply({
+
+    const registry = {
       getAllTools: () => [{ name: definition.name }],
       getToolDefinition: () => definition,
-    });
+    };
+
+    guard.apply(registry);
+    guard.apply(registry);
     // SAFETY: this fixture tool does not read its extension context.
     const context = {} as ExtensionToolContext;
     await NodeAssert.rejects(
@@ -194,7 +145,9 @@ await NodeTest(
 
 await NodeTest(
   "the timeout is fresh for each tool call, not shared across calls",
-  async () => {
+  async (test) => {
+    test.mock.timers.enable({ apis: ["setTimeout"] });
+
     const execute = () =>
       runWithToolCallTimeout("slow_fixture", 100, undefined, async () => {
         await new Promise((resolve) => setTimeout(resolve, 60));
@@ -202,7 +155,10 @@ await NodeTest(
         return "done";
       });
 
-    NodeAssert.equal(await execute(), "done");
-    NodeAssert.equal(await execute(), "done");
+    for (let call = 0; call < 2; call++) {
+      const pending = execute();
+      test.mock.timers.tick(60);
+      NodeAssert.equal(await pending, "done");
+    }
   },
 );

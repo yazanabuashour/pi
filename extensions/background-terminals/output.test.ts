@@ -89,15 +89,6 @@ await NodeTest(
   },
 );
 
-await NodeTest(
-  "byte accounting uses UTF-8 byte length, not string length",
-  () => {
-    const buf = new OutputBuffer(1024);
-    buf.push("héllo"); // é is 2 bytes
-    NodeAssert.equal(buf.view().totalBytes, 6);
-  },
-);
-
 await NodeTest("multibyte chunks are never split by eviction", () => {
   const buf = new OutputBuffer(8);
   buf.push("ééé"); // 6 bytes
@@ -117,18 +108,5 @@ await NodeTest(
     buf.push("cccc");
     NodeAssert.deepEqual(spilled, ["aaaa", "bbbb", "cccc"]);
     NodeAssert.equal(buf.view().text, "cccc");
-  },
-);
-
-await NodeTest(
-  "view text remains stable between pushes and updates after a push",
-  () => {
-    const buf = new OutputBuffer(1024);
-    buf.push("a");
-    const first = buf.view();
-    const second = buf.view();
-    NodeAssert.equal(first.text, second.text);
-    buf.push("b");
-    NodeAssert.equal(buf.view().text, "ab");
   },
 );

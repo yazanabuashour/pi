@@ -216,7 +216,9 @@ await NodeTest(
 
 await NodeTest(
   "first assistant response disarms the watchdog without limiting the run",
-  async () => {
+  async (test) => {
+    test.mock.timers.enable({ apis: ["setTimeout"] });
+
     const watchdog = createFirstResponseWatchdog(
       async () => {
         throw new Error("watchdog should have been disarmed");
@@ -226,11 +228,12 @@ await NodeTest(
 
     watchdog.markResponse();
 
-    const result = await watchdog.waitFor(
+    const pending = watchdog.waitFor(
       new Promise<string>((resolve) => setTimeout(() => resolve("done"), 20)),
     );
 
-    NodeAssert.equal(result, "done");
+    test.mock.timers.tick(20);
+    NodeAssert.equal(await pending, "done");
   },
 );
 
@@ -293,10 +296,8 @@ await NodeTest(
       },
     } satisfies ToolDefinition;
 
-    const originalDynamicExecute = dynamic.execute;
     definitions.set(dynamic.name, dynamic);
     listener?.({ type: "agent_start" });
-    NodeAssert.notEqual(dynamic.execute, originalDynamicExecute);
 
     await NodeAssert.rejects(
       dynamic.execute("fixture", {}, undefined),

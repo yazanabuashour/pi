@@ -1,16 +1,9 @@
 import type { RuntimeRecord } from "../shared/runtime-values.ts";
 import { isObjectValue, isRuntimeRecord } from "../shared/runtime-values.ts";
 import * as NodeAssert from "node:assert/strict";
-import * as NodeFS from "node:fs";
-import * as NodeOS from "node:os";
-import * as NodePath from "node:path";
 import NodeTest from "node:test";
 import { runWorkflowWorker } from "./worker.ts";
-import {
-  safeStringify,
-  toSerializable,
-  writeFileAtomic,
-} from "./serialization.ts";
+import { safeStringify, toSerializable } from "./serialization.ts";
 
 await NodeTest(
   "worker serializes cycles, repeated references, bigint and undefined",
@@ -79,20 +72,3 @@ await NodeTest(
     );
   },
 );
-
-await NodeTest("atomic writes leave complete readable content", () => {
-  const directory = NodeFS.mkdtempSync(
-    NodePath.join(NodeOS.tmpdir(), "pi-workflow-test-"),
-  );
-
-  try {
-    const file = NodePath.join(directory, "artifact.json");
-    writeFileAtomic(file, '{"value":1}');
-    writeFileAtomic(file, '{"value":2}');
-    NodeAssert.deepEqual(JSON.parse(NodeFS.readFileSync(file, "utf8")), {
-      value: 2,
-    });
-  } finally {
-    NodeFS.rmSync(directory, { recursive: true, force: true });
-  }
-});

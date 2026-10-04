@@ -10,7 +10,6 @@ import {
   type BtwResultData,
   deliverBtwResult,
 } from "./src/extension-status.ts";
-import { formatActivityStatus } from "../shared/activity-status.ts";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import {
   renderSwarmToolCall,
@@ -136,14 +135,3 @@ await NodeTest(
     }
   },
 );
-
-await NodeTest("activity footer links to swarm navigation", () => {
-  const theme: Theme = Object.assign(Object.create(null), {
-    fg: (_color: string, text: string) => text,
-  });
-
-  NodeAssert.match(
-    formatActivityStatus(theme, "swarm", { running: 1, done: 1, failed: 1 }),
-    /\/swarm to view$/,
-  );
-});

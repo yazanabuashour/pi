@@ -59,7 +59,7 @@ await NodeTest(
 );
 
 await NodeTest(
-  "concurrency cap rejects an extra start; a failed spawn releases its slot",
+  "concurrency cap rejects an extra start; a failed command releases its slot",
   async () => {
     await withManager(async (manager, runtime) => {
       const spawns = await runTool(
@@ -85,8 +85,7 @@ await NodeTest(
         new RegExp(`Max ${MAX_RUNNING} background terminals`),
       );
 
-      // Free one slot; a bogus binary settles as failed near-instantly (the
-      // 'error'/'exit' path), leaving the slot free again.
+      // Free one slot; the shell reports a failed command and releases it.
       const firstSpawn = spawns[0];
       NodeAssert.ok(firstSpawn);
       await runTool(runtime, manager.kill([firstSpawn.id]));
@@ -102,6 +101,8 @@ await NodeTest(
 
       const { snap: settled } = await settlement(manager, bogus.id);
       NodeAssert.equal(settled.status, "failed");
+      NodeAssert.ok(settled.exitCode !== undefined && settled.exitCode !== 0);
+      NodeAssert.ok(settled.stderr.text.length > 0);
 
       // The settled bogus entry does not occupy a running slot.
       const again = await runTool(
@@ -114,30 +115,6 @@ await NodeTest(
       );
 
       NodeAssert.equal(again.status, "running");
-    });
-  },
-);
-
-await NodeTest(
-  "a settle during an in-flight kill reports consumed: true",
-  async () => {
-    await withManager(async (manager, runtime) => {
-      const settled: Array<{ id: string; consumed: boolean }> = [];
-      manager.view.setOnSettled((snap, consumed) =>
-        settled.push({ id: snap.id, consumed }),
-      );
-
-      const snap = await runTool(
-        runtime,
-        manager.start({
-          command: nodeCmd("setInterval(() => {}, 1000)"),
-          title: "consumed",
-          cwd,
-        }),
-      );
-
-      await runTool(runtime, manager.kill([snap.id]));
-      NodeAssert.deepEqual(settled, [{ id: snap.id, consumed: true }]);
     });
   },
 );

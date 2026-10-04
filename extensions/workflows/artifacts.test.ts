@@ -175,7 +175,8 @@ await NodeTest(
 
 await NodeTest(
   "workflow checkpoints throttle updates and support immediate/final flushes",
-  async () => {
+  (test) => {
+    test.mock.timers.enable({ apis: ["setTimeout", "Date"], now: 0 });
     const details = workflowDetails();
     const snapshots: WorkflowDetails[] = [];
 
@@ -190,7 +191,9 @@ await NodeTest(
     persistence.checkpoint();
     NodeAssert.equal(snapshots.length, 0);
 
-    await new Promise((resolve) => setTimeout(resolve, 30));
+    test.mock.timers.tick(14);
+    NodeAssert.equal(snapshots.length, 0);
+    test.mock.timers.tick(1);
     NodeAssert.equal(snapshots.length, 1);
     NodeAssert.equal(snapshots[0]?.currentPhase, "Review");
 
@@ -206,7 +209,7 @@ await NodeTest(
 
     persistence.checkpoint();
     persistence.cancel();
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    test.mock.timers.tick(30);
     NodeAssert.equal(snapshots.length, 3);
   },
 );

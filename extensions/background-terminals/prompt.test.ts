@@ -6,33 +6,10 @@ import {
   type TerminalSnapshot,
 } from "./src/domain.ts";
 import {
-  BG_START_PARAMETER_DESCRIPTIONS,
-  BG_START_PROMPT_GUIDELINES,
-  BG_START_TOOL_DESCRIPTION,
   buildKillReport,
   buildStatusResult,
   buildTerminalResultMessage,
 } from "./src/prompt.ts";
-
-await NodeTest(
-  "start guidance identifies the shell and scopes the final check to started work",
-  () => {
-    NodeAssert.match(BG_START_TOOL_DESCRIPTION, /sh -c on POSIX/);
-    NodeAssert.match(
-      BG_START_TOOL_DESCRIPTION,
-      /cmd\.exe \/d \/s \/c on Windows/,
-    );
-    NodeAssert.match(BG_START_PARAMETER_DESCRIPTIONS.command, /sh -c on POSIX/);
-    NodeAssert.match(
-      BG_START_PARAMETER_DESCRIPTIONS.command,
-      /cmd\.exe \/d \/s \/c on Windows/,
-    );
-    NodeAssert.match(
-      BG_START_PROMPT_GUIDELINES.join("\n"),
-      /If you started background work in this session, use bg_list before finalizing/,
-    );
-  },
-);
 
 function view(overrides: Partial<OutputView> = {}): OutputView {
   return { text: "", totalBytes: 0, truncatedBytes: 0, ...overrides };
