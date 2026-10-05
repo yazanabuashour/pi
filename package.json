@@ -49,7 +49,7 @@
     "@earendil-works/pi-tui": "1.0.2",
     "@effect/vitest": "4.0.0",
     "@modelcontextprotocol/sdk": "1.31.0",
-    "@oxlint/plugins": "1.85.0",
+    "@oxlint/plugins": "1.86.0",
     "@types/node": "24.19.0",
     "@yazanabuashour/oxlint-config": "github:yazanabuashour/typescript-lint-policy#7f3e73ef13e465e1ebacde064ee66c43d88ce618",
     "@yazanabuashour/tsconfig": "github:yazanabuashour/typescript-config-policy#9dcc605043afd24e3be1ca5f675939b177f3f2fd",
