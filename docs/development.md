@@ -45,12 +45,13 @@ Node/npm executables first on PATH.
 ```
 
 Require a successful exit. The gate verifies locked production dependencies,
-package discovery, native imports, worker execution, swarm delivery, and telemetry.
+package discovery, native imports, worker execution and temporary-directory
+inheritance, swarm delivery, and telemetry.
 It uses a temporary HOME and synthetic provider; obtain authorization before
 using real provider or browser accounts.
 
 The gate includes the [native delivery regression](lost-message-trial.md), which
-checks provider input independently of history and display. Linux CI runs the full integration gate with native Pi 0.99.2,
+checks provider input independently of history and display. Linux CI runs the full integration gate with native Pi 1.0.2,
 `pi-web-access` 0.35.0, and `agent-browser` 0.38.1. The external packages use
 `runtime-probes/integration-deps/package-lock.json`; source checks also run on
 macOS. These are the tested versions. Other installed versions must pass the

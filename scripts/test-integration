@@ -97,7 +97,7 @@ run_probe() {
   local hooks="$receipts/$label.hooks.jsonl"
   : >"$hooks"
   (cd "$temporary/home" &&
-    env -i PATH="$PATH" PI_OFFLINE=1 HOME="$temporary/home" \
+    env -i PATH="$PATH" PI_OFFLINE=1 HOME="$temporary/home" TMPDIR="$temporary" \
       PI_CODING_AGENT_DIR="$temporary/home/.pi/agent" \
       XDG_CONFIG_HOME="$temporary/config" XDG_DATA_HOME="$temporary/data" \
       XDG_STATE_HOME="$temporary/state" XDG_CACHE_HOME="$temporary/cache" \

@@ -72,6 +72,9 @@ export class WorkerSession {
       NODE_NO_WARNINGS: "1",
     };
 
+    if (process.env["TMPDIR"] !== undefined)
+      env["TMPDIR"] = process.env["TMPDIR"];
+
     if (bun) env["BUN_BE_BUN"] = "1";
     // Native Pi embeds Bun. BUN_BE_BUN selects its documented CLI entrypoint
     // only in this child. No runtime lookup or inherited config/auth environment.

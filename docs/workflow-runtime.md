@@ -13,9 +13,11 @@ with `process.execPath`: no interpreter search, copied runtime, or fallback.
 | Node-hosted Pi | `--max-old-space-size=128` and `--stack-size=2048`; neither bounds total process memory. |
 
 An isolated Bun 1.3.14 probe confirmed suppression of local and global preload
-fixtures. The worker inherits only `PATH` and fixed runtime controls, not Pi
-authentication or configuration variables. It still has the account's file,
-process, and network permissions; process separation is not a security sandbox.
+fixtures. The worker inherits `PATH`, caller-provided `TMPDIR`, and fixed runtime
+controls, not Pi authentication or configuration variables. The caller owns the
+temporary directory; the worker neither allocates nor deletes it. It still has
+the account's file, process, and network permissions; process separation is not a
+security sandbox.
 
 ## Execution and model selection
 

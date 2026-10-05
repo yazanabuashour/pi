@@ -113,7 +113,7 @@ function parentResponse(context: TranscriptContext) {
 
   if (!workflow)
     return callTool("workflow", {
-      script: `return ${JSON.stringify(workerFixture)};`,
+      script: `if (process.env.TMPDIR !== ${JSON.stringify(process.env["TMPDIR"])}) throw new Error("Worker lost caller TMPDIR"); return ${JSON.stringify(workerFixture)};`,
       background: false,
     });
 

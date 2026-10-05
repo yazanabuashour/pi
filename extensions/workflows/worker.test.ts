@@ -64,6 +64,7 @@ await NodeTest(
         fetch: typeof fetch,
         dotenv: process.env.WORKFLOW_DOTENV ?? null,
         home: process.env.HOME ?? null,
+        tmpdir: process.env.TMPDIR ?? null,
         argsFrozen: Object.isFrozen(args.nested),
         args,
       };
@@ -82,6 +83,7 @@ await NodeTest(
         fetch: "function",
         dotenv: null,
         home: null,
+        tmpdir: process.env["TMPDIR"] ?? null,
         argsFrozen: true,
         args: { nested: { value: 3 } },
       });

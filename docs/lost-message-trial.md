@@ -10,7 +10,10 @@ Choose a new receipt directory:
 
 ```bash
 package="$HOME/.local/share/dotfiles-pi-package/current/node_modules/yazan-pi-setup"
-npm run test:delivery -- "$(command -v pi)" "$package" /tmp/pi-delivery-receipts
+receipts="${XDG_STATE_HOME:-$HOME/.local/state}/pi"
+mkdir -p "$receipts"
+npm run test:delivery -- "$(command -v pi)" "$package" \
+  "$receipts/delivery-$(date +%Y%m%d-%H%M%S)"
 ```
 
 For an isolated candidate, follow the development guide's isolated-HOME procedure.
@@ -57,7 +60,7 @@ does not validate the oracle.
 
 ## Interpret CI failures
 
-Linux CI downloads native Pi 0.99.2 with a pinned SHA-256, installs an isolated
+Linux CI downloads native Pi 1.0.2 with a pinned SHA-256, installs an isolated
 candidate, and runs `test:integration`, which includes this gate. It retains
 receipts as `native-pi-integration`, with delivery evidence under `delivery/`.
 Standalone `test:delivery` needs neither web nor browser packages and remains

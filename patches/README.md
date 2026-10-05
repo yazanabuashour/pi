@@ -7,7 +7,7 @@ policies, or third-party notices.
 
 | Package | Repair |
 | --- | --- |
-| `@earendil-works/pi-ai@0.99.2` | Add NodeNext JSON import attributes to generated model declarations. |
+| `@earendil-works/pi-ai@1.0.2` | Add NodeNext JSON import attributes to generated model declarations. |
 | `@google/genai@2.21.0` | Import `ErrorEvent`, `HeadersInit`, and `RequestInfo` from `undici-types`. |
 | `@modelcontextprotocol/sdk@1.31.0` | Import `HeadersInit` in the transport declaration. |
 | `effect@4.0.0` | Derive decoder options from the runtime's `TextDecoder` constructor. |
@@ -15,8 +15,8 @@ policies, or third-party notices.
 GenAI's declared optional MCP peer is an explicit development dependency because
 its public declarations import that peer. `undici-types@7.24.6` also matches the
 Node 24 type package. The GenAI patch uses its Node entry point and does not add
-browser globals. Updating Pi's SDKs from 0.84.4 to 0.99.2 resolves the old
-Anthropic SDK's invalid relative Undici imports without another patch.
+browser globals. Pi's 1.0.2 declarations still need the JSON import repair;
+the other repairs remain necessary at the versions listed above.
 
 `scripts/patch-declarations` requires the exact package versions and checks the
 complete patch set before applying it. A second run accepts only the fully

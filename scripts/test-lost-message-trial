@@ -57,7 +57,7 @@ run_probe() {
   esac
   [[ $mode != host-* ]] || policy=(PI_BACKGROUND_WAKE_POLICY=host)
   if ! (cd "$home" &&
-    env -i PATH="$PATH" HOME="$home" PI_OFFLINE=1 \
+    env -i PATH="$PATH" HOME="$home" PI_OFFLINE=1 TMPDIR="$temporary" \
       PI_CODING_AGENT_DIR="$home/.pi/agent" \
       XDG_CONFIG_HOME="$home/config" XDG_DATA_HOME="$home/data" \
       XDG_STATE_HOME="$home/state" XDG_CACHE_HOME="$home/cache" \
