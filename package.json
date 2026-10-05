@@ -54,7 +54,7 @@
     "@yazanabuashour/oxlint-config": "github:yazanabuashour/typescript-lint-policy#7f3e73ef13e465e1ebacde064ee66c43d88ce618",
     "@yazanabuashour/tsconfig": "github:yazanabuashour/typescript-config-policy#9dcc605043afd24e3be1ca5f675939b177f3f2fd",
     "oxfmt": "0.71.0",
-    "oxlint": "1.85.0",
+    "oxlint": "1.86.0",
     "oxlint-tsgolint": "7.0.2002",
     "typebox": "1.3.27",
     "typescript": "7.0.2",
