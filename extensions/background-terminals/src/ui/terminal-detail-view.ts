@@ -75,8 +75,7 @@ export class TerminalDetailView implements Component {
 
   private scheduleRender() {
     if (this.renderTimer) return;
-    // A chatty process emits a chunk per write. Limit terminal repaints so
-    // this view cannot starve input handling.
+    // Bound repaints so a chatty process cannot starve input handling.
     this.renderTimer = setTimeout(() => {
       this.renderTimer = undefined;
 
@@ -183,8 +182,7 @@ export class TerminalDetailView implements Component {
   private viewportHeight(): number {
     const rows = this.tui.terminal.rows || 30;
 
-    // The complete view renders viewport + 8 chrome rows (borders, header,
-    // command, tab, hints). rows - 9 makes the overlay ~terminal rows - 1.
+    // Reserve eight chrome rows and leave Pi's final footer row visible.
     return Math.max(6, rows - 9);
   }
 

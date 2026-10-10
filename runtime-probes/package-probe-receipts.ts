@@ -16,6 +16,7 @@ interface ProbeReceipt {
   type: (typeof receiptEvents)[number];
   sessionId: string;
   mode: ExtensionContext["mode"];
+  sessionFile?: string;
   toolName?: string;
   isError?: boolean;
 }
@@ -34,6 +35,10 @@ export function registerReceipts(pi: ExtensionAPI) {
       sessionId: context.sessionManager.getSessionId(),
       mode: context.mode,
     };
+
+    const sessionFile = context.sessionManager.getSessionFile();
+
+    if (sessionFile !== undefined) entry.sessionFile = sessionFile;
 
     if (event.toolName !== undefined) entry.toolName = event.toolName;
 

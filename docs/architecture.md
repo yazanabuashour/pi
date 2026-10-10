@@ -18,7 +18,7 @@ in that package root's `node_modules`.
 
 Native Pi supplies its software development kits (SDKs) and TypeBox.
 Development dependencies support source checks, not runtime SDK selection.
-Effect prerelease versions remain aligned.
+Effect package versions remain aligned.
 
 npm omits `package-lock.json` from tarballs. The installer copies the checkout's
 lock separately and uses `npm ci --omit=dev` to avoid resolving ranges again.

@@ -201,8 +201,7 @@ await NodeTest(
     NodeAssert.ok(await pollUntil(() => processGone(pid)), "process killed");
     // The disposed guard suppressed the hook.
     NodeAssert.deepEqual(settled, []);
-    // start after dispose is rejected (by the runtime itself, or by the
-    // manager's disposed guard if the effect still runs).
+    // Either the disposed runtime or the manager's guard rejects a late start.
     await NodeAssert.rejects(
       runTool(runtime, manager.start({ command: "true", title: "late", cwd })),
       /shutting down|disposed/,

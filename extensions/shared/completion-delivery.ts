@@ -31,8 +31,7 @@ export class BackgroundDelivery {
       return;
     }
 
-    // Omission preserves active steering. Explicit false can make an active
-    // message history-only; true can race settlement and start an unowned run.
+    // Omit triggerTurn to preserve active steering without starting an unowned run.
     const { triggerTurn: _triggerTurn, ...hostOptions } = options;
     this.pi.appendEntry("background-delivery", {
       schemaVersion: 1,
@@ -60,7 +59,6 @@ export function registerCompletionFlush(
   flush: (wakeAgent: boolean) => void,
 ) {
   pi.on("turn_end", () => flush(false));
-  // Late results still enter history, but cannot request another run after
-  // settled observers have been told the owning run is finished.
+  // Late results must not request another run after the owning run has settled.
   pi.on("agent_settled", () => flush(false));
 }

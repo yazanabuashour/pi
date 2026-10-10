@@ -2,9 +2,13 @@ version: 2
 
 updates:
   - package-ecosystem: npm
-    directory: "/"
+    directories:
+      - "/"
+      - "/runtime-probes/integration-deps"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     groups:
       effect:
         patterns:
@@ -18,6 +22,8 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     groups:
       actions-minor-and-patch:
         patterns:

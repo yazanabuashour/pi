@@ -199,5 +199,39 @@ await NodeTest(
       completion,
       /Full capture unavailable; \/ps shows only the retained memory tail/,
     );
+
+    const delegated = {
+      ...terminal,
+      cwd: "/work",
+      delegate: { model: "provider/model", sessionId: "saved-1" },
+    };
+
+    const report = buildTerminalResultMessage(delegated);
+    NodeAssert.match(report, /line-1\n/);
+    NodeAssert.match(
+      report,
+      /reopen it from \/work with: pi --session saved-1/,
+    );
+    NodeAssert.deepEqual(
+      backgroundTerminalDetails(delegated, "settled", "runtime-1").delegate,
+      delegated.delegate,
+    );
+
+    const largeReport = {
+      ...delegated,
+      stdout: view({
+        text: `report-head\n${"x\n".repeat(3000)}report-tail`,
+        totalBytes: 6023,
+      }),
+    };
+
+    for (const text of [
+      buildTerminalResultMessage(largeReport),
+      buildStatusResult(largeReport),
+    ]) {
+      NodeAssert.match(text, /report-head/);
+      NodeAssert.match(text, /report-tail/);
+      NodeAssert.match(text, /middle omitted/);
+    }
   },
 );

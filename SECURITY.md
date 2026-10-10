@@ -21,4 +21,4 @@ bounty or fixed response deadline.
 Extensions, agents, workflow scripts, and terminals run with the account's
 permissions, not in a sandbox. Pi owns trust and credentials; callers own
 authorization for business-state changes. See [automation callers](AUTOMATIONS.md)
-and [workflow runtime](docs/workflow-runtime.md).
+and [configuration and capabilities](docs/reference.md).

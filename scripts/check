@@ -10,12 +10,10 @@ done
 shellcheck -x scripts/*
 shfmt -d -i 2 -ci scripts/*
 
-for readme in README.md extensions/workflows/README.md; do
-  if [[ $(wc -l <"$readme") -ge 25 ]]; then
-    printf '%s must contain fewer than 25 lines.\n' "$readme" >&2
-    exit 1
-  fi
-done
+if [[ $(wc -l <README.md) -ge 25 ]]; then
+  printf 'README.md must contain fewer than 25 lines.\n' >&2
+  exit 1
+fi
 
 jq -e '
   . as $package

@@ -1,0 +1,11 @@
+--- a/node_modules/@earendil-works/pi-coding-agent/dist/core/tools/find.d.ts
++++ b/node_modules/@earendil-works/pi-coding-agent/dist/core/tools/find.d.ts
+@@ -4,7 +4,7 @@
+ import type { ToolDefinition } from "../extensions/types.ts";
+ import { type TruncationResult } from "./truncate.ts";
+ /** Relativize a find result against the search root and normalize it to posix separators. */
+-export declare function relativizeFindResultPath(resultPath: string, searchPath: string, pathModule?: path.PlatformPath): string;
++export declare function relativizeFindResultPath(resultPath: string, searchPath: string, pathModule?: typeof path.posix): string;
+ declare const findSchema: Type.TObject<{
+     pattern: Type.TString;
+     path: Type.TOptional<Type.TString>;

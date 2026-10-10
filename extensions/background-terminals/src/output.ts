@@ -1,20 +1,24 @@
-/**
- * OutputBuffer — bounded in-memory capture of one process stream.
- *
- * Newest output is always retained; when the retained size exceeds the cap,
- * whole chunks are evicted from the head and counted in `truncatedBytes`.
- * A single chunk larger than the cap itself is trimmed to its tail (on a
- * UTF-8 boundary) so retention is strictly bounded even for one giant write.
- * An optional spill callback receives every chunk (in order, before any
- * eviction) so the caller can keep a complete on-disk copy.
- *
- * Plain TS by design: this is push-based accumulation driven by node stream
- * 'data' callbacks, not stream transformation.
- */
-
 import type { OutputView } from "./domain.ts";
 
+function prefixBytes(text: string, maxBytes: number) {
+  const raw = Buffer.from(text, "utf8");
+  let end = Math.min(raw.length, maxBytes);
+
+  while (end < raw.length && end > 0) {
+    const byte = raw[end];
+
+    if (byte === undefined || (byte & 0xc0) !== 0x80) break;
+    end--;
+  }
+
+  return raw.subarray(0, end).toString("utf8");
+}
+
+/** Bounded UTF-8 stream capture; delegates split retention between original head and newest tail. */
 export class OutputBuffer {
+  private head = "";
+  private headComplete = false;
+  private readonly headCapacity: number;
   private chunks: string[] = [];
   /** Bytes currently retained across `chunks`. */
   private retainedBytes = 0;
@@ -32,8 +36,10 @@ export class OutputBuffer {
   constructor(
     maxRetainedBytes: number,
     spill?: (chunk: string) => boolean | number | void,
+    preserveHead = false,
   ) {
-    this.maxRetainedBytes = maxRetainedBytes;
+    this.headCapacity = preserveHead ? Math.floor(maxRetainedBytes / 2) : 0;
+    this.maxRetainedBytes = maxRetainedBytes - this.headCapacity;
     this.spill = spill;
   }
 
@@ -41,14 +47,18 @@ export class OutputBuffer {
     if (chunk.length === 0) return true;
     let bytes = Buffer.byteLength(chunk, "utf8");
     this.totalBytes += bytes;
+
+    if (!this.headComplete && this.headCapacity > 0) {
+      const remaining = this.headCapacity - Buffer.byteLength(this.head);
+      this.head += prefixBytes(chunk, remaining);
+      // Freeze at a code point that cannot fit; appending later chunks would create a hole.
+      this.headComplete = bytes >= remaining;
+    }
+
     const spillAccepted = this.spill?.(chunk) !== false;
 
     if (bytes > this.maxRetainedBytes) {
-      // A single pathological chunk larger than the whole cap: everything
-      // retained so far precedes it in the stream, so evict all of it, then
-      // keep only the chunk's tail (cut on a UTF-8 code point boundary).
-      // Retention stays strictly bounded even for one giant write, and the
-      // retained view stays contiguous (no hole in the middle).
+      // An oversized chunk replaces the retained tail, trimmed on a UTF-8 boundary.
       this.truncatedBytes += this.retainedBytes;
       this.chunks = [];
       this.retainedBytes = 0;
@@ -90,14 +100,19 @@ export class OutputBuffer {
   view(): OutputView {
     this.cachedText ??= this.chunks.join("");
 
-    const view = {
+    const view: OutputView = {
       text: this.cachedText,
       totalBytes: this.totalBytes,
       truncatedBytes: this.truncatedBytes,
     };
 
-    if (this.spillPath === undefined) return view;
+    const retainedView =
+      this.head && this.truncatedBytes > 0
+        ? { ...view, headText: prefixBytes(this.head, this.truncatedBytes) }
+        : view;
 
-    return { ...view, spillPath: this.spillPath };
+    if (this.spillPath === undefined) return retainedView;
+
+    return { ...retainedView, spillPath: this.spillPath };
   }
 }

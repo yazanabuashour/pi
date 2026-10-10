@@ -1,9 +1,3 @@
-/**
- * The async entry-point boundary: one ManagedRuntime shared by every tool
- * handler, disposed on session_shutdown (which runs the manager finalizer →
- * disposeAll → bounded termination attempts and cleanup receipts).
- */
-
 import { Cause, Exit, ManagedRuntime, type Effect } from "effect";
 import { TerminalManagerLive } from "./manager.ts";
 

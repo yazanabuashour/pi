@@ -11,11 +11,12 @@ calling application. This package supplies Pi resources, not an automation platf
 3. If the caller owns turn scheduling, select the
    [host wake policy](docs/reference.md#background-wake-policy).
 
-Extensions and workers share the account's permissions; they are not a sandbox.
+Extensions, delegated sessions, and workflow scripts share the account's
+permissions; they are not a sandbox.
 
 ## Validate and deliver results
 
-1. Await task-critical agents and processes. Launch success is not completion;
+1. Await task-critical delegated sessions and processes. Launch success is not completion;
    `agent_end` does not prove background work finished. Check `agent_settled`
    explicitly when your contract requires it.
 2. Wait for Pi to exit; retain application locks until owned work settles.

@@ -3,6 +3,7 @@ import type * as NodeFS from "node:fs";
 import { Context, type Deferred, type Effect, type Scope } from "effect";
 import type {
   ConcurrencyLimitError,
+  DelegateInfo,
   SpawnError,
   TerminalSnapshot,
   TerminalStatus,
@@ -49,6 +50,7 @@ export interface MutableSnapshot extends TerminalSnapshot {
   exitCode?: number;
   signal?: string;
   errorText?: string;
+  delegate?: DelegateInfo;
 }
 
 export interface Entry {
@@ -69,9 +71,17 @@ export interface Entry {
 }
 
 export interface StartOptions {
+  /** Shell command, or display-only form when argv is supplied. */
   readonly command: string;
   readonly title: string;
   readonly cwd: string;
+  /** Direct executable invocation; never interpreted by a shell. */
+  readonly argv?: {
+    readonly file: string;
+    readonly args: ReadonlyArray<string>;
+  };
+  readonly env?: NodeJS.ProcessEnv;
+  readonly delegate?: DelegateInfo;
 }
 
 export interface KillResult {

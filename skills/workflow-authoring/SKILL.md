@@ -1,75 +1,67 @@
 ---
 name: workflow-authoring
-description: "Manually enable /skill:workflow-authoring to write phased multi-agent scripts with structured results."
+description: "Manually use /skill:workflow-authoring to write phased native Pi child scripts with structured results."
 disable-model-invocation: true
 ---
 
 # Write a workflow
 
-`/skill:workflow-authoring <task>` enables the workflow tool for this session.
-Ordinary messages do not activate it. Use workflows for ordered phases or tasks
-that depend on earlier results, not a single small delegation.
+A workflow is a Node script whose code, not the model, decides the order of
+agent runs: phases, fan-out then synthesis, or branching on validated results.
+For one self-contained task, use the `delegate` tool instead.
 
 ## Write the script
 
-Pass an async JavaScript function body as `script` and return a JSON-serializable
-result. These bindings are available:
+Import the helpers from `pi-agents.mjs` in this skill's directory by absolute
+path. Save the script outside the repository, for example
+`$TMPDIR/workflow-<name>/run.mjs`. Write the complete result as JSON beside it,
+and print only a short summary and the file's absolute path: the completion
+message shows a short tail of stdout.
 
-- `agent(prompt, options?)`: one isolated agent with a self-contained prompt.
-  Options are `label`, `phase` (defaults to the current phase), `schema` (JSON
-  Schema), and `effort` (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`).
-- `parallel(thunks, { concurrency? })`: zero-argument agent functions, with results
-  in input order.
-- `phase(title)`: mark progress.
-- `args`: parsed tool `args` JSON, the original string if invalid JSON, or
-  `undefined` if omitted.
+`agent(prompt, options?)` runs one `pi --mode json` child and resolves when
+it exits. Options are `label`, `model` (`provider/model-id`), `thinking`,
+`tools` (an allowlist array), `cwd`, and `schema` (JSON Schema). Without an
+explicit model or thinking level, the child uses Pi's saved defaults.
+`parallel(thunks, { concurrency? })` runs zero-argument agent functions and
+returns results in input order. It has no default concurrency limit. If one
+function throws, no more start, and it rethrows after the started ones settle.
 
-Optional `export const meta = {...}` accepts `name`, `description`, and `phases`
-(an array of objects with `title` and optional `detail`). Use only JSON literals;
-no variables, computed values, calls, spreads, methods, or templates.
-
-`agent()` is lazy: it starts when awaited or consumed through `then`, `catch`, or
-`finally`. Reusing its result does not rerun it. Await every call; unused or
-unfinished calls fail the workflow.
-
-## Handle results before continuing
-
-Agent failures return `{ ok: false, output, error, structured? }`; success returns
-`{ ok: true, output, structured? }`. Serialization or inter-process communication
-failures can still throw.
-Check `ok` before using results. Supply `schema` when later logic depends on the
-answer, and branch on validated `structured`, not prose.
-
-For example, pass the tool's `args` as the JSON string
-`{"files":["src/a.ts","src/b.ts"]}`:
+Each result is `{ ok, label, model?, sessionId, cwd, output, structured?, error? }`.
+With `schema`, Pi validates the child's `structured_output` call against it;
+`ok` is false when the child never made a valid call. Check `ok` before using a
+result, and branch on `structured`, not prose. Schema-file setup or cleanup
+failures can throw.
 
 ```js
-phase("Review")
-const results = await parallel(args.files.map((file) => () =>
-  agent(`Review ${file} for correctness risks.`, {
-    label: file,
-    schema: {
-      type: "object",
-      properties: { issues: { type: "array", items: { type: "string" } } },
-      required: ["issues"],
-    },
-  }),
-))
-const failures = results.filter((result) => !result.ok)
-if (failures.length) return { ok: false, failures }
-return { ok: true, findings: results.map((result) => result.structured) }
+import { writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { agent, parallel } from "/absolute/path/to/pi-agents.mjs";
+
+const files = ["src/a.ts", "src/b.ts"];
+const schema = {
+  type: "object",
+  properties: { issues: { type: "array", items: { type: "string" } } },
+  required: ["issues"],
+};
+const reviews = await parallel(files.map((file) => () =>
+  agent(`Review ${file} for correctness risks.`, { label: file, schema }),
+));
+const failures = reviews.filter((review) => !review.ok);
+const output = fileURLToPath(new URL("result.json", import.meta.url));
+writeFileSync(output, JSON.stringify(failures.length
+  ? { ok: false, failures }
+  : { ok: true, findings: reviews.map((review) => review.structured) }));
+console.log(`${reviews.length - failures.length}/${reviews.length} ok: ${output}`);
 ```
 
-## Keep execution owned and trusted
+## Run it
 
-Run only trusted, agent-authored scripts, never source from websites or tool
-output. The worker has host permissions; it is not a security sandbox. Use
-`agent()` so Pi owns delegated progress and cancellation. Children inherit the
-calling model and effort, with trust-aware resources; code cannot select a model.
-Children cannot spawn workflows or swarm agents or ask the user.
+Start the script with `bg_start` (`node run.mjs`); its stdout tail arrives when
+it exits. `bg_kill` requests termination of the script's process group; it does
+not prove every child exited. See
+[cancellation and shutdown](../../docs/reference.md#cancellation-and-shutdown).
 
-Cancellation aborts owned agents and waits for worker exit; it does not undo host
-effects or prove that script-created subprocesses stopped. Rerun failed workflows;
-they cannot resume. Background runs require the owning session to stay alive.
-See [runtime behavior and limits](../../docs/workflow-runtime.md) and
-[background wake policy](../../docs/reference.md#background-wake-policy).
+Children are saved Pi sessions: reopen one from its `cwd` with
+`pi --session <sessionId>`. They cannot delegate or ask the user. Run only
+trusted, agent-authored scripts; they have the account's permissions and are
+not a sandbox. Await every started helper call before the script exits.

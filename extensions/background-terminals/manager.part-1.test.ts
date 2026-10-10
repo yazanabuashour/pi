@@ -81,7 +81,7 @@ await NodeTest(
 );
 
 await NodeTest(
-  "non-zero exit settles as failed with the exit code",
+  "non-zero exit settles as failed with or without a shell",
   async () => {
     await withManager(async (manager, runtime) => {
       const snap = await runTool(
@@ -96,6 +96,32 @@ await NodeTest(
       const { snap: failed } = await settlement(manager, snap.id);
       NodeAssert.equal(failed.status, "failed");
       NodeAssert.equal(failed.exitCode, 3);
+      const delegate = { model: "provider/model", sessionId: "saved-1" };
+
+      const direct = await runTool(
+        runtime,
+        manager.start({
+          command: "display only",
+          title: "direct",
+          cwd,
+          argv: {
+            file: process.execPath,
+            args: [
+              "-e",
+              "console.log(process.argv[1]); console.log(process.env.CHILD_ONLY); process.exit(4)",
+              "$HOME;|",
+            ],
+          },
+          env: { ...process.env, CHILD_ONLY: "isolated" },
+          delegate,
+        }),
+      );
+
+      const { snap: directFailed } = await settlement(manager, direct.id);
+      NodeAssert.equal(directFailed.exitCode, 4);
+      NodeAssert.equal(directFailed.stdout.text, "$HOME;|\nisolated\n");
+      NodeAssert.equal(directFailed.command, "display only");
+      NodeAssert.deepEqual(directFailed.delegate, delegate);
     });
   },
 );

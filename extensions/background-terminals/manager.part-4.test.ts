@@ -101,8 +101,7 @@ await NodeTest(
   "a process 'error' event settles failed with errorText and no bogus exit code",
   async () => {
     await withManager(async (manager, runtime) => {
-      // spawn() with a nonexistent cwd emits ENOENT via the 'error' event
-      // (the tool layer validates cwd; the manager must still be correct).
+      // The manager must handle ENOENT even when tool-layer cwd validation is bypassed.
       const snap = await runTool(
         runtime,
         manager.start({
@@ -115,8 +114,7 @@ await NodeTest(
       const { snap: failed } = await settlement(manager, snap.id);
       NodeAssert.equal(failed.status, "failed");
       NodeAssert.match(failed.errorText ?? "", /ENOENT/);
-      // Node's 'close' after a spawn 'error' reports the errno (e.g. -2) as
-      // its code; that must not leak into exitCode.
+      // Node's close event can carry errno after a spawn error, not a process exit code.
       NodeAssert.equal(failed.exitCode, undefined);
       NodeAssert.equal(failed.signal, undefined);
     });
@@ -135,8 +133,7 @@ await NodeTest(
 
       const settledOnce = new Promise<TerminalSnapshot>((resolve) => {
         manager.view.setOnSettled((snap) => {
-          // Measured inside the hook: the full capture must already be on disk
-          // when the completion follow-up (which cites this path) is queued.
+          // The full capture must be on disk before completion cites its path.
           if (snap.stdout.spillPath) {
             spillSizeAtSettle = NodeFS.statSync(snap.stdout.spillPath).size;
           }

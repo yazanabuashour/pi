@@ -4,6 +4,7 @@ import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
   formatSize,
+  truncateHead,
   truncateTail,
 } from "@earendil-works/pi-coding-agent";
 import { Match } from "effect";
@@ -71,6 +72,46 @@ export const BG_KILL_PARAMETER_DESCRIPTIONS = {
   ids: 'Terminal ids to stop, e.g. ["bt-1"]',
 };
 
+export const DELEGATE_TOOL_DESCRIPTION =
+  "Delegate a self-contained task to an independent background Pi session (`pi --print`). " +
+  "Returns immediately with a terminal id; its final answer arrives like a bg_start exit, and bg_status, bg_list, and bg_kill manage it. " +
+  "The child cannot see this conversation, delegate further, or ask the user. Its session is saved so it can be reopened.";
+
+export const DELEGATE_PROMPT_SNIPPET =
+  "Delegate a self-contained task to an independent background Pi session.";
+
+export const DELEGATE_PROMPT_GUIDELINES = [
+  "Use delegate for self-contained work that benefits from a separate context or different model; write a complete prompt because the child cannot see this conversation.",
+];
+
+export const DELEGATE_PARAMETER_DESCRIPTIONS = {
+  prompt:
+    "Complete, self-contained task for the child. It cannot see this conversation.",
+  title: "Short human-readable name shown in listings and the UI.",
+  model:
+    'Exact "provider/model-id". Defaults to this session\'s model. An explicit model must be available with configured credentials.',
+  thinking:
+    "Thinking level. Defaults to this session's level; Pi clamps it to the model's capabilities.",
+  tools:
+    "Tool allowlist. Defaults to the child's normal tools. delegate and ask_user are never available.",
+  workingDir: "Working directory (default: current working directory)",
+};
+
+export function buildDelegateStartResult(snap: TerminalSnapshot) {
+  if (!snap.delegate) return buildStartResult(snap);
+
+  return (
+    `Started delegate ${snap.id} "${snap.title}" on ${snap.delegate.model} (thinking ${snap.delegate.thinking ?? "Pi default"}, session ${snap.delegate.sessionId}, ${snap.cwd}).\n` +
+    `Its final answer arrives when it exits; use bg_status(id: "${snap.id}") to peek or bg_kill to stop it.`
+  );
+}
+
+function resumeReceipt(snap: TerminalSnapshot) {
+  return snap.delegate
+    ? `\nDelegated Pi session ${snap.delegate.sessionId} on ${snap.delegate.model}: reopen it from ${snap.cwd} with: pi --session ${snap.delegate.sessionId}`
+    : "";
+}
+
 export function buildStartResult(snap: TerminalSnapshot) {
   return (
     `Started background terminal ${snap.id} "${snap.title}" (pid ${snap.pid ?? "?"}, ${snap.cwd}).\n` +
@@ -94,7 +135,7 @@ export function describeTerminal(snap: TerminalSnapshot) {
   if (snap.cleanupIncomplete)
     details.push(`cleanup incomplete: ${snap.cleanupIncomplete}`);
 
-  return `${snap.id} [${snap.status}] "${snap.title}" (${details.join(", ")})`;
+  return `${snap.id} [${snap.status}] "${snap.title}" (${details.join(", ")})${resumeReceipt(snap)}`;
 }
 
 /** Tail-truncated labeled output section with a pointer at the full log. */
@@ -125,11 +166,48 @@ function outputSection(
   return text;
 }
 
+// Oversized reports preserve the opening context and conclusion; see docs/reference.md.
+function delegateReportSection(view: TerminalSnapshot["stdout"]) {
+  if (view.totalBytes === 0) return "stdout: (empty)";
+
+  const full = truncateHead(view.text, {
+    maxBytes: DEFAULT_MAX_BYTES,
+    maxLines: DEFAULT_MAX_LINES,
+  });
+
+  if (!full.truncated && view.truncatedBytes === 0)
+    return `stdout:\n${view.text}`;
+
+  const options = {
+    maxBytes: Math.floor(DEFAULT_MAX_BYTES / 2),
+    maxLines: Math.floor(DEFAULT_MAX_LINES / 2),
+  };
+
+  const head = truncateHead(view.headText ?? view.text, options);
+  const tail = truncateTail(view.text, options);
+
+  const where = view.spillPath
+    ? `Temporary full log (available until session shutdown): ${view.spillPath}`
+    : "Full capture unavailable; /ps shows only the retained memory tail";
+
+  return `stdout:\n${head.content}\n[... middle omitted ...]\n${tail.content}\n[stdout truncated: showing head and tail of ${formatSize(view.totalBytes)}. ${where}]`;
+}
+
 export function buildStatusResult(snap: TerminalSnapshot) {
   let text = describeTerminal(snap);
 
   if (snap.errorText) text += `\nError: ${snap.errorText}`;
-  text += `\n\n${outputSection("stdout", snap.stdout, STATUS_STDOUT_MAX, STATUS_STDOUT_MAX_LINES)}`;
+  // A settled status consumes completion, so it must preserve the same report.
+  text += `\n\n${
+    snap.delegate && snap.status !== "running"
+      ? delegateReportSection(snap.stdout)
+      : outputSection(
+          "stdout",
+          snap.stdout,
+          STATUS_STDOUT_MAX,
+          STATUS_STDOUT_MAX_LINES,
+        )
+  }`;
   text += `\n\n${outputSection("stderr", snap.stderr, STATUS_STDERR_MAX, STATUS_STDERR_MAX_LINES)}`;
 
   return text;
@@ -143,13 +221,22 @@ export function buildTerminalResultMessage(snap: TerminalSnapshot) {
     Match.orElse(() => `exited (${formatExit(snap)})`),
   );
 
-  let text = `Background terminal ${snap.id} "${snap.title}" ${how} after ${formatElapsed(snap)}.`;
+  let text = `Background terminal ${snap.id} "${snap.title}" ${how} after ${formatElapsed(snap)}.${resumeReceipt(snap)}`;
 
   if (snap.cleanupIncomplete)
     text += `\nCleanup incomplete: ${snap.cleanupIncomplete}`;
 
   if (snap.errorText) text += `\nError: ${snap.errorText}`;
-  text += `\n\n${outputSection("stdout", snap.stdout, RESULT_STDOUT_MAX, RESULT_STDOUT_MAX_LINES)}`;
+  text += `\n\n${
+    snap.delegate
+      ? delegateReportSection(snap.stdout)
+      : outputSection(
+          "stdout",
+          snap.stdout,
+          RESULT_STDOUT_MAX,
+          RESULT_STDOUT_MAX_LINES,
+        )
+  }`;
 
   if (snap.stderr.totalBytes > 0) {
     text += `\n\n${outputSection("stderr", snap.stderr, RESULT_STDERR_MAX, RESULT_STDERR_MAX_LINES)}`;

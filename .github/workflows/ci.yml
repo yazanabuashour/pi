@@ -61,7 +61,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          stage="$RUNNER_TEMP/pi-delivery-home"
+          stage="$RUNNER_TEMP/pi-integration-home"
           npm_cache="$(npm config get cache)"
           HOME="$stage" npm_config_cache="$npm_cache" npm run install:local
           npm ci --prefix runtime-probes/integration-deps \

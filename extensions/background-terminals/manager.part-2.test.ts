@@ -90,8 +90,7 @@ await NodeTest(
       const snap = await runTool(
         runtime,
         manager.start({
-          // sh spawns node in the background and prints the grandchild pid,
-          // then waits forever so the group stays alive.
+          // Keep the shell alive so its background child remains in the process group.
           command: `node -e 'const fs = require("node:fs"); const file = ${JSON.stringify(sentinel)}; let n = 0; fs.writeFileSync(file, String(n)); setInterval(() => fs.writeFileSync(file, String(++n)), 25)' & echo "child:$!"; wait`,
           title: "tree",
           cwd,

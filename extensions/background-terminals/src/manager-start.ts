@@ -48,13 +48,19 @@ function reserveStart(state: ManagerState) {
 }
 
 function spawnChild(options: StartOptions) {
-  const { shell, args } = shellInvocation(options.command);
+  const invocation =
+    options.argv ??
+    (() => {
+      const { shell, args } = shellInvocation(options.command);
+
+      return { file: shell, args };
+    })();
 
   return Effect.try({
     try: () =>
-      NodeChildProcess.spawn(shell, args, {
+      NodeChildProcess.spawn(invocation.file, [...invocation.args], {
         cwd: options.cwd,
-        env: process.env,
+        env: options.env ?? process.env,
         stdio: ["ignore", "pipe", "pipe"],
         detached: hostPlatform !== "win32",
       }),
@@ -66,6 +72,7 @@ function createBuffers(
   state: ManagerState,
   child: NodeChildProcess.ChildProcess,
   id: string,
+  delegate: boolean,
 ) {
   const entryRef = () => state.entries.get(id);
 
@@ -77,7 +84,12 @@ function createBuffers(
     child.stderr?.resume(),
   );
 
-  const stdoutBuf = new OutputBuffer(RETAINED_PER_STREAM, stdoutSpill?.write);
+  const stdoutBuf = new OutputBuffer(
+    RETAINED_PER_STREAM,
+    stdoutSpill?.write,
+    delegate,
+  );
+
   const stderrBuf = new OutputBuffer(RETAINED_PER_STREAM, stderrSpill?.write);
   stdoutBuf.spillPath = stdoutSpill?.spillPath;
   stderrBuf.spillPath = stderrSpill?.spillPath;
@@ -92,7 +104,13 @@ function createEntry(
 ) {
   return Effect.gen(function* () {
     const id = `bt-${++state.counter}`;
-    const buffers = createBuffers(state, child, id);
+
+    const buffers = createBuffers(
+      state,
+      child,
+      id,
+      options.delegate !== undefined,
+    );
 
     const snapshot: MutableSnapshot = {
       id,
@@ -110,6 +128,8 @@ function createEntry(
     };
 
     if (child.pid !== undefined) snapshot.pid = child.pid;
+
+    if (options.delegate !== undefined) snapshot.delegate = options.delegate;
     const scope = yield* Scope.make();
     const settled = yield* Deferred.make<void>();
 
@@ -156,8 +176,7 @@ function wireLifecycle(state: ManagerState, entry: Entry) {
   child.once("error", (error) => {
     snapshot.errorText ??= boundedError(error);
 
-    // A spawn error proves no child was started. Other errors (including
-    // failed signals) do not prove that an existing child exited.
+    // Only a spawn error proves no child started; a failed signal does not prove exit.
     if (child.pid !== undefined) return;
     entry.processErrored = true;
     entry.exited = true;

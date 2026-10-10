@@ -2,6 +2,31 @@ import * as NodeAssert from "node:assert/strict";
 import NodeTest from "node:test";
 import { OutputBuffer } from "./src/output.ts";
 
+await NodeTest(
+  "delegate capture keeps a UTF-8 report head and tail within the cap",
+  () => {
+    const spilled: string[] = [];
+    const buf = new OutputBuffer(16, (chunk) => spilled.push(chunk), true);
+    buf.push("ééééé-middle-tail");
+    buf.push("-end");
+    const view = buf.view();
+    NodeAssert.equal(view.headText, "éééé");
+    NodeAssert.match(view.text, /end$/);
+    NodeAssert.ok(Buffer.byteLength((view.headText ?? "") + view.text) <= 16);
+    NodeAssert.ok(!((view.headText ?? "") + view.text).includes("�"));
+    NodeAssert.equal(view.totalBytes, Buffer.byteLength(spilled.join("")));
+    NodeAssert.equal(
+      view.truncatedBytes,
+      view.totalBytes - Buffer.byteLength(view.text),
+    );
+    const partial = new OutputBuffer(8, undefined, true);
+    partial.push("abc");
+    partial.push("é");
+    partial.push("-end");
+    NodeAssert.equal(partial.view().headText, "abc");
+  },
+);
+
 await NodeTest("push/view roundtrip preserves text and counts bytes", () => {
   const buf = new OutputBuffer(1024);
   buf.push("hello ");

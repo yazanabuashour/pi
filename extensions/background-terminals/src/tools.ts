@@ -2,7 +2,9 @@ import * as NodeFS from "node:fs";
 import * as NodePath from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+import { buildDelegateLaunch, delegateParameters } from "./delegate.ts";
 import type { BackgroundTerminalSession } from "./extension-session.ts";
+import type { StartOptions } from "./manager.ts";
 import {
   BG_KILL_PARAMETER_DESCRIPTIONS,
   BG_KILL_TOOL_DESCRIPTION,
@@ -13,12 +15,69 @@ import {
   BG_START_TOOL_DESCRIPTION,
   BG_STATUS_PARAMETER_DESCRIPTIONS,
   BG_STATUS_TOOL_DESCRIPTION,
+  DELEGATE_TOOL_DESCRIPTION,
+  DELEGATE_PROMPT_SNIPPET,
+  DELEGATE_PROMPT_GUIDELINES,
+  buildDelegateStartResult,
   buildKillReport,
   buildStartResult,
   buildStatusResult,
   describeTerminal,
 } from "./prompt.ts";
 import { runTool } from "./runtime.ts";
+
+/** Persist the admission receipt, or request cleanup if persistence fails. */
+async function startRecorded(
+  session: BackgroundTerminalSession,
+  options: StartOptions,
+  signal: AbortSignal | undefined,
+) {
+  const manager = await session.getManager();
+  const runtime = session.getRuntime();
+  signal?.throwIfAborted();
+  const snapshot = await runTool(runtime, manager.start(options));
+
+  if (!session.recordStart(snapshot)) {
+    try {
+      await runTool(runtime, manager.kill([snapshot.id]));
+    } catch (error) {
+      console.error(
+        "background-terminals: cleanup after lifecycle failure failed",
+        error,
+      );
+    }
+
+    throw new Error(
+      `Background terminal ${snapshot.id} lifecycle receipt could not be persisted; cleanup was requested. Observed status: ${snapshot.status}${snapshot.cleanupIncomplete ? `; cleanup incomplete: ${snapshot.cleanupIncomplete}` : ""}.`,
+    );
+  }
+
+  return snapshot;
+}
+
+function registerDelegate(
+  pi: ExtensionAPI,
+  session: BackgroundTerminalSession,
+) {
+  pi.registerTool({
+    name: "delegate",
+    label: "Delegate to Pi Session",
+    description: DELEGATE_TOOL_DESCRIPTION,
+    promptSnippet: DELEGATE_PROMPT_SNIPPET,
+    promptGuidelines: DELEGATE_PROMPT_GUIDELINES,
+    parameters: delegateParameters,
+    async execute(_toolCallId, params, signal, _onUpdate, context) {
+      signal?.throwIfAborted();
+      const launch = buildDelegateLaunch(params, context);
+      const snapshot = await startRecorded(session, launch, signal);
+
+      return {
+        content: [{ type: "text", text: buildDelegateStartResult(snapshot) }],
+        details: session.details(snapshot, "started"),
+      };
+    },
+  });
+}
 
 function registerStart(pi: ExtensionAPI, session: BackgroundTerminalSession) {
   pi.registerTool({
@@ -42,8 +101,6 @@ function registerStart(pi: ExtensionAPI, session: BackgroundTerminalSession) {
     }),
     async execute(_toolCallId, params, signal, _onUpdate, context) {
       signal?.throwIfAborted();
-      const manager = await session.getManager();
-      const runtime = session.getRuntime();
       const command = params.command.trim();
 
       if (!command) throw new Error("command must not be empty.");
@@ -58,25 +115,11 @@ function registerStart(pi: ExtensionAPI, session: BackgroundTerminalSession) {
 
       signal?.throwIfAborted();
 
-      const snapshot = await runTool(
-        runtime,
-        manager.start({ command, title, cwd }),
+      const snapshot = await startRecorded(
+        session,
+        { command, title, cwd },
+        signal,
       );
-
-      if (!session.recordStart(snapshot)) {
-        try {
-          await runTool(runtime, manager.kill([snapshot.id]));
-        } catch (error) {
-          console.error(
-            "background-terminals: cleanup after lifecycle failure failed",
-            error,
-          );
-        }
-
-        throw new Error(
-          `Background terminal ${snapshot.id} lifecycle receipt could not be persisted; cleanup was requested. Observed status: ${snapshot.status}${snapshot.cleanupIncomplete ? `; cleanup incomplete: ${snapshot.cleanupIncomplete}` : ""}.`,
-        );
-      }
 
       return {
         content: [{ type: "text", text: buildStartResult(snapshot) }],
@@ -208,6 +251,7 @@ export function registerTerminalTools(
   session: BackgroundTerminalSession,
 ) {
   registerStart(pi, session);
+  registerDelegate(pi, session);
   registerStatus(pi, session);
   registerList(pi, session);
   registerKill(pi, session);

@@ -1,0 +1,7 @@
+{
+  "extends": "./portable.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext"
+  }
+}

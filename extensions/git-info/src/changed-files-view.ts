@@ -6,8 +6,7 @@ import { runCommand, type CommandResult } from "./process.ts";
 
 const MAX_DIFF_LINES = 20_000;
 
-// Strip terminal control sequences from repository-controlled paths and diff
-// text before applying trusted theme styling.
+// Repository text must not inject terminal controls into trusted theme styling.
 const OSC_PATTERN = new RegExp(
   String.raw`(?:\u001b\]|\u009d)(?:[^\u0007\u001b\u009c]|\u001b(?!\\))*(?:\u0007|\u001b\\|\u009c)`,
   "g",

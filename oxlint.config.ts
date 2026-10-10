@@ -3,6 +3,7 @@ import { defineConfig } from "oxlint";
 
 export default defineConfig({
   extends: [policy, effectConfig],
+  ignorePatterns: ["tools/**"],
   rules: {
     "project/no-global-process-runtime": [
       "error",

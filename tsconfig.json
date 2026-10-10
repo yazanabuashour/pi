@@ -1,5 +1,5 @@
 {
-  "extends": "@yazanabuashour/tsconfig/node-ts-source.json",
+  "extends": "./tools/typescript-config-policy/node-ts-source.json",
   "compilerOptions": {
     "lib": ["ES2022"],
     "noEmit": true,
@@ -10,6 +10,7 @@
   "include": [
     "extensions/**/*.ts",
     "runtime-probes/**/*.ts",
+    "skills/**/*.ts",
     "oxlint.config.ts",
     "vitest.config.ts"
   ]

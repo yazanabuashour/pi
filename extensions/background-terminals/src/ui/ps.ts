@@ -1,12 +1,3 @@
-/**
- * /ps UI — two-stage full-screen overlay over the synchronous
- * TerminalReadModel:
- * - TerminalDashboard: list of all tracked terminals (select, kill, open).
- * - TerminalDetailView: read-only inspector for one terminal — metadata,
- *   stdout/stderr toggle, scrolling, live tail. No input surface: background
- *   terminals have no stdin by design.
- */
-
 import type {
   ExtensionCommandContext,
   KeybindingsManager,
@@ -19,8 +10,7 @@ import type { TerminalReadModel } from "../manager.ts";
 import { sanitizeText } from "./output-view.ts";
 import { TerminalDetailView } from "./terminal-detail-view.ts";
 
-/** One-line-safe rendering of model-provided text (titles, commands): a
- * newline or control char inside a fixed-height row desyncs the renderer. */
+// Newlines and controls in fixed-height rows desync the renderer.
 function oneLine(text: string) {
   return sanitizeText(text.replace(/\s+/g, " "));
 }
@@ -238,9 +228,7 @@ class TerminalDashboard implements Component {
     reconcileDashboardSelection(this.selection, terminals);
 
     const rows = this.tui.terminal.rows || 30;
-    // Render exactly terminal rows - 1 so the overlay covers the header,
-    // chat, editor, and extra footer lines while leaving pi's final footer
-    // row visible.
+    // Leave Pi's final footer row visible beneath the overlay.
     const bodyHeight = Math.max(6, rows - 5);
     const innerWidth = width - 2;
 

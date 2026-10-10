@@ -1,0 +1,32 @@
+{
+  "measuredAt": "2026-08-13",
+  "method": "Oxlint effective-line counts with blank lines and comments skipped and IIFEs included",
+  "provenance": "Historical measurements from four private TypeScript source corpora. Corpus labels replace private repository names and revisions; these measurements are retained evidence, not publicly reproducible source links.",
+  "sourceReceipts": [
+    {
+      "corpus": "A",
+      "fileP90": 236,
+      "functionP95": 62
+    },
+    {
+      "corpus": "B",
+      "fileP90": 962,
+      "functionP95": 61
+    },
+    {
+      "corpus": "C",
+      "fileP90": 511,
+      "functionP95": 63
+    },
+    {
+      "corpus": "D",
+      "fileP90": 583,
+      "functionP95": 60
+    }
+  ],
+  "tripwires": {
+    "fileEffectiveLines": 300,
+    "functionEffectiveLines": 100
+  },
+  "decision": "Keep the existing common tripwires. The function limit remains beyond the 95th percentile in every measured project. File exemptions remain consumer-owned because static and generated data are project contracts, not policy defaults."
+}

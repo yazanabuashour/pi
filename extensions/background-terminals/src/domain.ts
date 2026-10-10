@@ -1,17 +1,10 @@
-/**
- * Domain model for background terminals.
- *
- * A "terminal" is one long-running shell process started by the model. It
- * receives no stdin (launched with stdin: "ignore"), captures stdout and
- * stderr separately, and settles exactly once into a final state.
- */
-
 import { Data } from "effect";
 
+/**
+ * done: exited with code 0; failed: non-zero exit or spawn error.
+ * killed: observed signal exit after a stop request, not proof of descendant exit.
+ */
 export type TerminalStatus = "running" | "done" | "failed" | "killed";
-// "done"   = exited with code 0
-// "failed" = exited non-zero, or a spawn-level runtime error after start
-// "killed" = observed signal exit after a stop request; not proof of descendant exit
 
 /** Read-only view over one captured output stream (stdout or stderr). */
 export interface OutputView {
@@ -23,6 +16,16 @@ export interface OutputView {
   readonly truncatedBytes: number;
   /** On-disk full capture; always the complete stream when spilling works. */
   readonly spillPath?: string;
+  /** Original report prefix retained separately when a delegate's tail evicts it. */
+  readonly headText?: string;
+}
+
+/** A terminal running an independent, saved Pi session. */
+export interface DelegateInfo {
+  readonly model: string;
+  readonly sessionId: string;
+  readonly thinking?: string;
+  readonly tools?: ReadonlyArray<string>;
 }
 
 export interface TerminalSnapshot {
@@ -50,6 +53,7 @@ export interface TerminalSnapshot {
   readonly signal?: string;
   /** Spawn error / kill-escalation notes, bounded. */
   readonly errorText?: string;
+  readonly delegate?: DelegateInfo;
   readonly stdout: OutputView;
   readonly stderr: OutputView;
 }
@@ -74,6 +78,7 @@ export interface BackgroundTerminalDetailsV1 {
   readonly exitCode?: number;
   readonly signal?: string;
   readonly errorText?: string;
+  readonly delegate?: DelegateInfo;
   readonly shutdownReason?: string;
 }
 
@@ -112,6 +117,8 @@ export function backgroundTerminalDetails(
   };
 
   if (snapshot.pid !== undefined) details.pid = snapshot.pid;
+
+  if (snapshot.delegate !== undefined) details.delegate = snapshot.delegate;
 
   if (outcome !== undefined) details.outcome = outcome;
 

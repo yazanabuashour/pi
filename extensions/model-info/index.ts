@@ -8,8 +8,7 @@ import {
   REFRESH_CHANNEL,
 } from "../shared/dashboard-state.ts";
 
-// SDK pricing estimates for assistant messages on the current branch only.
-// Not subscription billing; excludes nested tool work and summaries.
+// SDK estimates are not subscription billing and exclude nested tool work and summaries.
 function getBranchAssistantEstimatedCost(ctx: ExtensionContext) {
   let cost = 0;
 

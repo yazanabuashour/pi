@@ -1,12 +1,4 @@
 import { isString } from "../shared/runtime-values.ts";
-/**
- * ask_user - Lets the model ask a single multiple-choice question.
- *
- * - 2 to 5 model-provided options, plus an always-present "Write my own answer" option
- * - Popup UI: arrow keys or number keys to pick, Enter to confirm
- * - "Write my own answer" opens an inline editor (Esc returns to the options)
- * - Esc on the options dismisses the question (the model is told you declined)
- */
 
 import type {
   ExtensionAPI,

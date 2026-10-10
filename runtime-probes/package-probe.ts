@@ -13,19 +13,15 @@ import {
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { registerReceipts } from "./package-probe-receipts.ts";
 import { Type } from "typebox";
-import { Check } from "typebox/value";
+import { Check, Parse } from "typebox/value";
 
 const requiredTools = [
   "ask_user",
   "bg_start",
+  "bg_status",
   "bg_list",
-  "swarm_spawn",
-  "swarm_send",
-  "swarm_wait",
-  "swarm_cancel",
-  "swarm_check",
-  "swarm_list",
-  "workflow",
+  "bg_kill",
+  "delegate",
   "bash",
   "read",
   "edit",
@@ -36,53 +32,35 @@ const requiredTools = [
   "web_search",
 ];
 
-const workerFixture = "dotfiles-native-worker-completed";
+const childFixture = "dotfiles-native-delegate-completed";
 
-const childFixture = "dotfiles-native-swarm-completed";
+const childPrompt = "Return the synthetic native delegate fixture.";
 
-const childPrompt = "Return the synthetic native swarm fixture.";
+const helperPrompt = "Return the synthetic native workflow fixture.";
 
-const progressFixture = "dotfiles-native-swarm-progress";
+const invalidHelperPrompt = "Return an invalid synthetic workflow fixture.";
+
+const failedHelperPrompt = "Fail the synthetic native workflow fixture.";
 
 const childPromptSchema = Type.Union([
-  Type.Literal(childPrompt),
+  Type.Literal(`Task: ${childPrompt}`),
   Type.Tuple([
     Type.Object({
       type: Type.Literal("text"),
-      text: Type.Literal(childPrompt),
+      text: Type.Literal(`Task: ${childPrompt}`),
     }),
   ]),
 ]);
 
-const workflowSchema = Type.Object({
-  schemaVersion: Type.Literal(1),
-  background: Type.Literal(false),
-  status: Type.Literal("completed"),
-  result: Type.Literal(workerFixture),
-  finishedAt: Type.Number(),
-});
-
-const spawnSchema = Type.Object({
+const delegateSchema = Type.Object({
   schemaVersion: Type.Literal(1),
   event: Type.Literal("started"),
   id: Type.String(),
-  harness: Type.Literal("pi"),
-  model: Type.Literal("dotfiles-package-probe/probe"),
-});
-
-const waitSchema = Type.Object({
-  results: Type.Tuple([
-    Type.Object({
-      schemaVersion: Type.Literal(1),
-      event: Type.Literal("settled"),
-      id: Type.String(),
-      harness: Type.Literal("pi"),
-      model: Type.Literal("dotfiles-package-probe/probe"),
-      status: Type.Literal("done"),
-      outcome: Type.Literal("completed"),
-      settledAt: Type.Number(),
-    }),
-  ]),
+  pid: Type.Number(),
+  delegate: Type.Object({
+    model: Type.Literal("dotfiles-package-probe/probe"),
+    sessionId: Type.String(),
+  }),
 });
 
 function callTool(name: string, args: ToolCall["arguments"]) {
@@ -106,55 +84,27 @@ function toolResult(context: TranscriptContext, name: string) {
 }
 
 function parentResponse(context: TranscriptContext) {
-  const probe = toolResult(context, "package_probe");
+  if (!toolResult(context, "package_probe"))
+    return callTool("package_probe", { value: "probe-receipt" });
+  const delegated = toolResult(context, "delegate");
 
-  if (!probe) return callTool("package_probe", { value: "probe-receipt" });
-  const workflow = toolResult(context, "workflow");
-
-  if (!workflow)
-    return callTool("workflow", {
-      script: `if (process.env.TMPDIR !== ${JSON.stringify(process.env["TMPDIR"])}) throw new Error("Worker lost caller TMPDIR"); return ${JSON.stringify(workerFixture)};`,
-      background: false,
-    });
-
-  if (!Check(workflowSchema, workflow.details))
-    throw new Error("workflow did not return its completed worker fixture");
-  const spawn = toolResult(context, "swarm_spawn");
-
-  if (!spawn)
-    return callTool("swarm_spawn", {
+  if (!delegated)
+    return callTool("delegate", {
       prompt: childPrompt,
-      name: "native-package-fixture",
+      title: "native package fixture",
     });
 
-  if (!Check(spawnSchema, spawn.details))
-    throw new Error("invalid swarm spawn receipt");
-  const waited = toolResult(context, "swarm_wait");
-
-  if (!waited) return callTool("swarm_wait", { ids: [spawn.details.id] });
-
-  if (
-    !Check(waitSchema, waited.details) ||
-    waited.details.results[0].id !== spawn.details.id ||
-    !waited.content.some(
-      (part) =>
-        part.type === "text" && part.text.endsWith(`\n\n${childFixture}`),
-    )
-  )
-    throw new Error(
-      "swarm agent did not complete with its fixture before shutdown",
-    );
+  const receipt = Parse(delegateSchema, delegated.details);
 
   if (
     !context.messages.some(
       (message) =>
         message.role === "user" &&
-        JSON.stringify(message.content).includes(progressFixture),
+        JSON.stringify(message.content).includes(childFixture) &&
+        JSON.stringify(message.content).includes(receipt.delegate.sessionId),
     )
   )
-    throw new Error(
-      "Invisible swarm progress was not delivered to the root model context.",
-    );
+    return fauxAssistantMessage("dotfiles-package-probe-waiting");
 
   return fauxAssistantMessage("dotfiles-package-probe-ok");
 }
@@ -176,8 +126,8 @@ function checkResources(
   )
     throw new Error("upstream agent-browser skill was not discovered");
 
-  if (!resources.systemPrompt.includes("<name>swarm</name>"))
-    throw new Error("swarm skill was not discovered");
+  if (resources.systemPrompt.includes("<name>swarm</name>"))
+    throw new Error("obsolete swarm skill was discovered");
 
   for (const name of ["workflow-authoring", "technical-writing"]) {
     if (resources.systemPrompt.includes(`<name>${name}</name>`))
@@ -192,34 +142,17 @@ function checkResources(
   )
     throw new Error("manual workflow skill command is missing");
 
-  if (!child && !pi.getCommands().some((command) => command.name === "swarm"))
-    throw new Error("swarm management command is missing");
-  const spawn = resources.tools.find((tool) => tool.name === "swarm_spawn");
-
-  if (spawn) {
-    if (
-      !Check(
-        Type.Object({ properties: Type.Record(Type.String(), Type.Unknown()) }),
-        spawn.parameters,
-      )
-    )
-      throw new Error("swarm_spawn has no object parameter schema");
-
-    for (const field of ["harness", "model", "provider"]) {
-      if (Object.hasOwn(spawn.parameters.properties, field))
-        throw new Error(`swarm_spawn still advertises ${field}`);
-    }
-  }
+  if (pi.getCommands().some((command) => command.name === "swarm"))
+    throw new Error("obsolete swarm command was registered");
 
   const names = new Set(resources.tools.map((tool) => tool.name));
 
-  const parentOnly = new Set([
-    "ask_user",
-    "swarm_spawn",
-    "swarm_wait",
-    "swarm_cancel",
-    "workflow",
-  ]);
+  if (
+    [...names].some((name) => name.startsWith("swarm_") || name === "workflow")
+  )
+    throw new Error("obsolete swarm or workflow tool was registered");
+
+  const parentOnly = new Set(["ask_user", "delegate"]);
 
   for (const name of requiredTools) {
     if (child && parentOnly.has(name)) {
@@ -228,6 +161,58 @@ function checkResources(
     } else if (!names.has(name))
       throw new Error(`missing required tool: ${name}`);
   }
+
+  if (
+    child &&
+    Object.keys(process.env).some((name) => name.startsWith("PI_AUTOMATION_"))
+  )
+    throw new Error("delegated child inherited automation telemetry variables");
+}
+
+function helperResponse(context: TranscriptContext, prompts: string[]) {
+  if (prompts.some((prompt) => prompt.includes(`Task: ${failedHelperPrompt}`)))
+    throw new Error("synthetic workflow provider failure");
+
+  const structured = context.messages.find(
+    (message) =>
+      message.role === "toolResult" && message.toolName === "structured_output",
+  );
+
+  if (structured)
+    return fauxAssistantMessage("dotfiles-native-workflow-completed");
+
+  return callTool("structured_output", {
+    result: prompts.some((prompt) =>
+      prompt.includes(`Task: ${invalidHelperPrompt}`),
+    )
+      ? 42
+      : "dotfiles-native-workflow-completed",
+  });
+}
+
+function recordProviderRequest(
+  context: TranscriptContext,
+  child: boolean,
+  helper: boolean,
+) {
+  const path = process.env["DOTFILES_PI_PROBE_PROVIDER_EVENTS"];
+
+  if (!path) return;
+  NodeFS.appendFileSync(
+    path,
+    `${JSON.stringify({
+      type: "provider_request",
+      child,
+      helper,
+      tmpdir: process.env["TMPDIR"],
+      messages: context.messages.map(({ role, content }) => ({
+        role,
+        content,
+      })),
+      tools: getCurrentTools(context.messages).map((tool) => tool.name),
+    })}\n`,
+    { mode: 0o600 },
+  );
 }
 
 export default function (pi: ExtensionAPI) {
@@ -267,23 +252,32 @@ export default function (pi: ExtensionAPI) {
   const respond: FauxResponseFactory = (context) => {
     faux.appendResponses([respond]);
 
-    const child = context.messages.some(
-      (message) =>
-        message.role === "user" && Check(childPromptSchema, message.content),
+    const prompts = context.messages
+      .filter((message) => message.role === "user")
+      .map((message) => JSON.stringify(message.content));
+
+    const helper = prompts.some((prompt) =>
+      [helperPrompt, invalidHelperPrompt, failedHelperPrompt].some((task) =>
+        prompt.includes(`Task: ${task}`),
+      ),
     );
 
+    const child =
+      helper ||
+      context.messages.some(
+        (message) =>
+          message.role === "user" && Check(childPromptSchema, message.content),
+      );
+
+    recordProviderRequest(context, child, helper);
     checkResources(pi, context, browserSkillName, child);
 
-    if (!child) return parentResponse(context);
+    if (helper) return helperResponse(context, prompts);
 
-    if (!toolResult(context, "swarm_send"))
-      return callTool("swarm_send", { to: "root", message: progressFixture });
-
-    return fauxAssistantMessage(childFixture);
+    return child ? fauxAssistantMessage(childFixture) : parentResponse(context);
   };
 
   faux.setResponses([respond]);
-
   pi.registerProvider(faux.provider);
   pi.registerTool({
     name: "package_probe",
@@ -295,6 +289,5 @@ export default function (pi: ExtensionAPI) {
       details: {},
     }),
   });
-
   registerReceipts(pi);
 }

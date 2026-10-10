@@ -1,22 +1,14 @@
-/**
- * Output rendering for the /ps detail view: turns a captured stream's text
- * into sanitized, wrapped display lines. Sanitization happens here — at
- * render time, never at capture time — because raw ANSI/control characters
- * desync the TUI renderer and smear the overlay.
- */
+// Sanitize at render time, not capture time; raw controls corrupt the TUI layout.
 
 import { wrapTextWithAnsi } from "@earendil-works/pi-tui";
 
-// OSC strings (window titles, hyperlinks, etc.) end in BEL or ST. Strip them
-// before the generic escape/control pass so their payload never becomes
-// visible text after only the leading ESC byte is removed.
+// Strip complete OSC strings before escape cleanup so their payload cannot become visible.
 const OSC_PATTERN = new RegExp(
   String.raw`(?:\u001b\]|\u009d)(?:[^\u0007\u001b\u009c]|\u001b(?!\\))*(?:\u0007|\u001b\\|\u009c)`,
   "g",
 );
 
-// Standards-shaped CSI matcher: parameters are deliberately unbounded; a
-// five-digit cursor movement is still one control sequence, not visible text.
+// CSI parameters are unbounded; long cursor movements remain control sequences, not text.
 const CSI_PATTERN = new RegExp(
   String.raw`(?:\u001b\[|\u009b)[0-?]*[ -/]*[@-~]`,
   "g",
@@ -70,8 +62,7 @@ export function buildOutputLines(text: string, width: number) {
     out.push(...wrapTextWithAnsi(clean, safeWidth));
   }
 
-  // Drop one trailing empty line from a trailing "\n" so the tail pin sits
-  // on the last real output line.
+  // A trailing newline must not pin the tail to an empty display row.
   if (out.length > 0 && out[out.length - 1] === "") out.pop();
 
   return out;

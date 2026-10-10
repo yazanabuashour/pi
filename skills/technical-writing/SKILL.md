@@ -13,6 +13,16 @@ If a rule makes a sentence worse, rewrite the sentence another way or leave it a
 Use the codebase's names for symbols, files, flags, and commands. Do not invent
 jargon or rename a concept to vary the prose. Define named patterns on first use.
 
+## Decide what to write
+
+In documentation, write only what the reader cannot get from the code, types,
+configuration, or command help: intent, constraints, procedures, and decisions.
+Link to the source of truth instead of copying versions, options, or behavior
+from it. Leave out dates, progress notes, and claims that a known future change
+will make false. Prefer trimming or deleting existing docs to adding new ones.
+Keep the result terse and high-yield; use lists when they carry the same meaning
+as prose.
+
 ## Pick one document mode
 
 Choose the mode by the reader's goal. Keep each document in one mode and link to
@@ -96,13 +106,15 @@ Apply these checks to documentation, PR descriptions, and commit messages.
 The document-mode check applies to documentation sets, not commit messages.
 For product UI text, follow the product's copy guidelines instead.
 
-1. Does each document serve one mode and link to other modes where needed?
-2. Are instructions commands, with conditions and warnings before their actions?
-3. Does each sentence carry one clear thought or instruction?
-4. Can you cut any word without losing meaning?
-5. Are modifiers, pronouns, and clauses unambiguous?
-6. Does each concept have one name throughout the docs?
-7. Would a developer say these words aloud?
-8. Do symbols, paths, commands, links, and behavior match the implementation?
+1. For documentation, does each sentence say something the code, configuration,
+   or existing docs do not?
+2. Does each document serve one mode and link to other modes where needed?
+3. Are instructions commands, with conditions and warnings before their actions?
+4. Does each sentence carry one clear thought or instruction?
+5. Can you cut any word without losing meaning?
+6. Are modifiers, pronouns, and clauses unambiguous?
+7. Does each concept have one name throughout the docs?
+8. Would a developer say these words aloud?
+9. Do symbols, paths, commands, links, and behavior match the implementation?
    For counts and tree claims, include the command that regenerates them.
-9. Do code examples follow repository and language formatting conventions?
+10. Do code examples follow repository and language formatting conventions?

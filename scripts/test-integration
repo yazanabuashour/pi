@@ -14,7 +14,8 @@ package="$(resolve_path "$2")"
 web="$(resolve_path "$3")"
 browser="$(resolve_path "$4")"
 [[ -x $pi ]]
-for path in "$package/package.json" "$web/package.json" "$browser/skills/agent-browser/SKILL.md"; do
+for path in "$package/package.json" "$web/package.json" "$browser/skills/agent-browser/SKILL.md" \
+  "$package/skills/workflow-authoring/pi-agents.mjs" "$package/skills/workflow-authoring/structured-output.ts"; do
   [[ -r $path ]] || {
     printf 'Missing package integration input: %s\n' "$path" >&2
     exit 1
@@ -29,32 +30,42 @@ prefix="$(dirname "$(dirname "$package")")"
 # The installed root uses the source lock's layout, not a consumer's hoisted tree.
 cmp "$ROOT/package-lock.json" "$package/package-lock.json"
 jq -e --slurpfile locked "$ROOT/package-lock.json" '
+  def production($entries): .dev != true and .peer != true
+    and (if .link == true then $entries[.resolved].dev != true else true end);
   .packages as $installed | $locked[0].packages as $expected
   | all($installed | to_entries[]; . as $entry
       | $expected[$entry.key] as $source
-      | $source != null and ($source.dev != true) and ($source.peer != true)
+      | $source != null
         and ([$entry.value.version, $entry.value.resolved, $entry.value.integrity]
           == [$source.version, $source.resolved, $source.integrity]))
     and all($expected | to_entries[]
-      | select(.key != "" and (.value | .dev != true and .peer != true
+      | select(.key != "" and (.value | production($expected)
           and .optional != true and .devOptional != true));
       .key as $path | $installed | has($path))
 ' "$package/node_modules/.package-lock.json" >/dev/null || {
   printf 'Installed production dependencies differ from package-lock.json.\n' >&2
   exit 1
 }
-while IFS=$'\t' read -r path version; do
+installed_records="$(jq -r '.packages as $entries | .packages | to_entries[]
+  | [.key, (.value.version // "-"), (.value.dev == true or .value.peer == true
+    or (.value.link == true and $entries[.value.resolved].dev == true))] | @tsv' \
+  "$package/node_modules/.package-lock.json")"
+while IFS=$'\t' read -r path version development; do
+  if [[ $development == true ]]; then
+    [[ ! -e $package/$path ]] || {
+      printf 'Development dependency was installed: %s\n' "$path" >&2
+      exit 1
+    }
+    continue
+  fi
   jq -e --arg version "$version" '.version == $version' \
     "$package/$path/package.json" >/dev/null || {
     printf 'Installed dependency %s does not match locked version %s.\n' "$path" "$version" >&2
     exit 1
   }
-done < <(jq -r '.packages | to_entries[] | [.key, .value.version] | @tsv' \
-  "$package/node_modules/.package-lock.json")
+done <<<"$installed_records"
 printf 'Installed production dependency versions and npm integrity records match the source lock.\n'
 
-# This is an explicit integration test, never installation or runtime admission.
-# Copy the fixture outside the checkout so its SDK imports cannot use dev deps.
 if [[ $# -eq 5 ]]; then
   mkdir -- "$5"
   receipts="$(resolve_path "$5")"
@@ -74,10 +85,10 @@ trap 'rm -rf -- "$temporary"' EXIT
 mkdir -p "$temporary/home/.pi/agent" "$temporary/probe" "$temporary/config" \
   "$temporary/data" "$temporary/state" "$temporary/cache" "$temporary/run"
 chmod 700 "$temporary/run"
-# Exercise the stable registration path with its installed production dependencies.
 current="$temporary/home/.local/share/dotfiles-pi-package/current"
 mkdir -p "$(dirname "$current")"
 ln -s "$prefix" "$current"
+# Keep SDK imports outside the checkout so native Pi, not dev deps, supplies them.
 cp "$ROOT/runtime-probes/package-probe.ts" "$temporary/probe/index.ts"
 cp "$ROOT/runtime-probes/package-probe-receipts.ts" "$temporary/probe/"
 printf '%s\n' '{"name":"dotfiles-package-probe","pi":{"extensions":["./index.ts"]}}' \
@@ -88,8 +99,16 @@ jq -n --arg package "$current/node_modules/yazan-pi-setup" \
       source: $browser, extensions: [], skills: ["skills/agent-browser/SKILL.md"],
       prompts: [], themes: []
     }, $probe],
-    compaction: {enabled: false}, retry: {enabled: false}
+    defaultProvider: "dotfiles-package-probe", defaultModel: "probe",
+    defaultThinkingLevel: "off", compaction: {enabled: false}, retry: {enabled: false}
   }' >"$temporary/home/.pi/agent/settings.json"
+
+probe_env=(env -i PATH="$PATH" PI_OFFLINE=1 HOME="$temporary/home" TMPDIR="$temporary"
+  PI_EXECUTABLE="$pi" PI_CODING_AGENT_DIR="$temporary/home/.pi/agent"
+  XDG_CONFIG_HOME="$temporary/config" XDG_DATA_HOME="$temporary/data"
+  XDG_STATE_HOME="$temporary/state" XDG_CACHE_HOME="$temporary/cache"
+  XDG_RUNTIME_DIR="$temporary/run"
+  DOTFILES_PI_PROBE_BROWSER_SKILL="$browser/skills/agent-browser/SKILL.md")
 
 run_probe() {
   local label="$2" missing="${3:-0}"
@@ -97,19 +116,12 @@ run_probe() {
   local hooks="$receipts/$label.hooks.jsonl"
   : >"$hooks"
   (cd "$temporary/home" &&
-    env -i PATH="$PATH" PI_OFFLINE=1 HOME="$temporary/home" TMPDIR="$temporary" \
-      PI_CODING_AGENT_DIR="$temporary/home/.pi/agent" \
-      XDG_CONFIG_HOME="$temporary/config" XDG_DATA_HOME="$temporary/data" \
-      XDG_STATE_HOME="$temporary/state" XDG_CACHE_HOME="$temporary/cache" \
-      XDG_RUNTIME_DIR="$temporary/run" \
-      DOTFILES_PI_PROBE_BROWSER_SKILL="$browser/skills/agent-browser/SKILL.md" \
-      DOTFILES_PI_PROBE_EVENTS="$hooks" \
+    "${probe_env[@]}" DOTFILES_PI_PROBE_EVENTS="$hooks" \
+      DOTFILES_PI_PROBE_PROVIDER_EVENTS="$receipts/$label.provider.jsonl" \
       DOTFILES_PI_PROBE_MISSING_TOOL="$missing" \
       PI_AUTOMATION_TELEMETRY_PATH="$1" PI_AUTOMATION_NAME=package-probe \
       PI_AUTOMATION_RUN_ID=offline \
-      "$pi" --mode json --no-session --no-context-files --no-approve \
-      --model dotfiles-package-probe/probe --thinking off \
-      '/skill:workflow-authoring run the offline package integration probe.' \
+      node "$ROOT/runtime-probes/package-probe-client.ts" "$pi" "$label" \
       </dev/null >"$events" 2>"$stderr") || {
     printf 'Package integration process failed. Synthetic diagnostics:\n' >&2
     cat "$stderr" "$events" >&2
@@ -126,8 +138,7 @@ run_probe() {
     return
   fi
   jq -s -e '
-    any(.[]; .type == "session")
-    and any(.[]; .type == "agent_settled")
+    any(.[]; .type == "agent_settled" and (.aborted // false) == false)
     and ([.[] | select(.type == "message_end" and .message.role == "assistant")]
       | last | .message.stopReason == "stop"
         and .message.content == [{type:"text",text:"dotfiles-package-probe-ok"}])
@@ -135,37 +146,37 @@ run_probe() {
     cat "$stderr" "$events" >&2
     return 1
   }
-  # One parent and one normally loaded child. The worker is a separate process,
-  # not an agent session; its completed tool result is checked by the provider.
   jq -s -e '
     group_by(.sessionId) | length == 2
     and all(.[];
       .[0].type == "session_start" and .[-1].type == "session_shutdown"
-      and if .[0].mode == "json" then
-        map(.type) == ["session_start",
-          "tool_execution_start", "tool_execution_end",
-          "tool_execution_start", "tool_execution_end",
-          "tool_execution_start", "tool_execution_end",
-          "tool_execution_start", "tool_execution_end",
-          "agent_settled", "session_shutdown"]
+      and if .[0].mode == "rpc" then
+        any(.[]; .type == "agent_settled")
         and ([.[] | select(.type == "tool_execution_start") | .toolName]
-          == ["package_probe", "workflow", "swarm_spawn", "swarm_wait"])
+          == ["package_probe", "delegate"])
         and ([.[] | select(.type == "tool_execution_end") | .toolName]
-          == ["package_probe", "workflow", "swarm_spawn", "swarm_wait"])
+          == ["package_probe", "delegate"])
         and all(.[] | select(.type == "tool_execution_end"); .isError == false)
       else
         .[0].mode == "print"
-        and map(.type) == ["session_start", "tool_execution_start",
-          "tool_execution_end", "agent_settled", "session_shutdown"]
-        and ([.[] | select(.type == "tool_execution_start") | .toolName] == ["swarm_send"])
-        and all(.[] | select(.type == "tool_execution_end"); .isError == false)
+        and map(.type) == ["session_start", "agent_settled", "session_shutdown"]
+        and (.[0].sessionFile | type == "string")
       end)
-    and ([.[] | .[0].mode] | sort == ["json", "print"])
+    and ([.[] | .[0].mode] | sort == ["print", "rpc"])
   ' "$hooks" >/dev/null || {
     cat "$stderr" "$events" "$hooks" >&2
     return 1
   }
-  printf 'Completed worker fixture, received pushed swarm progress, and awaited swarm agent; parent/child settled and shut down; native process exited.\n'
+  local child_session
+  child_session="$(jq -r 'select(.type == "session_start" and .mode == "print") | .sessionFile' "$hooks")"
+  cp -- "$child_session" "$receipts/$label.child.session.jsonl"
+  jq -s -e '
+    .[0].type == "session"
+    and any(.[]; .type == "message" and .message.role == "assistant"
+      and .message.stopReason == "stop"
+      and .message.content == [{type:"text",text:"dotfiles-native-delegate-completed"}])
+  ' "$receipts/$label.child.session.jsonl" >/dev/null
+  printf 'Delegate answer and saved session ID reached provider input; parent/child settled and shut down; native process exited.\n'
 }
 
 run_probe "$receipts/negative-telemetry.jsonl" missing-tool 1
@@ -176,18 +187,68 @@ jq -s -e '
   and ([.[] | select(.event == "session_start")] | length == 1)
   and ([.[] | select(.event == "summary")] | length == 1)
   and ([.[] | select(.event == "tool_start") | .toolName]
-    == ["package_probe", "workflow", "swarm_spawn", "swarm_wait"])
+    == ["package_probe", "delegate"])
   and ([.[] | select(.event == "tool_end") | .toolName]
-    == ["package_probe", "workflow", "swarm_spawn", "swarm_wait"])
+    == ["package_probe", "delegate"])
   and all(.[] | select(.event == "tool_end"); .isError == false and .orphanEnd == false)
   and any(.[]; .event == "agent_settled")
   and .[-1].event == "summary" and .[-1].settled == true
-  and .[-1].calls == 4 and .[-1].errors == 0 and .[-1].orphanedTools == 0
+  and .[-1].calls == 2 and .[-1].errors == 0 and .[-1].orphanedTools == 0
 ' "$receipts/telemetry.jsonl" >/dev/null
 
 # A directory is an intentionally invalid diagnostic destination.
 run_probe "$temporary" invalid-telemetry
 grep -Fq 'pi-telemetry-open-failed:' "$receipts/invalid-telemetry.stderr"
-printf 'Installed package discovery, native SDK imports, worker execution, awaited swarm agent, tool lifecycle, and optional telemetry passed.\n'
-# Keep delivery receipts outside the HOME cleanup tree, including on failure.
-bash "$ROOT/scripts/test-lost-message-trial" "$pi" "$package" "$receipts/delivery"
+
+# Exercise the installed library, not a copied helper or a nonexistent helper CLI.
+cat >"$temporary/run.mjs" <<'JS'
+import assert from "node:assert/strict";
+import { writeFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
+const { agent, parallel } = await import(pathToFileURL(process.argv[2]).href);
+const schema = {
+  type: "object",
+  properties: { result: { const: "dotfiles-native-workflow-completed", type: "string" } },
+  required: ["result"],
+  additionalProperties: false,
+};
+const results = await parallel([
+  () => agent("Return the synthetic native workflow fixture.", { label: "valid", model: "dotfiles-package-probe/probe", schema }),
+  () => agent("Return an invalid synthetic workflow fixture.", { label: "invalid", model: "dotfiles-package-probe/probe", schema }),
+  () => agent("Fail the synthetic native workflow fixture.", { label: "failure", model: "dotfiles-package-probe/probe" }),
+]);
+writeFileSync(process.argv[3], JSON.stringify(results, null, 2));
+assert.equal(results[0].ok, true);
+assert.deepEqual(results[0].structured, { result: "dotfiles-native-workflow-completed" });
+assert.equal(results[1].ok, false);
+assert.equal(results[1].structured, undefined);
+assert.match(results[1].error, /structured_output/);
+assert.equal(results[2].ok, false);
+assert.match(results[2].error, /synthetic workflow provider failure/);
+assert.equal(new Set(results.map((result) => result.sessionId)).size, 3);
+assert.ok(results.every((result) => result.model === "dotfiles-package-probe/probe"));
+JS
+(cd "$temporary/home" &&
+  "${probe_env[@]}" DOTFILES_PI_PROBE_EVENTS="$receipts/workflow.hooks.jsonl" \
+    DOTFILES_PI_PROBE_PROVIDER_EVENTS="$receipts/workflow.provider.jsonl" \
+    PI_AUTOMATION_TELEMETRY_PATH="$receipts/workflow-parent-telemetry.jsonl" \
+    PI_AUTOMATION_NAME=workflow-parent PI_AUTOMATION_RUN_ID=offline \
+    node "$temporary/run.mjs" "$package/skills/workflow-authoring/pi-agents.mjs" \
+    "$receipts/workflow.results.json" >"$receipts/workflow.stdout" 2>"$receipts/workflow.stderr") || {
+  cat "$receipts/workflow.stderr" >&2
+  exit 1
+}
+[[ ! -e $receipts/workflow-parent-telemetry.jsonl ]]
+jq -s -e '
+  group_by(.sessionId) | length == 3
+  and all(.[]; .[0].type == "session_start" and .[-1].type == "session_shutdown"
+    and any(.[]; .type == "agent_settled"))
+' "$receipts/workflow.hooks.jsonl" >/dev/null
+while IFS= read -r session; do
+  cp -- "$session" "$receipts/workflow.$(basename "$session")"
+done < <(jq -r 'select(.type == "session_start") | .sessionFile' "$receipts/workflow.hooks.jsonl")
+jq -s -e --arg tmpdir "$temporary" 'all(.[]; .tmpdir == $tmpdir)' \
+  "$receipts/workflow.provider.jsonl" >/dev/null
+[[ -z $(find "$temporary" -maxdepth 1 -name 'pi-agent-schema-*' -print -quit) ]]
+printf 'Installed workflow helper validated structured output, rejected invalid output and provider failure, preserved TMPDIR, saved child sessions, settled, and cleaned schema files.\n'
+printf 'Installed package discovery, native SDK imports, delegated child delivery, tool lifecycle, and optional telemetry passed.\n'
