@@ -105,16 +105,22 @@ Spill files remain the source for complete output when available.
 
 ## Automation telemetry
 
-`runtime-probes/automation-telemetry.ts` activates only with
+The package ships `runtime-probes/automation-telemetry.ts` without loading it.
+Automation callers pass `--extension` with its installed path and set
 `PI_AUTOMATION_TELEMETRY_PATH`. `PI_AUTOMATION_NAME` and `PI_AUTOMATION_RUN_ID`
-identify the caller and run. Delegated children do not inherit them, so they do
-not write to the caller's file.
+identify the caller and run. Delegated children do not inherit these variables.
 
-Telemetry records tool durations, query counts, concurrency, provider status,
-rate-limit indications, lifecycle events, and a shutdown summary—not tool
-arguments or results. Missing reasoning metadata stays unknown. File failures
-produce diagnostics without stopping valid work. Rate-limit indications do not
-prove throttling; telemetry does not establish business-action completion.
+The `pi-automation-telemetry/v2` stream records lifecycle events, tool durations,
+concurrency, errors, and a shutdown summary—not arguments, results, inferred query
+counts, or rate limits. Counts include nested calls; `summedToolDurationMs` sums
+completed call durations, including overlapping and nested calls, not wall time.
+`settled` describes the latest agent run; each new session resets all counters.
+Provider coverage is not measured. Missing reasoning metadata stays unknown.
+
+Writes reach the operating-system cache without per-event disk synchronization;
+a crash or power loss can leave incomplete diagnostics. File failures warn without
+stopping valid work. Callers verify native process exit, lifecycle events, and
+business results independently of telemetry.
 
 ## Development policies
 

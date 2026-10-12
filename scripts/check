@@ -24,7 +24,8 @@ jq -e '
         and ($package.dependencies | has($sdk) | not))
   and (.dependencies | has("agent-browser") or has("pi-web-access") or has("pi-agent-browser-native") | not)
   and all(.pi.extensions[], .pi.skills[]; contains("node_modules/") | not)
-  and (.pi.extensions | index("./runtime-probes/automation-telemetry.ts"))
+  and (.pi.extensions | index("./runtime-probes/automation-telemetry.ts") | not)
+  and (.files | index("runtime-probes/automation-telemetry.ts"))
 ' package.json >/dev/null
 
 git diff --check

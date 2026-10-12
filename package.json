@@ -21,8 +21,7 @@
   },
   "pi": {
     "extensions": [
-      "./extensions",
-      "./runtime-probes/automation-telemetry.ts"
+      "./extensions"
     ],
     "skills": [
       "./skills/workflow-authoring"
@@ -88,7 +87,7 @@
     "format:check": "oxfmt --check \"extensions/**/*.{ts,cjs}\" \"runtime-probes/**/*.{ts,mjs}\" \"skills/**/*.{ts,mjs}\" \"*.{json,ts}\" \"themes/*.json\"",
     "lint": "oxlint --deny-warnings --report-unused-disable-directives .",
     "test": "npm run test:node && npm run test:vitest",
-    "test:node": "node --test --experimental-strip-types \"extensions/**/*.test.ts\" \"skills/**/*.test.mjs\"",
+    "test:node": "node --test --experimental-strip-types \"extensions/**/*.test.ts\" \"runtime-probes/*.test.ts\" \"skills/**/*.test.mjs\"",
     "test:vitest": "vitest run",
     "typecheck": "bash scripts/patch-declarations && tsc --noEmit"
   }
