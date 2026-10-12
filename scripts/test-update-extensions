@@ -43,8 +43,8 @@ if [[ $1 == install ]]; then
   jq -e '.packages | keys == ["node_modules/agent-browser", "node_modules/pi-web-access"]' "$3/package-lock.json" >/dev/null
   jq -e 'all(.dependencies[]; . == "42.0.0")' "$3/package.json" >/dev/null
 fi
-[[ ${FAIL_NPM:-0} == 0 ]]
-[[ $1 != audit || ${FAIL_AUDIT:-0} == 0 ]]
+[[ ${FAIL_NPM:-0} == 0 ]] || exit 1
+[[ $1 != audit || ${FAIL_AUDIT:-0} == 0 ]] || exit 1
 SH
 chmod +x "$temporary/bin/pi" "$temporary/bin/npm"
 export PATH="$temporary/bin:$PATH"
