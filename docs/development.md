@@ -23,12 +23,26 @@ npm; never edit them by hand. The checks enforce README length and
 For cancellation changes, verify pre-abort, mid-flight abort, ignored signals,
 and cleanup. Record evidence that work settled.
 
+## Update upstream dependencies
+
+```bash
+npm run update:extensions
+```
+
+This runs `pi update --extensions`, then generates the CI dependency snapshot from
+Pi's installed versions and npm lockfile. It uses `PI_CODING_AGENT_DIR` or
+`~/.pi/agent`; no settings or credentials enter the snapshot. If the update,
+snapshot, or audit fails, the command leaves the repository's snapshot unchanged.
+Run the source and integration gates, then commit both files under
+`runtime-probes/integration-deps`. Do not edit their versions by hand.
+
 ## Test the installed candidate
 
-For packaging, loader, or process-lifecycle changes, run this gate before updating
-your working installation. Use native Pi and installed copies of `pi-web-access`
-and `agent-browser`. If version-manager shims depend on HOME, put the actual
-Node/npm executables first on PATH.
+For packaging, loader, process-lifecycle, or dependency-snapshot changes, run this
+gate before updating your working installation. Use native Pi and the locked CI
+dependencies. To check other installed versions, substitute their package paths.
+If version-manager shims depend on HOME, put the actual Node/npm executables first
+on PATH.
 
 ```bash
 (
@@ -36,11 +50,13 @@ Node/npm executables first on PATH.
   stage="$(mktemp -d)"
   trap 'rm -rf "$stage"' EXIT
   npm_cache="$(npm config get cache)"
+  npm ci --prefix runtime-probes/integration-deps \
+    --ignore-scripts --omit=dev --legacy-peer-deps --no-audit --no-fund
   HOME="$stage" npm_config_cache="$npm_cache" npm run install:local
   npm run test:integration -- "$(command -v pi)" \
     "$stage/.local/share/dotfiles-pi-package/current/node_modules/yazan-pi-setup" \
-    "$HOME/.pi/agent/npm/node_modules/pi-web-access" \
-    "$HOME/.pi/agent/npm/node_modules/agent-browser"
+    "$PWD/runtime-probes/integration-deps/node_modules/pi-web-access" \
+    "$PWD/runtime-probes/integration-deps/node_modules/agent-browser"
 )
 ```
 

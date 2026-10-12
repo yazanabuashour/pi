@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+temporary="$(mktemp -d)"
+trap 'rm -rf -- "$temporary"' EXIT
+repo="$temporary/repo"
+export PI_CODING_AGENT_DIR="$temporary/agent"
+export CALLS="$temporary/calls"
+mkdir -p "$repo/scripts" "$repo/runtime-probes/integration-deps" \
+  "$PI_CODING_AGENT_DIR/npm/node_modules" "$temporary/bin"
+cp "$ROOT/scripts/update-extensions" "$repo/scripts/"
+fixture="$repo/runtime-probes/integration-deps"
+printf '%s\n' '{"dependencies":{"pi-web-access":"0.1.0","agent-browser":"0.1.0"}}' >"$fixture/package.json"
+printf '%s\n' '{"packages":{}}' >"$fixture/package-lock.json"
+for name in pi-web-access agent-browser; do
+  mkdir -p "$PI_CODING_AGENT_DIR/npm/node_modules/$name"
+  jq -n --arg name "$name" '{name:$name,version:"42.0.0"}' \
+    >"$PI_CODING_AGENT_DIR/npm/node_modules/$name/package.json"
+done
+jq -n '{packages:{
+  "node_modules/pi-web-access":{version:"42.0.0"},
+  "node_modules/agent-browser":{version:"42.0.0"},
+  "../../private":{extraneous:true},
+  "node_modules/retired":{extraneous:true},
+  "node_modules/local":{link:true}
+}}' >"$PI_CODING_AGENT_DIR/npm/package-lock.json"
+
+cat >"$temporary/bin/pi" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+[[ "$*" == "update --extensions" ]]
+printf 'pi\n' >>"$CALLS"
+[[ ${FAIL_PI:-0} == 0 ]]
+SH
+cat >"$temporary/bin/npm" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$1" >>"$CALLS"
+[[ $2 == --prefix ]]
+if [[ $1 == install ]]; then
+  [[ " $* " == *" --ignore-scripts "* ]]
+  jq -e '.packages | keys == ["node_modules/agent-browser", "node_modules/pi-web-access"]' "$3/package-lock.json" >/dev/null
+  jq -e 'all(.dependencies[]; . == "42.0.0")' "$3/package.json" >/dev/null
+fi
+[[ ${FAIL_NPM:-0} == 0 ]]
+[[ $1 != audit || ${FAIL_AUDIT:-0} == 0 ]]
+SH
+chmod +x "$temporary/bin/pi" "$temporary/bin/npm"
+export PATH="$temporary/bin:$PATH"
+
+bash "$repo/scripts/update-extensions"
+jq -e 'all(.dependencies[]; . == "42.0.0")' "$fixture/package.json" >/dev/null
+jq -e '.packages | keys == ["node_modules/agent-browser", "node_modules/pi-web-access"]' "$fixture/package-lock.json" >/dev/null
+printf 'pi\ninstall\naudit\n' >"$temporary/expected-calls"
+cmp "$CALLS" "$temporary/expected-calls"
+cp "$fixture/package.json" "$temporary/before.json"
+cp "$fixture/package-lock.json" "$temporary/before-lock.json"
+
+for failure in pi npm audit mismatch; do
+  case "$failure" in
+    pi) export FAIL_PI=1 ;;
+    npm) export FAIL_NPM=1 ;;
+    audit) export FAIL_AUDIT=1 ;;
+    mismatch)
+      jq '.version = "43.0.0"' "$PI_CODING_AGENT_DIR/npm/node_modules/agent-browser/package.json" \
+        >"$temporary/mismatch.json"
+      mv "$temporary/mismatch.json" "$PI_CODING_AGENT_DIR/npm/node_modules/agent-browser/package.json"
+      ;;
+  esac
+  if bash "$repo/scripts/update-extensions"; then
+    printf 'Update unexpectedly passed: %s\n' "$failure" >&2
+    exit 1
+  fi
+  cmp "$fixture/package.json" "$temporary/before.json"
+  cmp "$fixture/package-lock.json" "$temporary/before-lock.json"
+  unset FAIL_PI FAIL_NPM FAIL_AUDIT
+done
+printf 'Extension snapshot tests passed.\n'

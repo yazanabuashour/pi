@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [[ $# -ne 0 ]]; then
+  printf 'Usage: npm run update:extensions\n' >&2
+  exit 2
+fi
+
+pi update --extensions
+
+installed="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/npm"
+fixture="$ROOT/runtime-probes/integration-deps"
+temporary="$(mktemp -d)"
+trap 'rm -rf -- "$temporary"' EXIT
+
+cp "$fixture/package.json" "$temporary/package.json"
+jq '
+  .packages |= with_entries(select(
+    (.key == "" or (.key | startswith("node_modules/")))
+    and .value.extraneous != true and .value.link != true
+  ))
+' "$installed/package-lock.json" >"$temporary/package-lock.json"
+for name in pi-web-access agent-browser; do
+  version="$(jq -er --arg name "$name" '
+    select(.name == $name) | .version
+    | select(type == "string" and test("^[0-9]+\\.[0-9]+\\.[0-9]+([+-][0-9A-Za-z.-]+)?$"))
+  ' "$installed/node_modules/$name/package.json")"
+  jq -e --arg name "$name" --arg version "$version" '
+    .packages["node_modules/" + $name].version == $version
+  ' "$temporary/package-lock.json" >/dev/null
+  jq --arg name "$name" --arg version "$version" '
+    .dependencies[$name] = $version
+  ' "$temporary/package.json" >"$temporary/manifest.json"
+  mv "$temporary/manifest.json" "$temporary/package.json"
+done
+
+# Seed from the installed lock so npm keeps resolved versions and prunes unrelated packages.
+npm install --prefix "$temporary" --package-lock-only --ignore-scripts \
+  --legacy-peer-deps --no-audit --no-fund
+jq -e '
+  all(.packages | to_entries[];
+    (.key == "" or (.key | startswith("node_modules/")))
+    and .value.extraneous != true and .value.link != true)
+' "$temporary/package-lock.json" >/dev/null
+npm audit --prefix "$temporary" --omit=dev
+cp "$temporary/package.json" "$fixture/package.json"
+cp "$temporary/package-lock.json" "$fixture/package-lock.json"
+printf 'CI dependencies now match the updated Pi installation. Run the source and integration gates before committing.\n'

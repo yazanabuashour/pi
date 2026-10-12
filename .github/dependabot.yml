@@ -2,9 +2,7 @@ version: 2
 
 updates:
   - package-ecosystem: npm
-    directories:
-      - "/"
-      - "/runtime-probes/integration-deps"
+    directory: "/"
     schedule:
       interval: weekly
     cooldown:

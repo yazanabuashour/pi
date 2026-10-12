@@ -80,8 +80,9 @@
     "!extensions/**/*.test-support.ts"
   ],
   "scripts": {
-    "check": "npm run lint && npm run typecheck && bash scripts/check && bash scripts/test-declarations",
+    "check": "npm run lint && npm run typecheck && bash scripts/check && bash scripts/test-declarations && bash scripts/test-update-extensions",
     "install:local": "bash scripts/install-local",
+    "update:extensions": "bash scripts/update-extensions",
     "test:integration": "bash scripts/test-integration",
     "format": "oxfmt \"extensions/**/*.{ts,cjs}\" \"runtime-probes/**/*.{ts,mjs}\" \"skills/**/*.{ts,mjs}\" \"*.{json,ts}\" \"themes/*.json\"",
     "format:check": "oxfmt --check \"extensions/**/*.{ts,cjs}\" \"runtime-probes/**/*.{ts,mjs}\" \"skills/**/*.{ts,mjs}\" \"*.{json,ts}\" \"themes/*.json\"",
