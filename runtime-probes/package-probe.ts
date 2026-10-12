@@ -129,9 +129,15 @@ function checkResources(
   if (resources.systemPrompt.includes("<name>swarm</name>"))
     throw new Error("obsolete swarm skill was discovered");
 
-  for (const name of ["workflow-authoring", "technical-writing"]) {
-    if (resources.systemPrompt.includes(`<name>${name}</name>`))
-      throw new Error(`manual skill is advertised to the model: ${name}`);
+  if (resources.systemPrompt.includes("<name>workflow-authoring</name>"))
+    throw new Error("manual workflow skill is advertised to the model");
+
+  for (const name of ["browser-resilience", "technical-writing"]) {
+    if (
+      resources.systemPrompt.includes(`<name>${name}</name>`) ||
+      pi.getCommands().some((command) => command.name === `skill:${name}`)
+    )
+      throw new Error(`extracted personal skill was discovered: ${name}`);
   }
 
   if (
