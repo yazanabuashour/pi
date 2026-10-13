@@ -8,6 +8,7 @@ import type {
 import { Text } from "@earendil-works/pi-tui";
 import { Cause, Effect, Exit } from "effect";
 import { Type, type Static } from "typebox";
+import { Value } from "typebox/value";
 import {
   ASK_USER_PARAMETER_DESCRIPTIONS,
   ASK_USER_PROMPT_GUIDELINES,
@@ -49,13 +50,16 @@ const AskUserParams = Type.Object({
 
 export type AskUserInput = Static<typeof AskUserParams>;
 
-interface AskUserDetails {
-  question: string;
-  options: string[];
-  answer: string | null;
-  wasCustom: boolean;
-  cancelled: boolean;
-}
+const AskUserDetailsSchema = Type.Object({
+  question: Type.String(),
+  options: Type.Array(Type.String()),
+  answer: Type.Union([Type.String(), Type.Null()]),
+  wasCustom: Type.Boolean(),
+  cancelled: Type.Boolean(),
+  index: Type.Optional(Type.Integer({ minimum: 1, maximum: MAX_OPTIONS })),
+});
+
+type AskUserDetails = Static<typeof AskUserDetailsSchema>;
 
 /** Use Pi's RPC dialog protocol without depending on terminal components. */
 export async function showRpcQuestion(
@@ -109,17 +113,19 @@ function reply(
   text: string,
   answer: string | null = null,
   wasCustom = false,
+  index?: number,
 ) {
-  return {
-    content: [{ type: "text" as const, text }],
-    details: {
-      question: params.question,
-      options: params.options.map((option) => option.label),
-      answer,
-      wasCustom,
-      cancelled: answer === null,
-    } satisfies AskUserDetails,
+  const details: AskUserDetails = {
+    question: params.question,
+    options: params.options.map((option) => option.label),
+    answer,
+    wasCustom,
+    cancelled: answer === null,
   };
+
+  if (index !== undefined) details.index = index;
+
+  return { content: [{ type: "text" as const, text }], details };
 }
 
 async function executeAskUser(
@@ -189,6 +195,8 @@ async function executeAskUser(
       index: result.index,
     }),
     result.answer,
+    false,
+    result.index,
   );
 }
 
@@ -225,10 +233,9 @@ export default function askUser(pi: ExtensionAPI) {
     },
 
     renderResult(result, _options, theme, _context) {
-      // SAFETY: The adjacent runtime guard establishes the asserted protocol representation.
-      const details = result.details as AskUserDetails | undefined;
+      const details = result.details;
 
-      if (!details) {
+      if (!Value.Check(AskUserDetailsSchema, details)) {
         const first = result.content[0];
 
         return new Text(first?.type === "text" ? first.text : "", 0, 0);
@@ -248,7 +255,12 @@ export default function askUser(pi: ExtensionAPI) {
         );
       }
 
-      const idx = details.options.indexOf(details.answer) + 1;
+      const idx =
+        details.index !== undefined &&
+        details.options[details.index - 1] === details.answer
+          ? details.index
+          : details.options.indexOf(details.answer) + 1;
+
       const display = idx > 0 ? `${idx}. ${details.answer}` : details.answer;
 
       return new Text(

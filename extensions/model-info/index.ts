@@ -49,6 +49,8 @@ export default function modelInfo(pi: ExtensionAPI) {
   });
 
   pi.on("session_start", (_event, ctx) => refresh(ctx));
+  pi.on("session_tree", (_event, ctx) => refresh(ctx));
+  pi.on("session_compact", (_event, ctx) => refresh(ctx));
   pi.on("model_select", (_event, ctx) => refresh(ctx));
   pi.on("thinking_level_select", (event) => {
     state = { ...state, thinking: event.level };

@@ -39,6 +39,11 @@ export function sanitizeText(text: string) {
     .replace(CONTROL_PATTERN, "");
 }
 
+/** Sanitize fixed-height metadata before applying trusted theme styling. */
+export function sanitizeOneLine(text: string) {
+  return sanitizeText(text).replace(/\s+/g, " ");
+}
+
 /** Split, sanitize, and wrap a stream's text into display lines. */
 export function buildOutputLines(text: string, width: number) {
   const safeWidth = Math.max(10, width);

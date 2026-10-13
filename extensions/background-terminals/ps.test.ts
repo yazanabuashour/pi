@@ -1,5 +1,9 @@
 import * as NodeAssert from "node:assert/strict";
 import NodeTest from "node:test";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { registerResultRenderer } from "./src/result-renderer.ts";
+import { TerminalDetailView } from "./src/ui/terminal-detail-view.ts";
+import type { TerminalSnapshot } from "./src/domain.ts";
 import {
   reconcileDashboardSelection,
   type DashboardSelection,
@@ -50,6 +54,119 @@ await NodeTest("sanitizeText strips ANSI, tabs, and control characters", () => {
   NodeAssert.equal(sanitizeText("a\tb"), "a  b");
   NodeAssert.equal(sanitizeText("a\u0007b\u0000c"), "abc");
 });
+
+await NodeTest(
+  "completion and detail render untrusted metadata before theme styling",
+  () => {
+    const hostile = "\u001b]0;hidden\u0007visible\nnext\tfield\u001b[31m";
+    const safe = "visible next field";
+    const styled: string[] = [];
+
+    const theme = Object.assign(Object.create(null), {
+      fg: (_color: string, text: string) => {
+        styled.push(text);
+
+        return text;
+      },
+      bold: (text: string) => text,
+    });
+
+    type Renderer = Parameters<ExtensionAPI["registerMessageRenderer"]>[1];
+
+    let renderer: Renderer | undefined;
+
+    const api: ExtensionAPI = Object.assign(Object.create(null), {
+      registerMessageRenderer: (_name: string, value: Renderer) => {
+        renderer = value;
+      },
+    });
+
+    registerResultRenderer(api);
+    NodeAssert.ok(renderer);
+
+    const buffer = {
+      text: "",
+      totalBytes: 1,
+      truncatedBytes: 1,
+      spillPath: hostile,
+    };
+
+    const snapshot: TerminalSnapshot = {
+      id: "bt-1",
+      title: hostile,
+      command: hostile,
+      cwd: hostile,
+      status: "failed",
+      createdAt: 0,
+      signal: "SIGTERM",
+      stdout: buffer,
+      stderr: buffer,
+    };
+
+    const component = renderer(
+      {
+        role: "custom",
+        customType: "background-terminal-result",
+        content: "header\nbody",
+        display: true,
+        timestamp: 0,
+        details: { ...snapshot, id: hostile, signal: hostile },
+      },
+      { expanded: false, outputPad: 0 },
+      theme,
+    );
+
+    NodeAssert.ok(component);
+    const completion = component.render(500).join("\n");
+    NodeAssert.match(completion, /visible next field/);
+    NodeAssert.equal(completion.split("\n").length, 2);
+
+    const view = Object.assign(Object.create(null), {
+      get: () => snapshot,
+      subscribeTo: () => () => {},
+    });
+
+    const tui = Object.assign(Object.create(null), {
+      terminal: { rows: 30 },
+      requestRender: () => {},
+    });
+
+    const keys = Object.assign(Object.create(null), {
+      getKeys: () => ["escape"],
+    });
+
+    const detail = new TerminalDetailView(
+      tui,
+      theme,
+      keys,
+      snapshot.id,
+      view,
+      () => {},
+    );
+
+    try {
+      const lines = detail.render(500);
+      NodeAssert.ok(lines[1]?.endsWith(safe));
+      NodeAssert.ok(lines.some((line) => line.includes(`full log: ${safe}`)));
+      NodeAssert.ok(
+        styled.every(
+          (text) =>
+            !["\u001b", "\u0007", "\t", "\n"].some((control) =>
+              text.includes(control),
+            ),
+        ),
+        "untrusted metadata is safe before styling",
+      );
+      NodeAssert.equal(
+        snapshot.cwd,
+        hostile,
+        "captured originals remain unchanged",
+      );
+    } finally {
+      detail.dispose();
+    }
+  },
+);
 
 await NodeTest(
   "output lines refresh after new output and rewrap after resizing",

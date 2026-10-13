@@ -8,7 +8,7 @@ import {
   isRuntimeRecord,
   isString,
 } from "../../shared/runtime-values.ts";
-import { sanitizeText } from "./ui/output-view.ts";
+import { sanitizeOneLine, sanitizeText } from "./ui/output-view.ts";
 
 function detailString<Value>(details: Value, key: string) {
   return isRuntimeRecord(details) && isString(details[key])
@@ -39,17 +39,23 @@ export function registerResultRenderer(pi: ExtensionAPI) {
             ? theme.fg("muted", "■")
             : theme.fg("success", "■");
 
-      const signal = detailString(message.details, "signal");
+      const signal = sanitizeOneLine(
+        detailString(message.details, "signal") ?? "",
+      );
+
       const exitCode = detailNumber(message.details, "exitCode");
 
       const how = incomplete
-        ? `cleanup incomplete · ${status === "running" ? "exit unobserved" : (signal ?? `exit ${exitCode ?? "?"}`)}`
+        ? `cleanup incomplete · ${status === "running" ? "exit unobserved" : signal || `exit ${exitCode ?? "?"}`}`
         : killed
           ? "killed"
-          : (signal ?? `exit ${exitCode ?? "?"}`);
+          : signal || `exit ${exitCode ?? "?"}`;
 
-      const id = detailString(message.details, "id") ?? "?";
-      const title = detailString(message.details, "title") ?? "";
+      const id = sanitizeOneLine(detailString(message.details, "id") ?? "?");
+
+      const title = sanitizeOneLine(
+        detailString(message.details, "title") ?? "",
+      );
 
       const header =
         `${icon} ` +
