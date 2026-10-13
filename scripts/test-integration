@@ -210,40 +210,12 @@ jq -s -e '
 run_probe "$temporary" invalid-telemetry
 grep -Fq 'pi-telemetry-open-failed:' "$receipts/invalid-telemetry.stderr"
 
-# Exercise the installed library, not a copied helper or a nonexistent helper CLI.
-cat >"$temporary/run.mjs" <<'JS'
-import assert from "node:assert/strict";
-import { writeFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
-const { agent, parallel } = await import(pathToFileURL(process.argv[2]).href);
-const schema = {
-  type: "object",
-  properties: { result: { const: "dotfiles-native-workflow-completed", type: "string" } },
-  required: ["result"],
-  additionalProperties: false,
-};
-const results = await parallel([
-  () => agent("Return the synthetic native workflow fixture.", { label: "valid", model: "dotfiles-package-probe/probe", schema }),
-  () => agent("Return an invalid synthetic workflow fixture.", { label: "invalid", model: "dotfiles-package-probe/probe", schema }),
-  () => agent("Fail the synthetic native workflow fixture.", { label: "failure", model: "dotfiles-package-probe/probe" }),
-]);
-writeFileSync(process.argv[3], JSON.stringify(results, null, 2));
-assert.equal(results[0].ok, true);
-assert.deepEqual(results[0].structured, { result: "dotfiles-native-workflow-completed" });
-assert.equal(results[1].ok, false);
-assert.equal(results[1].structured, undefined);
-assert.match(results[1].error, /structured_output/);
-assert.equal(results[2].ok, false);
-assert.match(results[2].error, /synthetic workflow provider failure/);
-assert.equal(new Set(results.map((result) => result.sessionId)).size, 3);
-assert.ok(results.every((result) => result.model === "dotfiles-package-probe/probe"));
-JS
 (cd "$temporary/home" &&
   "${probe_env[@]}" DOTFILES_PI_PROBE_EVENTS="$receipts/workflow.hooks.jsonl" \
     DOTFILES_PI_PROBE_PROVIDER_EVENTS="$receipts/workflow.provider.jsonl" \
     PI_AUTOMATION_TELEMETRY_PATH="$receipts/workflow-parent-telemetry.jsonl" \
     PI_AUTOMATION_NAME=workflow-parent PI_AUTOMATION_RUN_ID=offline \
-    node "$temporary/run.mjs" "$package/skills/workflow-authoring/pi-agents.mjs" \
+    node "$ROOT/runtime-probes/workflow-probe.mjs" "$package/skills/workflow-authoring/pi-agents.mjs" \
     "$receipts/workflow.results.json" >"$receipts/workflow.stdout" 2>"$receipts/workflow.stderr") || {
   cat "$receipts/workflow.stderr" >&2
   exit 1

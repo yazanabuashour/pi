@@ -17,11 +17,62 @@ npm pack --dry-run --ignore-scripts
 
 Keep `package.json`'s file allowlist explicit. Inspect the packed files for private
 or generated state and broken relative documentation links. Regenerate locks with
-npm; never edit them by hand. The checks enforce README length and
-[development policies](reference.md#development-policies).
+npm; never edit them by hand. The checks enforce README length and the dependency
+and declaration policies below.
 
 For cancellation changes, verify pre-abort, mid-flight abort, ignored signals,
 and cleanup. Record evidence that work settled.
+
+### Development policies
+
+Both policies use producer-exported, content-addressed snapshots under `tools/`.
+Neither ships in the installed package:
+
+- `tsconfig.json` extends `tools/typescript-config-policy/node-ts-source.json` from
+  [typescript-config-policy](https://github.com/yazanabuashour/typescript-config-policy),
+  adding local target, library, types, and source paths.
+- `oxlint.config.ts` extends the default and `effectConfig` exports from
+  `@yazanabuashour/oxlint-config`
+  ([typescript-lint-policy](https://github.com/yazanabuashour/typescript-lint-policy)),
+  installed from its local snapshot through `package-lock.json`. It exempts
+  `extensions/shared/host-runtime.ts` from `project/no-global-process-runtime`.
+
+Update a policy through its producer's snapshot exporter, replace the local
+snapshot, regenerate the lock with npm, and run the project gates. Do not edit
+vendored policy content.
+
+`@effect/vitest@4.0.0` requires Vitest 5, which declares Vite as a peer. GenAI's
+public declarations import its optional MCP peer. Both peers are explicit
+development dependencies because `--legacy-peer-deps` does not install peers.
+
+### Maintain declaration repairs
+
+`npm run typecheck` applies the version-checked patches under `patches/`, then
+checks source and dependency declarations with NodeNext and Node globals.
+Installation ignores lifecycle scripts; these repairs affect development
+declarations only, not native Pi or runtime JavaScript. They do not ship in the
+installed package or modify shared policies or third-party notices.
+
+| Package | Repair |
+| --- | --- |
+| `@earendil-works/pi-ai` | Add NodeNext JSON import attributes to generated model declarations. |
+| `@earendil-works/pi-coding-agent` | Derive the find tool's path module type from `path.posix`; Node 26 types no longer export `PlatformPath`. |
+| `@google/genai` | Import `ErrorEvent`, `HeadersInit`, and `RequestInfo` from `undici-types` at the Node entry point. |
+| `@modelcontextprotocol/sdk` | Import `HeadersInit` in the transport declaration. |
+| `effect` | Derive decoder options from the runtime's `TextDecoder` constructor. |
+
+`scripts/patch-declarations` requires exact package versions and checks the complete
+patch set before applying it. A second run accepts only the fully applied set.
+Changed versions, incompatible source, and partial application fail; use a clean
+install before retrying. Preserve upstream line endings, including GenAI's CRLF.
+The repairs use `undici-types` with the Node type package, not browser globals.
+
+When updating an affected dependency, inspect the published declarations, remove
+repairs that upstream has fixed, and regenerate any remaining patches. Run the
+clean-install and source gates above. `npm run check` includes a negative control
+that requires an invalid `.d.ts` file to fail compilation. Keep `skipLibCheck`
+false; do not hide failures with browser globals or diagnostic suppressions.
+Native Pi supplies runtime SDKs; development dependencies serve source checks only.
 
 ## Update upstream dependencies
 
@@ -60,30 +111,28 @@ on PATH.
 )
 ```
 
-Require a successful exit. The gate verifies locked production dependencies,
-package discovery, native imports, delegated child delivery, workflow helper
-execution and temporary-directory inheritance, saved child sessions, and telemetry.
-It uses a temporary HOME and synthetic provider; obtain authorization before
-using real provider or browser accounts.
+Require a successful exit. The gate uses a temporary HOME and synthetic provider;
+no real web searches or browser sessions run. Obtain authorization before using
+real provider or browser accounts. Linux CI runs the full gate with pinned native
+Pi and the external packages' lock under `runtime-probes/integration-deps`;
+source checks also run on macOS. Other runtime versions must pass the same
+capability checks before deployment.
 
-Linux CI runs the full integration gate with pinned native Pi. The external
-packages use `runtime-probes/integration-deps/package-lock.json`; source checks
-also run on macOS. The gate records the tested runtime versions in its receipts.
-Other installed versions must pass the same capability checks before deployment.
+The gate prints a retained receipt directory with runtime versions, provider and
+tool events, telemetry, and saved child transcripts. Pass a new directory as the
+optional fifth argument to select its location. It verifies:
 
-The web extension registers `web_search`, `fetch_content`, `get_search_content`,
-and `source_check` directly. The gate requires them in parent and child provider
-input. Its missing-tool negative control must fail before tool execution.
-The probe reads native transcript state through `getCurrentSystemPrompt` and
-`getCurrentTools`; it does not depend on a separate activation tool.
-
-The gate prints a retained receipt directory with runtime versions, provider
-and tool events, telemetry, and saved child transcripts. It requires the delegated
-answer and session ID in provider input, not just history or display. The workflow
-helper cases validate structured output and reject invalid output and provider
-failure, including when native JSON mode exits successfully. Pass a new directory
-as the optional fifth argument to select its location. No real web searches or
-browser sessions run.
+- Locked production dependencies, package discovery, and native SDK imports.
+- `web_search`, `fetch_content`, `get_search_content`, and `source_check` in parent
+  and child provider input; a missing-tool negative control must fail before
+  execution. The probe reads native transcript state through
+  `getCurrentSystemPrompt` and `getCurrentTools`, not a separate activation tool.
+- Delegated answers and session IDs reaching provider input, not just history or
+  display; saved child sessions and parent/child lifecycle settlement.
+- Structured workflow results, rejection of invalid output and provider failure
+  even when native JSON mode exits successfully, inherited TMPDIR, and schema cleanup.
+  `runtime-probes/workflow-probe.mjs` loads the installed helper, not a source copy.
+- Opt-in telemetry, child isolation, and valid work continuing when telemetry fails.
 
 The RPC fixture keeps the parent alive until its provider sees the delegated
 answer and Pi emits `agent_settled`. It then closes stdin and awaits process

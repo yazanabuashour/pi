@@ -30,8 +30,11 @@ answers can send content to other services. Preferences are not security control
 
 | Entry point | Purpose |
 | --- | --- |
-| `/ps` | Display background terminals, including delegated sessions. |
+| `bg_start` | Start a shell command without stdin; return a terminal ID before execution completes. |
+| `bg_status` / `bg_list` | Inspect one terminal or list running and settled terminals. |
+| `bg_kill` | Request termination and report observed settlement or incomplete cleanup. |
 | `delegate` | Run a self-contained prompt in a saved Pi `--print` child process. Return immediately; deliver its final answer as a terminal completion. |
+| `ask_user` | Ask one multiple-choice question with a free-form answer option. |
 | `/skill:workflow-authoring` | Write a Node script that runs phased Pi children with schema-checked results. |
 
 Delegated children save their session, and the completion names the session ID.
@@ -103,6 +106,20 @@ The photographed receipt, `IMG20261009212849.jpg`, measured 122 child reports on
 original head and a current tail within the existing 2 MiB in-memory stream cap.
 Spill files remain the source for complete output when available.
 
+## Interface commands
+
+| Entry point | Purpose |
+| --- | --- |
+| `/ps` | Inspect background terminals and their retained output; interactive sessions offer a picker. |
+| `/lg` | Browse changed files and diffs in the interactive terminal interface. |
+| `/pr` | Refresh Git and pull request information; pull request lookup uses `gh` and its authentication. |
+| `/copy-all` | Copy the current branch's user and assistant messages to the clipboard, excluding tool output and reasoning. |
+
+The custom footer shows directory, Git status, model, thinking level, context
+usage, and estimated cost. Cost comes from Pi's assistant-message estimates on
+the current branch, not subscription billing; it excludes delegated work and
+summaries. The package also supplies the `tokyo-night` theme.
+
 ## Automation telemetry
 
 The package ships `runtime-probes/automation-telemetry.ts` without loading it.
@@ -122,30 +139,5 @@ a crash or power loss can leave incomplete diagnostics. File failures warn witho
 stopping valid work. Callers verify native process exit, lifecycle events, and
 business results independently of telemetry.
 
-## Development policies
-
-`@effect/vitest@4.0.0` requires Vitest 5. Vite is an explicit development
-dependency because Vitest 5 declares it as a peer and the required
-`--legacy-peer-deps` install does not install peers.
-
-Both development policies use producer-exported, content-addressed snapshots
-under `tools/`. Neither ships in the installed package:
-
-- `tsconfig.json` extends `tools/typescript-config-policy/node-ts-source.json` from
-  [typescript-config-policy](https://github.com/yazanabuashour/typescript-config-policy),
-  adding local target, library, types, and source paths.
-- `oxlint.config.ts` extends the default and `effectConfig` exports from
-  `@yazanabuashour/oxlint-config`
-  ([typescript-lint-policy](https://github.com/yazanabuashour/typescript-lint-policy)),
-  installed from its local snapshot through `package-lock.json`. It exempts `extensions/shared/host-runtime.ts` from
-  `project/no-global-process-runtime`.
-
-`skipLibCheck` is false. `npm run typecheck` first applies the version-checked
-declaration patches documented in `patches/README.md`, then checks source and dependency
-declarations with NodeNext and Node globals. `npm run check` includes a negative
-control that requires an invalid declaration to fail compilation. Native Pi
-supplies runtime SDKs; these repairs affect development declarations only.
-
-Update a policy through its producer's snapshot exporter, replace the local
-snapshot, regenerate the lock with npm, and run the project gates. Do not edit
-vendored policy content.
+See the [development guide](development.md) for source-check policies and
+declaration repairs.
