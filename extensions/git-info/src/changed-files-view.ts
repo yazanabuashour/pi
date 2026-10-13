@@ -141,10 +141,17 @@ const loadFile = Effect.fn("git-info.loadFile")(function* (
     { concurrency: "unbounded" },
   );
 
-  if (diffResult.code !== 0 && !(useNoIndex && diffResult.code === 1))
+  // No-index exit 1 also covers missing paths; valid differences still emit output.
+  if (
+    diffResult.code !== 0 &&
+    !(useNoIndex && diffResult.code === 1 && diffResult.stdout !== "")
+  )
     return yield* Effect.fail(commandFailure("diff", diffResult));
 
-  if (statResult.code !== 0 && !(useNoIndex && statResult.code === 1))
+  if (
+    statResult.code !== 0 &&
+    !(useNoIndex && statResult.code === 1 && statResult.stdout !== "")
+  )
     return yield* Effect.fail(commandFailure("diff --numstat", statResult));
   const stats = parseNumstat(statResult.stdout);
 

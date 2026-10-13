@@ -94,20 +94,31 @@ it.effect(
       assert.equal(files?.[0]?.additions, 1);
       assert.deepEqual(files?.[0]?.diff, ["+hello"]);
 
+      results[
+        "diff --no-index --no-ext-diff --no-color --unified=3 -- /dev/null file.txt"
+      ].stdout = "new file mode 100644";
+      results["diff --no-index --numstat -- /dev/null file.txt"].stdout =
+        "0\t0\tfile.txt";
+      const empty = yield* loadWithResults(results);
+      assert.equal(empty?.[0]?.additions, 0);
+      assert.deepEqual(empty?.[0]?.diff, ["new file mode 100644"]);
+
       for (const command of Object.keys(results).filter((key) =>
         key.startsWith("diff "),
       )) {
-        const failure = yield* Effect.flip(
-          loadWithResults({
-            ...results,
-            [command]: { code: 128, stderr: "cannot read file" },
-          }),
-        );
+        for (const code of [1, 128]) {
+          const failure = yield* Effect.flip(
+            loadWithResults({
+              ...results,
+              [command]: { code, stderr: "cannot read file" },
+            }),
+          );
 
-        assert.match(
-          failure.message,
-          /git diff.*unavailable.*cannot read file/,
-        );
+          assert.match(
+            failure.message,
+            /git diff.*unavailable.*cannot read file/,
+          );
+        }
 
         const launchFailure = new CommandError({
           command: "git",

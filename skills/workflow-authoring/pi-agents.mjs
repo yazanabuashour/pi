@@ -244,10 +244,12 @@ export async function agent(prompt, options = {}) {
     )
       result.error =
         `agent stopped (${run.aborted ? "aborted" : run.stopReason}): ${run.errorMessage ?? ""}`.trim();
+    else if (run.stopReason === "length")
+      result.error = "agent response was truncated (length)";
     else if (
       !run.settled ||
       run.stopReason === undefined ||
-      !["stop", "length", "toolUse"].includes(run.stopReason)
+      !["stop", "toolUse"].includes(run.stopReason)
     )
       result.error =
         "pi exited without a completed assistant response and agent_settled event";

@@ -38,7 +38,8 @@ if (mode === "malformed") { process.stdout.write("not json\\n"); }
 else if (mode !== "empty") {
   event({ type: "tool_execution_end", toolName: "read", isError: false, result: { content: [{ type: "text", text: "read receipt" }] } });
   event({ type: "tool_execution_end", toolName: "bash", isError: true, result: { content: [{ type: "text", text: "recoverable failure" }] } });
-  event({ type: "message_end", message: { role: "assistant", provider: "fixture", model: "saved-default", stopReason: mode === "provider-error" ? "error" : "stop", errorMessage: mode === "provider-error" ? "provider failed" : undefined, content: [{ type: "thinking", thinking: "private" }, { type: "text", text: "done\\u2028not-a-record" }] } });
+  if (mode === "@prompt") event({ type: "message_end", message: { role: "assistant", provider: "fixture", model: "saved-default", stopReason: "length", content: [{ type: "text", text: "unfinished answer" }] } });
+  event({ type: "message_end", message: { role: "assistant", provider: "fixture", model: "saved-default", stopReason: mode === "provider-error" ? "error" : mode === "truncated" ? "length" : "stop", errorMessage: mode === "provider-error" ? "provider failed" : undefined, content: [{ type: "thinking", thinking: "private" }, { type: "text", text: "done\\u2028not-a-record" }] } });
   if (schemaPath && mode !== "missing-schema") event({ type: "tool_execution_end", toolName: "structured_output", isError: false, result: { details: { answer: 42 } } });
   if (mode !== "unsettled") event({ type: "agent_settled", aborted: mode === "@prompt" ? undefined : false });
 }
@@ -142,6 +143,7 @@ await NodeTest.test(
 
     for (const [prompt, error] of [
       ["provider-error", /provider failed/],
+      ["truncated", /truncated/],
       ["malformed", /Invalid Pi JSON event/],
       ["empty", /without a completed assistant/],
       ["unsettled", /agent_settled/],
@@ -150,6 +152,9 @@ await NodeTest.test(
       const result = await agent(prompt, { schema });
       NodeAssert.equal(result.ok, false, prompt);
       NodeAssert.match(result.error, error);
+
+      if (prompt === "truncated")
+        NodeAssert.equal(result.output, "done\u2028not-a-record");
       const invocation = JSON.parse(NodeFS.readFileSync(receiptPath, "utf8"));
       NodeAssert.equal(
         NodeFS.existsSync(

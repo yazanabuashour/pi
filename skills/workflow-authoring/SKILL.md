@@ -29,8 +29,9 @@ function throws, no more start, and it rethrows after the started ones settle.
 Each result is `{ ok, label, model?, sessionId, cwd, output, structured?, error? }`.
 With `schema`, Pi validates the child's `structured_output` call against it;
 `ok` is false when the child never made a valid call. Check `ok` before using a
-result, and branch on `structured`, not prose. Schema-file setup or cleanup
-failures can throw.
+result, and branch on `structured`, not prose. Failed or token-truncated responses
+set `ok: false`; `output` can still contain partial text for diagnosis. Schema-file
+setup or cleanup failures can throw.
 
 ```js
 import { writeFileSync } from "node:fs";
