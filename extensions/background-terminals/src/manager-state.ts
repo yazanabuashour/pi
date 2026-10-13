@@ -32,9 +32,7 @@ export interface ManagerState {
   reserved: number;
   disposed: boolean;
   spillDir: string | undefined | null;
-  onSettled:
-    | ((snapshot: TerminalSnapshot, consumed: boolean) => void)
-    | undefined;
+  onSettled: ((snapshot: TerminalSnapshot) => void) | undefined;
 }
 
 export function createManagerState(
@@ -175,12 +173,11 @@ export function settle(state: ManagerState, entry: Entry) {
   }
 
   entry.settling = false;
-  const consumed = (state.killInterest.get(snapshot.id) ?? 0) > 0;
   Deferred.doneUnsafe(entry.settled, Effect.void);
   notify(state, snapshot.id);
 
   try {
-    if (!state.disposed) state.onSettled?.(snapshot, consumed);
+    if (!state.disposed) state.onSettled?.(snapshot);
   } catch {
     // The parent session may be unavailable; settlement stays final.
   }

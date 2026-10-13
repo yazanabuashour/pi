@@ -103,9 +103,7 @@ export interface TerminalReadModel {
   subscribe(listener: () => void): () => void;
   subscribeTo(id: string, listener: () => void): () => void;
   requestKill(id: string): void;
-  setOnSettled(
-    hook: ((snap: TerminalSnapshot, consumed: boolean) => void) | undefined,
-  ): void;
+  setOnSettled(hook: ((snap: TerminalSnapshot) => void) | undefined): void;
 }
 
 export interface TerminalManagerService {

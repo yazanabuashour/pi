@@ -17,14 +17,13 @@ import {
 import { runTool } from "./src/runtime.ts";
 
 await NodeTest(
-  "happy path: stdout and stderr captured separately, settles done, hook fires once unconsumed",
+  "happy path: stdout and stderr captured separately, settles done, hook fires once",
   async () => {
     await withManager(async (manager, runtime) => {
-      const settled: Array<{ id: string; status: string; consumed: boolean }> =
-        [];
+      const settled: Array<{ id: string; status: string }> = [];
 
-      manager.view.setOnSettled((snap, consumed) =>
-        settled.push({ id: snap.id, status: snap.status, consumed }),
+      manager.view.setOnSettled((snap) =>
+        settled.push({ id: snap.id, status: snap.status }),
       );
 
       const snap = await runTool(
@@ -49,9 +48,7 @@ await NodeTest(
       NodeAssert.equal(done.stdout.text, "out-line\n");
       NodeAssert.equal(done.stderr.text, "err-line\n");
       NodeAssert.ok(done.settledAt);
-      NodeAssert.deepEqual(settled, [
-        { id: snap.id, status: "done", consumed: false },
-      ]);
+      NodeAssert.deepEqual(settled, [{ id: snap.id, status: "done" }]);
 
       // Spill files hold the full capture.
       NodeAssert.ok(done.stdout.spillPath);

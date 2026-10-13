@@ -210,38 +210,46 @@ function registerKill(pi: ExtensionAPI, session: BackgroundTerminalSession) {
         );
       }
 
-      const report = await runTool(session.getRuntime(), manager.kill(ids), {
-        signal,
-        interruptMessage:
-          "Kill wait aborted; termination continues in the background.",
-      });
+      const release = session.holdKillResults(ids);
 
-      session.consume(
-        report
-          .filter((entry) => entry.status !== "running")
-          .map((entry) => entry.id),
-      );
+      try {
+        const report = await runTool(session.getRuntime(), manager.kill(ids), {
+          signal,
+          interruptMessage:
+            "Kill wait aborted; termination continues in the background.",
+        });
 
-      return {
-        content: [{ type: "text", text: buildKillReport(report) }],
-        details: {
-          results: report.map((entry) => {
-            const snapshot = manager.view.get(entry.id);
+        const result = {
+          content: [{ type: "text" as const, text: buildKillReport(report) }],
+          details: {
+            results: report.map((entry) => {
+              const snapshot = manager.view.get(entry.id);
 
-            return snapshot
-              ? {
-                  ...session.details(
-                    snapshot,
-                    snapshot.status === "running"
-                      ? "cleanup-incomplete"
-                      : "settled",
-                  ),
-                  killed: entry.killed,
-                }
-              : entry;
-          }),
-        },
-      };
+              return snapshot
+                ? {
+                    ...session.details(
+                      snapshot,
+                      snapshot.status === "running"
+                        ? "cleanup-incomplete"
+                        : "settled",
+                    ),
+                    killed: entry.killed,
+                  }
+                : entry;
+            }),
+          },
+        };
+
+        session.consume(
+          report
+            .filter((entry) => entry.status !== "running")
+            .map((entry) => entry.id),
+        );
+
+        return result;
+      } finally {
+        release();
+      }
     },
   });
 }

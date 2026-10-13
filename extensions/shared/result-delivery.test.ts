@@ -8,10 +8,27 @@ await NodeTest("a result consumed by a tool is not delivered", () => {
     output: string;
   }>((result) => result.id);
 
+  const release = delivery.hold(["bt-1"]);
   delivery.defer({ id: "bt-1", output: "done" });
-  delivery.consume(["bt-1"]);
-
   NodeAssert.deepEqual(delivery.drain(), []);
+  delivery.consume(["bt-1"]);
+  release();
+  NodeAssert.deepEqual(delivery.drain(), []);
+
+  const retired = delivery.hold(["bt-1"]);
+  delivery.clear();
+  const current = delivery.hold(["bt-1"]);
+  delivery.defer({ id: "bt-1", output: "new session" });
+  retired();
+  NodeAssert.deepEqual(
+    delivery.drain(),
+    [],
+    "retired holds cannot release reused IDs",
+  );
+  current();
+  NodeAssert.deepEqual(delivery.drain(), [
+    { id: "bt-1", output: "new session" },
+  ]);
 });
 
 await NodeTest(

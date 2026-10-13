@@ -7,7 +7,15 @@ import type {
 import { BackgroundTerminalSession } from "./src/extension-session.ts";
 import { runTool } from "./src/runtime.ts";
 import type { BackgroundTerminalDetailsV1 } from "./src/domain.ts";
-import { cwd, nodeCmd, pollUntil } from "./manager.test-support.ts";
+import {
+  cwd,
+  nodeCmd,
+  pollUntil,
+  processGone,
+} from "./manager.test-support.ts";
+import { hostPlatform } from "../shared/host-runtime.ts";
+import { registerTerminalTools } from "./src/tools.ts";
+import { startSignalHandler } from "./extension-session.test-support.ts";
 
 interface TestEvent {
   readonly reason: string;
@@ -104,6 +112,149 @@ for (const policy of ["automatic", "host"] as const)
       ]);
 
       await shutdown({ reason: "quit" }, context);
+    },
+  );
+
+async function killDeliveryFixture(test: NodeTest.TestContext) {
+  const events = new Map<string, EventHandler>();
+
+  type Tool = Parameters<ExtensionAPI["registerTool"]>[0];
+
+  const tools = new Map<string, Tool>();
+  const sent: Array<Parameters<SendMessage>[0]> = [];
+  let idle = false;
+
+  const api: ExtensionAPI = Object.assign(Object.create(null), {
+    appendEntry: () => {},
+    on: (name: string, handler: EventHandler) => events.set(name, handler),
+    registerTool: (tool: Tool) => tools.set(tool.name, tool),
+    sendMessage: (message: Parameters<SendMessage>[0]) => sent.push(message),
+  });
+
+  const context = Object.assign(Object.create(null), {
+    hasUI: false,
+    isIdle: () => idle,
+    sessionManager: { getSessionId: () => "kill-abort" },
+  });
+
+  const session = new BackgroundTerminalSession(api);
+  registerTerminalTools(api, session);
+  await events.get("session_start")?.({ reason: "startup" }, context);
+  test.after(async () =>
+    events.get("session_shutdown")?.({ reason: "quit" }, context),
+  );
+
+  return {
+    events,
+    tools,
+    sent,
+    context,
+    session,
+    setIdle: () => {
+      idle = true;
+    },
+  };
+}
+
+for (const overlap of [false, true])
+  await NodeTest(
+    `aborted multi-kill ${overlap ? "preserves overlapping acknowledgement" : "recovers earlier completion"}`,
+    { skip: hostPlatform === "win32" },
+    async (test) => {
+      const { events, tools, sent, context, session, setIdle } =
+        await killDeliveryFixture(test);
+
+      const first = await startSignalHandler(
+        session,
+        "first",
+        "process.exit(0)",
+      );
+
+      const second = await startSignalHandler(
+        session,
+        "resistant",
+        'process.stdout.write("term\\n")',
+      );
+
+      const kill = tools.get("bg_kill");
+      NodeAssert.ok(kill);
+      const ids = [first.id, second.id];
+      const reason = new Error("fixture caller abort");
+      const preAbort = new AbortController();
+      preAbort.abort(reason);
+      await NodeAssert.rejects(
+        kill.execute("preabort", { ids }, preAbort.signal, undefined, context),
+        { cause: reason },
+      );
+      NodeAssert.equal(first.stopRequested, undefined);
+      const controller = new AbortController();
+
+      const aborted = kill.execute(
+        "abort",
+        { ids },
+        controller.signal,
+        undefined,
+        context,
+      );
+
+      const rejected = NodeAssert.rejects(aborted, { cause: reason });
+
+      const surviving = overlap
+        ? kill.execute("overlap", { ids }, undefined, undefined, context)
+        : undefined;
+
+      NodeAssert.ok(
+        await pollUntil(
+          () => first.status === "done" && second.stdout.text.includes("term"),
+        ),
+      );
+      await events.get("turn_end")?.({ reason: "turn-end" }, context);
+      NodeAssert.deepEqual(sent, [], "held results do not flush while waiting");
+      setIdle();
+      controller.abort(reason);
+      await rejected;
+
+      if (surviving) {
+        NodeAssert.deepEqual(
+          sent,
+          [],
+          "one aborted hold does not release a surviving wait",
+        );
+        const result = await surviving;
+        NodeAssert.match(JSON.stringify(result), /first/);
+        NodeAssert.match(JSON.stringify(result), /resistant/);
+        NodeAssert.deepEqual(
+          sent,
+          [],
+          "successful tool report consumes both results",
+        );
+      } else {
+        NodeAssert.equal(
+          sent.length,
+          1,
+          "the earlier completion is recovered on abort",
+        );
+        NodeAssert.match(JSON.stringify(sent[0]), /first/);
+        NodeAssert.ok(await pollUntil(() => second.status === "killed"));
+        NodeAssert.equal(
+          sent.length,
+          2,
+          "the later settlement remains deliverable",
+        );
+        NodeAssert.match(JSON.stringify(sent[1]), /resistant/);
+      }
+
+      await events.get("agent_settled")?.({ reason: "settled" }, context);
+      NodeAssert.equal(
+        sent.length,
+        overlap ? 0 : 2,
+        "results are not delivered twice",
+      );
+
+      for (const snapshot of [first, second]) {
+        NodeAssert.ok(snapshot.pid);
+        NodeAssert.ok(await pollUntil(() => processGone(snapshot.pid ?? 0)));
+      }
     },
   );
 
