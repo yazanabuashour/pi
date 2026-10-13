@@ -181,6 +181,25 @@ await NodeTest.test(
     NodeAssert.ok(saved.args.includes("read,mcp__fixture__*"));
     NodeAssert.ok(saved.args.includes("delegate,ask_user"));
     NodeAssert.equal(saved.args.includes("delegate,ask_user,mcp__*"), false);
+
+    NodeFS.unlinkSync(receiptPath);
+
+    for (const tools of [["+read"], ["-bash"], [" +read"], ["read,write"]]) {
+      await NodeAssert.rejects(
+        agent("invalid-allowlist", { tools }),
+        /tools.*allowlist/,
+      );
+      NodeAssert.equal(
+        NodeFS.existsSync(receiptPath),
+        false,
+        "invalid selectors never launch a child",
+      );
+    }
+
+    const empty = await agent("empty-allowlist", { tools: [] });
+    NodeAssert.equal(empty.ok, true);
+    const noTools = JSON.parse(NodeFS.readFileSync(receiptPath, "utf8"));
+    NodeAssert.equal(noTools.args[noTools.args.indexOf("--tools") + 1], "");
   },
 );
 

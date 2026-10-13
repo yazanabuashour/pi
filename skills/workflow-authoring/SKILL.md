@@ -21,7 +21,9 @@ message shows a short tail of stdout.
 `agent(prompt, options?)` runs one `pi --mode json` child and resolves when
 it exits. Options are `label`, `model` (`provider/model-id`), `thinking`,
 `tools` (an allowlist array), `cwd`, and `schema` (JSON Schema). Without an
-explicit model or thinking level, the child uses Pi's saved defaults.
+explicit model or thinking level, the child uses Pi's saved defaults. Use tool
+names or patterns, not `+`/`-` selectors or comma-delimited entries; invalid
+allowlists throw before launching a child.
 `parallel(thunks, { concurrency? })` runs zero-argument agent functions and
 returns results in input order. It has no default concurrency limit. If one
 function throws, no more start, and it rethrows after the started ones settle.

@@ -43,6 +43,10 @@ const decodeTool = Schema.decodeUnknownSync(
   }),
 );
 
+const decodeToolAllowlist = Schema.decodeUnknownSync(
+  Schema.Array(Schema.String.check(Schema.isPattern(/^(?!\s*[+-])[^,]*$/))),
+);
+
 const decodeSettled = Schema.decodeUnknownSync(
   // Pi 1.0.2 omits aborted; newer runtimes report it explicitly.
   Schema.Struct({ aborted: Schema.optional(Schema.Boolean) }),
@@ -196,6 +200,19 @@ function runChild(args, cwd, env, result) {
  * schema-file setup and cleanup failures throw. Defaults remain Pi's own.
  */
 export async function agent(prompt, options = {}) {
+  let tools;
+
+  if (options.tools !== undefined) {
+    try {
+      tools = decodeToolAllowlist(options.tools).map((name) => name.trim());
+    } catch (cause) {
+      throw new Error(
+        "tools must be an allowlist array of names or patterns, without +/- prefixes or commas",
+        { cause },
+      );
+    }
+  }
+
   const label = options.label ?? "agent";
   const sessionId = NodeCrypto.randomUUID();
   const cwd = NodePath.resolve(options.cwd ?? NodeProcess.cwd());
@@ -228,7 +245,7 @@ export async function agent(prompt, options = {}) {
     }
 
     const run = await runChild(
-      childArgs(prompt, options, sessionId, label),
+      childArgs(prompt, { ...options, tools }, sessionId, label),
       cwd,
       env,
       result,
