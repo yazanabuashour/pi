@@ -1,10 +1,14 @@
 import { assert, it } from "@effect/vitest";
-import { Deferred, Effect, Fiber } from "effect";
+import { Cause, Deferred, Effect, Fiber } from "effect";
 import {
   emptyGitInfoState,
   type GitInfoState,
 } from "../shared/dashboard-state.ts";
-import { CommandRunner, type CommandResult } from "./src/process.ts";
+import {
+  CommandError,
+  CommandRunner,
+  type CommandResult,
+} from "./src/process.ts";
 import { GitInfoRefresh } from "./src/refresh.ts";
 
 const repoCommand = "rev-parse --is-inside-work-tree";
@@ -20,8 +24,13 @@ const openPr = {
   isDraft: false,
 };
 
-const result = (value: Partial<CommandResult>) =>
-  Effect.succeed({ code: 0, stdout: "", stderr: "", ...value });
+function result(
+  value: Partial<CommandResult> | CommandError,
+): Effect.Effect<CommandResult, CommandError> {
+  return value instanceof CommandError
+    ? Effect.fail(value)
+    : Effect.succeed({ code: 0, stdout: "", stderr: "", ...value });
+}
 
 function fixture() {
   const requests: string[] = [];
@@ -235,12 +244,17 @@ it.effect(
 
       f.responses.set(branchCommand, result({ stdout: "next" }));
       const nextPrCommand = "pr view next --json number,url,state,isDraft";
-      f.responses.set(
-        nextPrCommand,
-        result({
-          code: -1,
-        }),
-      );
+
+      const timeout = new CommandError({
+        command: "gh",
+        args: ["pr", "view", "next"],
+        cwd: "/fixture",
+        stdout: "",
+        stderr: "",
+        cause: new Cause.TimeoutError(),
+      });
+
+      f.responses.set(nextPrCommand, result(timeout));
       yield* f.refresh.refreshIfIdle("/fixture");
       assert.deepEqual(f.refresh.snapshot, {
         unavailable: "Git unavailable: gh pr view timed out",
@@ -252,7 +266,7 @@ it.effect(
       );
       yield* f.refresh.refreshIfIdle("/other-repository");
       assert.equal(f.refresh.snapshot.unavailable, null);
-      f.responses.set(nextPrCommand, result({ code: -1 }));
+      f.responses.set(nextPrCommand, result(timeout));
       yield* f.refresh.refreshIfIdle("/fixture");
       assert.deepEqual(f.refresh.snapshot, {
         unavailable: "Git unavailable: gh pr view timed out",

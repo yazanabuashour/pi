@@ -23,23 +23,8 @@ const pullRequestResponseSchema = Type.Object({
 });
 
 function commandDiagnostic(operation: string, result: CommandResult) {
-  if (result.code === -1) return "timed out";
-
   if (operation === "gh pr view" && result.code === 4)
     return "authentication required";
-
-  // The runner flattens Effect platform errors into stderr, without their cause.
-  const system =
-    /(?:^|\n)Failed to run (?:git|gh): (NotFound|PermissionDenied|BadResource|Busy|Unknown): ChildProcess\.(spawn|exitCode)\b/.exec(
-      result.stderr,
-    );
-
-  if (system?.[2] === "exitCode") return "terminated";
-
-  if (system?.[1] === "NotFound")
-    return "command or working directory not found (NotFound)";
-
-  if (system) return `system error (${system[1]})`;
 
   // gh has no transport exit status. Never copy its host, URL or response text.
   if (operation === "gh pr view" && result.code === 1) {
@@ -71,7 +56,14 @@ function malformedResponse(operation: string) {
 }
 
 const runGit = (cwd: string, args: string[]) =>
-  runCommand("git", args, cwd, GIT_TIMEOUT_MS);
+  runCommand("git", args, cwd, GIT_TIMEOUT_MS).pipe(
+    Effect.mapError(
+      (error) =>
+        new Error(`Git unavailable: git ${args[0]} ${error.message}`, {
+          cause: error,
+        }),
+    ),
+  );
 
 const gitOutput = Effect.fn("git-info.gitOutput")(function* (
   cwd: string,
@@ -146,6 +138,13 @@ export const lookupPullRequest = Effect.fn("git-info.lookupPullRequest")(
       ["pr", "view", branch, "--json", "number,url,state,isDraft"],
       cwd,
       GH_TIMEOUT_MS,
+    ).pipe(
+      Effect.mapError(
+        (error) =>
+          new Error(`Git unavailable: gh pr view ${error.message}`, {
+            cause: error,
+          }),
+      ),
     );
 
     if (result.code !== 0) {

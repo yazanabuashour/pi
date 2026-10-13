@@ -86,13 +86,21 @@ function cleanDisplayPath(path: string) {
 }
 
 const run = (cwd: string, args: string[]) =>
-  runCommand("git", args, cwd, 10_000);
+  runCommand("git", args, cwd, 10_000).pipe(
+    Effect.mapError(
+      (error) =>
+        new Error(`git ${args[0]} unavailable: ${error.message}`, {
+          cause: error,
+        }),
+    ),
+  );
 
 function commandFailure(operation: string, result: CommandResult) {
   const detail = sanitizeTerminalText(result.stderr).trim();
 
   return new Error(
     `git ${operation} unavailable (exit ${result.code})${detail ? `: ${detail}` : ""}`,
+    { cause: result },
   );
 }
 

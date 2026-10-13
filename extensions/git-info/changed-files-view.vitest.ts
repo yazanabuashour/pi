@@ -1,10 +1,14 @@
 import { assert, it } from "@effect/vitest";
-import { Effect } from "effect";
+import { Effect, PlatformError } from "effect";
 import {
   loadChangedFiles,
   sanitizeTerminalText,
 } from "./src/changed-files-view.ts";
-import { CommandRunner, type CommandResult } from "./src/process.ts";
+import {
+  CommandError,
+  CommandRunner,
+  type CommandResult,
+} from "./src/process.ts";
 
 it("repository text cannot inject terminal control sequences", () => {
   const input =
@@ -13,16 +17,23 @@ it("repository text cannot inject terminal control sequences", () => {
   assert.equal(sanitizeTerminalText(input), "beforeafterred");
 });
 
-function loadWithResults(results: Record<string, Partial<CommandResult>>) {
+function loadWithResults(
+  results: Record<string, Partial<CommandResult> | CommandError>,
+) {
   return loadChangedFiles("/fixture").pipe(
     Effect.provideService(CommandRunner, {
-      run: (_command, args) =>
-        Effect.succeed({
-          code: 0,
-          stdout: args.includes("--show-toplevel") ? "/fixture" : "",
-          stderr: "",
-          ...results[args.join(" ")],
-        }),
+      run: (_command, args) => {
+        const result = results[args.join(" ")];
+
+        return result instanceof CommandError
+          ? Effect.fail(result)
+          : Effect.succeed({
+              code: 0,
+              stdout: args.includes("--show-toplevel") ? "/fixture" : "",
+              stderr: "",
+              ...result,
+            });
+      },
     }),
   );
 }
@@ -38,13 +49,13 @@ it.effect("changed-files failures do not look clean or non-repository", () =>
 
       const failure = yield* Effect.flip(
         loadWithResults({
-          [command]: { code: -1, stderr: "permission denied" },
+          [command]: { code: 128, stderr: "permission denied" },
         }),
       );
 
       assert.equal(
         failure.message,
-        `git ${operation} unavailable (exit -1): permission denied`,
+        `git ${operation} unavailable (exit 128): permission denied`,
       );
     }
 
@@ -97,6 +108,27 @@ it.effect(
           failure.message,
           /git diff.*unavailable.*cannot read file/,
         );
+
+        const launchFailure = new CommandError({
+          command: "git",
+          args: command.split(" "),
+          cwd: "/fixture",
+          stdout: "",
+          stderr: "",
+          cause: PlatformError.systemError({
+            // oxlint-disable-next-line project-effect/no-manual-tagged-construction -- The platform factory requires its normalized reason tag.
+            _tag: "NotFound",
+            module: "ChildProcess",
+            method: "spawn",
+          }),
+        });
+
+        const unavailable = yield* Effect.flip(
+          loadWithResults({ ...results, [command]: launchFailure }),
+        );
+
+        assert.equal(unavailable.cause, launchFailure);
+        assert.include(unavailable.message, "not found (NotFound)");
       }
     }),
 );
