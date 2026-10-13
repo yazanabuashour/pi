@@ -6,34 +6,9 @@ import { runCommand, type CommandResult } from "./process.ts";
 
 const MAX_DIFF_LINES = 20_000;
 
-// Repository text must not inject terminal controls into trusted theme styling.
-const OSC_PATTERN = new RegExp(
-  String.raw`(?:\u001b\]|\u009d)(?:[^\u0007\u001b\u009c]|\u001b(?!\\))*(?:\u0007|\u001b\\|\u009c)`,
-  "g",
-);
+import { sanitizeTerminalText } from "../../shared/terminal-text.ts";
 
-const CSI_PATTERN = new RegExp(
-  String.raw`(?:\u001b\[|\u009b)[0-?]*[ -/]*[@-~]`,
-  "g",
-);
-
-const ESCAPE_PATTERN = new RegExp(
-  String.raw`\u001b(?:[()][0-2A-Z]|[ -/]*[@-~])`,
-  "g",
-);
-
-const CONTROL_PATTERN = new RegExp(
-  String.raw`[\u0000-\u0008\u000b-\u001f\u007f-\u009f]`,
-  "g",
-);
-
-export function sanitizeTerminalText(text: string) {
-  return text
-    .replace(OSC_PATTERN, "")
-    .replace(CSI_PATTERN, "")
-    .replace(ESCAPE_PATTERN, "")
-    .replace(CONTROL_PATTERN, "");
-}
+export { sanitizeTerminalText };
 
 interface ChangedPath {
   path: string;

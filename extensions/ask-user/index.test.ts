@@ -1,65 +1,109 @@
 import * as NodeAssert from "node:assert/strict";
 import NodeTest from "node:test";
+import * as NodeUtil from "node:util";
 import type {
   ExtensionAPI,
   ExtensionToolContext,
 } from "@earendil-works/pi-coding-agent";
 import askUser, { showRpcQuestion } from "./index.ts";
+import { assertTuiSelection } from "./index.test-support.ts";
+
+const injected = "\u001b]52;c;Y2xpcGJvYXJk\u0007\u001b[31m";
+
+const theme = Object.assign(Object.create(null), {
+  fg: (_color: string, text: string) => {
+    NodeAssert.equal(text.includes("\u001b"), false, "sanitize before styling");
+
+    return text;
+  },
+  bold: (text: string) => {
+    NodeAssert.equal(text.includes("\u001b"), false, "sanitize before styling");
+
+    return text;
+  },
+});
+
+type Tool = Parameters<ExtensionAPI["registerTool"]>[0];
+
+function renderSaved(
+  tool: Tool,
+  result: Parameters<NonNullable<Tool["renderResult"]>>[0],
+) {
+  NodeAssert.ok(tool.renderResult);
+
+  return tool
+    .renderResult(
+      result,
+      { expanded: false, isPartial: false },
+      theme,
+      Object.assign(Object.create(null), {}),
+    )
+    .render(80)
+    .join("\n")
+    .trimEnd();
+}
+
+function registeredAskUser() {
+  let tool: Tool | undefined;
+
+  const api: ExtensionAPI = Object.assign(Object.create(null), {
+    registerFlag: () => {},
+    getFlag: () => true,
+    registerTool: (registered: Tool) => {
+      tool = registered;
+    },
+  });
+
+  askUser(api);
+  NodeAssert.ok(tool);
+
+  return tool;
+}
 
 await NodeTest(
   "RPC questions return the selected model-provided option",
   async () => {
-    const result = await showRpcQuestion(
-      {
-        question: "Deploy where?",
-        options: [
-          { label: "Staging", description: "Internal verification" },
-          { label: "Production" },
-        ],
-      },
-      undefined,
-      {
-        async select(title, options) {
-          NodeAssert.equal(title, "Deploy where?");
-          NodeAssert.deepEqual(options, [
-            "1. Staging — Internal verification",
-            "2. Production",
-            "3. Write my own answer…",
-          ]);
+    const params = {
+      question: `${injected}Deploy where?`,
+      options: [
+        {
+          label: `${injected}Staging`,
+          description: `${injected}Internal verification`,
+        },
+        { label: "Production" },
+      ],
+    };
 
-          return options[0];
-        },
-        async input() {
-          throw new Error("input should not open for a listed option");
-        },
+    const result = await showRpcQuestion(params, undefined, {
+      async select(title, options) {
+        NodeAssert.equal(title, "Deploy where?");
+        NodeAssert.deepEqual(options, [
+          "1. Staging — Internal verification",
+          "2. Production",
+          "3. Write my own answer…",
+        ]);
+
+        return options[0];
       },
-    );
+      async input() {
+        throw new Error("input should not open for a listed option");
+      },
+    });
 
     NodeAssert.deepEqual(result, {
-      answer: "Staging",
+      answer: `${injected}Staging`,
       wasCustom: false,
       index: 1,
     });
+
+    await assertTuiSelection(params, result, theme);
   },
 );
 
 await NodeTest(
   "selected duplicate labels retain their number in saved rendering",
   async () => {
-    type Tool = Parameters<ExtensionAPI["registerTool"]>[0];
-
-    let tool: Tool | undefined;
-
-    const api: ExtensionAPI = Object.assign(Object.create(null), {
-      registerFlag: () => {},
-      getFlag: () => true,
-      registerTool: (registered: Tool) => {
-        tool = registered;
-      },
-    });
-
-    askUser(api);
-    NodeAssert.ok(tool);
+    const tool = registeredAskUser();
 
     const context: ExtensionToolContext = Object.assign(Object.create(null), {
       mode: "rpc",
@@ -70,8 +114,8 @@ await NodeTest(
     const result = await tool.execute(
       "selected",
       {
-        question: "Which?",
-        options: [{ label: "Same" }, { label: "Same" }],
+        question: `${injected}Which?`,
+        options: [{ label: `${injected}Same` }, { label: `${injected}Same` }],
       },
       undefined,
       undefined,
@@ -81,65 +125,159 @@ await NodeTest(
     NodeAssert.equal(result.content[0]?.type, "text");
     NodeAssert.match(JSON.stringify(result.content), /option 2/);
 
-    const theme = Object.assign(Object.create(null), {
-      fg: (_color: string, text: string) => text,
-    });
-
     const renderContext = Object.assign(Object.create(null), {});
-
-    const render = (value: typeof result) =>
+    NodeAssert.ok(tool.renderCall);
+    NodeAssert.match(
       tool
-        ?.renderResult?.(
-          value,
-          { expanded: false, isPartial: false },
+        .renderCall(
+          {
+            question: `${injected}Which?`,
+            options: [null, { label: `${injected}Same` }],
+          },
           theme,
           renderContext,
         )
-        .render(80)
-        .join("\n");
+        .render(100)
+        .join("\n"),
+      /2\. Same/,
+    );
+    NodeAssert.deepEqual(result.details, {
+      question: `${injected}Which?`,
+      options: [`${injected}Same`, `${injected}Same`],
+      answer: `${injected}Same`,
+      wasCustom: false,
+      cancelled: false,
+      index: 2,
+    });
+    NodeAssert.match(JSON.stringify(result.content), /\\u001b/);
 
-    NodeAssert.match(render(result) ?? "", /✓ 2\. Same/);
+    const render = (value: typeof result) => renderSaved(tool, value);
+
+    NodeAssert.match(render(result), /✓ 2\. Same/);
     NodeAssert.match(
       render({
-        ...result,
-        details: {
-          question: "Legacy",
-          options: ["Other", "Same"],
-          answer: "Same",
-          wasCustom: false,
-          cancelled: false,
-        },
-      }) ?? "",
-      /✓ 2\. Same/,
+        content: [{ type: "text", text: `${injected}Fallback` }],
+        details: null,
+      }),
+      /Fallback/,
     );
-    NodeAssert.match(
-      render({
-        ...result,
-        details: {
-          question: "Custom",
-          options: [],
-          answer: "Same",
-          wasCustom: true,
-          cancelled: false,
-        },
-      }) ?? "",
-      /\(wrote\) Same/,
-    );
-    NodeAssert.match(
-      render({
-        ...result,
-        details: {
-          question: "Dismissed",
-          options: [],
-          answer: null,
-          wasCustom: false,
-          cancelled: true,
-        },
-      }) ?? "",
-      /dismissed/,
-    );
+    assertHistoricalRendering(tool, result);
   },
 );
+
+function assertHistoricalRendering(
+  tool: Tool,
+  result: Parameters<NonNullable<Tool["renderResult"]>>[0],
+) {
+  const render = (
+    details: Parameters<NonNullable<Tool["renderResult"]>>[0]["details"],
+  ) => renderSaved(tool, { ...result, details });
+
+  const selected = {
+    question: "Legacy",
+    options: ["Other", "Same"],
+    answer: "Same",
+    wasCustom: false,
+    cancelled: false,
+  };
+
+  NodeAssert.match(render(selected), /✓ 2\. Same/);
+  NodeAssert.equal(
+    render({ ...selected, options: ["Same", "Same"] }),
+    "✓ Same",
+  );
+  NodeAssert.match(
+    render({
+      ...selected,
+      options: [],
+      answer: `${injected}Same`,
+      wasCustom: true,
+    }),
+    /\(wrote\) Same/,
+  );
+  NodeAssert.match(
+    render({ ...selected, options: [], answer: null, cancelled: true }),
+    /unanswered/,
+  );
+}
+
+await NodeTest(
+  "unanswered replies retain why no selection occurred",
+  async () => {
+    const tool = registeredAskUser();
+
+    const params = {
+      question: "Which?",
+      options: [{ label: "One" }, { label: "Two" }],
+    };
+
+    const controller = new AbortController();
+    controller.abort();
+
+    for (const [mode, signal, expected] of [
+      ["no-ui", undefined, "no UI available"],
+      ["cancelled", controller.signal, "cancelled"],
+      ["dismissed", undefined, "dismissed"],
+    ] as const) {
+      const context: ExtensionToolContext = Object.assign(Object.create(null), {
+        mode: "rpc",
+        hasUI: mode !== "no-ui",
+        ui: { select: async () => undefined },
+      });
+
+      const result = await tool.execute(
+        "unanswered",
+        params,
+        signal,
+        undefined,
+        context,
+      );
+
+      NodeAssert.equal(renderSaved(tool, result), `✗ ${expected}`);
+      NodeAssert.deepEqual(result.details, {
+        question: params.question,
+        options: ["One", "Two"],
+        answer: null,
+        wasCustom: false,
+        cancelled: true,
+        reason: mode,
+      });
+    }
+  },
+);
+
+await NodeTest("UI failures preserve their causal context", async () => {
+  const tool = registeredAskUser();
+
+  const context: ExtensionToolContext = Object.assign(Object.create(null), {
+    mode: "rpc",
+    hasUI: true,
+    ui: {
+      select: async () => {
+        throw new Error("UI transport", { cause: new Error("root context") });
+      },
+    },
+  });
+
+  await NodeAssert.rejects(
+    tool.execute(
+      "failure",
+      { question: "Which?", options: [{ label: "One" }, { label: "Two" }] },
+      undefined,
+      undefined,
+      context,
+    ),
+    (error: Error) => {
+      NodeAssert.ok(error.cause);
+      NodeAssert.match(
+        NodeUtil.inspect(error.cause, { depth: null }),
+        /root context/,
+      );
+
+      return true;
+    },
+  );
+});
 
 await NodeTest(
   "RPC questions return to the options after an empty custom answer",

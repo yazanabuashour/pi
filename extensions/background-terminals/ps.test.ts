@@ -9,6 +9,10 @@ import {
   type DashboardSelection,
 } from "./src/ui/ps.ts";
 import {
+  sanitizeTerminalLabel,
+  sanitizeTerminalText,
+} from "../shared/terminal-text.ts";
+import {
   buildOutputLines,
   createOutputLineCache,
   sanitizeText,
@@ -51,7 +55,9 @@ await NodeTest("sanitizeText strips ANSI, tabs, and control characters", () => {
   NodeAssert.equal(sanitizeText("\u001b]0;title\u009coutput"), "output");
   NodeAssert.equal(sanitizeText("\u009d0;title\u0007output"), "output");
   NodeAssert.equal(sanitizeText("a\u0085b"), "ab");
-  NodeAssert.equal(sanitizeText("a\tb"), "a  b");
+  NodeAssert.equal(sanitizeText("a\tb\nc"), "a  b\nc");
+  NodeAssert.equal(sanitizeTerminalText("a\tb\nc"), "a\tb\nc");
+  NodeAssert.equal(sanitizeTerminalLabel("a\tb\nc"), "abc");
   NodeAssert.equal(sanitizeText("a\u0007b\u0000c"), "abc");
 });
 

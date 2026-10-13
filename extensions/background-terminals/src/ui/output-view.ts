@@ -2,47 +2,12 @@
 
 import { wrapTextWithAnsi } from "@earendil-works/pi-tui";
 
-// Strip complete OSC strings before escape cleanup so their payload cannot become visible.
-const OSC_PATTERN = new RegExp(
-  String.raw`(?:\u001b\]|\u009d)(?:[^\u0007\u001b\u009c]|\u001b(?!\\))*(?:\u0007|\u001b\\|\u009c)`,
-  "g",
-);
+import {
+  sanitizeOneLine,
+  sanitizeText,
+} from "../../../shared/terminal-text.ts";
 
-// CSI parameters are unbounded; long cursor movements remain control sequences, not text.
-const CSI_PATTERN = new RegExp(
-  String.raw`(?:\u001b\[|\u009b)[0-?]*[ -/]*[@-~]`,
-  "g",
-);
-
-// Remaining two-byte/charset escape forms (for example ESC ( 0).
-const ESCAPE_PATTERN = new RegExp(
-  String.raw`\u001b(?:[()][0-2A-Z]|[ -/]*[@-~])`,
-  "g",
-);
-
-const CONTROL_PATTERN = new RegExp(
-  String.raw`[\u0000-\u0008\u000b-\u001f\u007f-\u009f]`,
-  "g",
-);
-
-/**
- * Strip raw ANSI codes, expand tabs, and drop control chars. Terminal-expanded
- * tabs (and stray escapes) make lines wider than the width we declare to the
- * TUI, which desyncs the renderer.
- */
-export function sanitizeText(text: string) {
-  return text
-    .replace(OSC_PATTERN, "")
-    .replace(CSI_PATTERN, "")
-    .replace(ESCAPE_PATTERN, "")
-    .replaceAll("\t", "  ")
-    .replace(CONTROL_PATTERN, "");
-}
-
-/** Sanitize fixed-height metadata before applying trusted theme styling. */
-export function sanitizeOneLine(text: string) {
-  return sanitizeText(text).replace(/\s+/g, " ");
-}
+export { sanitizeOneLine, sanitizeText };
 
 /** Split, sanitize, and wrap a stream's text into display lines. */
 export function buildOutputLines(text: string, width: number) {

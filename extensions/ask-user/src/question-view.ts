@@ -7,6 +7,7 @@ import {
   truncateToWidth,
 } from "@earendil-works/pi-tui";
 import type { AskUserInput } from "../index.ts";
+import { sanitizeOneLine, sanitizeText } from "../../shared/terminal-text.ts";
 
 type Theme = ExtensionUIContext["theme"];
 
@@ -206,7 +207,7 @@ class QuestionView {
     );
 
     for (const line of wrapText(
-      this.params.question,
+      sanitizeText(this.params.question),
       Math.max(10, width - 2),
     )) {
       add(` ${this.theme.fg("text", this.theme.bold(line))}`);
@@ -226,7 +227,7 @@ class QuestionView {
       const selected = index === this.optionIndex;
       const prefix = selected ? this.theme.fg("accent", " ❯ ") : "   ";
       const marker = option.isOther ? "✎" : `${index + 1}.`;
-      const label = `${marker} ${option.label}`;
+      const label = `${marker} ${sanitizeOneLine(option.label)}`;
 
       const color =
         selected || (option.isOther && this.editMode)
@@ -238,7 +239,9 @@ class QuestionView {
       add(prefix + this.theme.fg(color, label));
 
       if (option.description)
-        add(`      ${this.theme.fg("muted", option.description)}`);
+        add(
+          `      ${this.theme.fg("muted", sanitizeOneLine(option.description))}`,
+        );
     }
   }
 

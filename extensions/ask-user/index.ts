@@ -1,4 +1,5 @@
 import { isString } from "../shared/runtime-values.ts";
+import { sanitizeOneLine, sanitizeText } from "../shared/terminal-text.ts";
 
 import type {
   ExtensionAPI,
@@ -57,6 +58,13 @@ const AskUserDetailsSchema = Type.Object({
   wasCustom: Type.Boolean(),
   cancelled: Type.Boolean(),
   index: Type.Optional(Type.Integer({ minimum: 1, maximum: MAX_OPTIONS })),
+  reason: Type.Optional(
+    Type.Union([
+      Type.Literal("no-ui"),
+      Type.Literal("cancelled"),
+      Type.Literal("dismissed"),
+    ]),
+  ),
 });
 
 type AskUserDetails = Static<typeof AskUserDetailsSchema>;
@@ -67,16 +75,17 @@ export async function showRpcQuestion(
   signal: AbortSignal | undefined,
   ui: Pick<ExtensionUIContext, "select" | "input">,
 ): Promise<SelectionResult> {
-  const options = params.options.map(
-    (option, index) =>
+  const options = params.options.map((option, index) =>
+    sanitizeOneLine(
       `${index + 1}. ${option.label}${option.description ? ` — ${option.description}` : ""}`,
+    ),
   );
 
   const customOption = `${options.length + 1}. ${CUSTOM_OPTION_LABEL}`;
 
   while (true) {
     const selected = await ui.select(
-      params.question,
+      sanitizeText(params.question),
       [...options, customOption],
       signal === undefined ? undefined : { signal },
     );
@@ -110,22 +119,29 @@ export async function showRpcQuestion(
 
 function reply(
   params: AskUserInput,
-  text: string,
-  answer: string | null = null,
-  wasCustom = false,
-  index?: number,
+  outcome: Parameters<typeof buildAskUserResultMessage>[0],
 ) {
+  const answered = outcome.kind === "selected" || outcome.kind === "custom";
+
   const details: AskUserDetails = {
     question: params.question,
     options: params.options.map((option) => option.label),
-    answer,
-    wasCustom,
-    cancelled: answer === null,
+    answer: answered ? outcome.answer : null,
+    wasCustom: outcome.kind === "custom",
+    cancelled: !answered,
   };
 
-  if (index !== undefined) details.index = index;
+  if (outcome.kind === "selected" && outcome.index !== undefined)
+    details.index = outcome.index;
 
-  return { content: [{ type: "text" as const, text }], details };
+  if (!answered) details.reason = outcome.kind;
+
+  return {
+    content: [
+      { type: "text" as const, text: buildAskUserResultMessage(outcome) },
+    ],
+    details,
+  };
 }
 
 async function executeAskUser(
@@ -147,11 +163,11 @@ async function executeAskUser(
     !ctx.hasUI ||
     (ctx.mode === "rpc" && pi.getFlag("ask-user-rpc") !== true)
   ) {
-    return reply(params, buildAskUserResultMessage({ kind: "no-ui" }));
+    return reply(params, { kind: "no-ui" });
   }
 
   if (signal?.aborted) {
-    return reply(params, buildAskUserResultMessage({ kind: "cancelled" }));
+    return reply(params, { kind: "cancelled" });
   }
 
   const showQuestion =
@@ -166,37 +182,24 @@ async function executeAskUser(
 
   if (Exit.isFailure(uiExit)) {
     if (Cause.hasInterruptsOnly(uiExit.cause)) {
-      return reply(params, buildAskUserResultMessage({ kind: "cancelled" }));
+      return reply(params, { kind: "cancelled" });
     }
 
     const [first] = Cause.prettyErrors(uiExit.cause);
-    throw new Error(first?.message ?? Cause.pretty(uiExit.cause));
+    throw new Error(first?.message ?? Cause.pretty(uiExit.cause), {
+      cause: uiExit.cause,
+    });
   }
 
   const result = uiExit.value;
 
-  if (!result)
-    return reply(params, buildAskUserResultMessage({ kind: "dismissed" }));
-
-  if (result.wasCustom) {
-    return reply(
-      params,
-      buildAskUserResultMessage({ kind: "custom", answer: result.answer }),
-      result.answer,
-      true,
-    );
-  }
+  if (!result) return reply(params, { kind: "dismissed" });
 
   return reply(
     params,
-    buildAskUserResultMessage({
-      kind: "selected",
-      answer: result.answer,
-      index: result.index,
-    }),
-    result.answer,
-    false,
-    result.index,
+    result.wasCustom
+      ? { kind: "custom", answer: result.answer }
+      : { kind: "selected", answer: result.answer, index: result.index },
   );
 }
 
@@ -221,11 +224,19 @@ export default function askUser(pi: ExtensionAPI) {
 
     renderCall(args, theme, _context) {
       let text = theme.fg("toolTitle", theme.bold("ask_user "));
-      text += theme.fg("muted", isString(args.question) ? args.question : "");
+      text += theme.fg(
+        "muted",
+        isString(args.question) ? sanitizeText(args.question) : "",
+      );
       const opts = Array.isArray(args.options) ? args.options : [];
 
       if (opts.length > 0) {
-        const numbered = opts.map((o, i) => `${i + 1}. ${o.label}`);
+        const numbered = opts.flatMap((option, index) =>
+          Value.Check(OptionSchema, option)
+            ? [`${index + 1}. ${sanitizeOneLine(option.label)}`]
+            : [],
+        );
+
         text += `\n${theme.fg("dim", `  ${numbered.join("  ")}`)}`;
       }
 
@@ -238,30 +249,44 @@ export default function askUser(pi: ExtensionAPI) {
       if (!Value.Check(AskUserDetailsSchema, details)) {
         const first = result.content[0];
 
-        return new Text(first?.type === "text" ? first.text : "", 0, 0);
+        return new Text(
+          first?.type === "text" ? sanitizeText(first.text) : "",
+          0,
+          0,
+        );
       }
 
       if (details.cancelled || details.answer === null) {
-        return new Text(theme.fg("warning", "✗ dismissed"), 0, 0);
+        const reason =
+          details.reason === "no-ui"
+            ? "no UI available"
+            : (details.reason ?? "unanswered");
+
+        return new Text(theme.fg("warning", `✗ ${reason}`), 0, 0);
       }
 
       if (details.wasCustom) {
         return new Text(
           theme.fg("success", "✓ ") +
             theme.fg("muted", "(wrote) ") +
-            theme.fg("accent", details.answer),
+            theme.fg("accent", sanitizeText(details.answer)),
           0,
           0,
         );
       }
 
+      const first = details.options.indexOf(details.answer);
+
       const idx =
         details.index !== undefined &&
         details.options[details.index - 1] === details.answer
           ? details.index
-          : details.options.indexOf(details.answer) + 1;
+          : first === details.options.lastIndexOf(details.answer)
+            ? first + 1
+            : 0;
 
-      const display = idx > 0 ? `${idx}. ${details.answer}` : details.answer;
+      const answer = sanitizeOneLine(details.answer);
+      const display = idx > 0 ? `${idx}. ${answer}` : answer;
 
       return new Text(
         theme.fg("success", "✓ ") + theme.fg("accent", display),

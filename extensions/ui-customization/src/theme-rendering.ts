@@ -22,33 +22,7 @@ export const TITLE_LINES = [
   "  ╚═╝      ╚═╝ ",
 ];
 
-const OSC_PATTERN = new RegExp(
-  String.raw`(?:\u001b\]|\u009d)(?:[^\u0007\u001b\u009c]|\u001b(?!\\))*(?:\u0007|\u001b\\|\u009c)`,
-  "g",
-);
-
-const CSI_PATTERN = new RegExp(
-  String.raw`(?:\u001b\[|\u009b)[0-?]*[ -/]*[@-~]`,
-  "g",
-);
-
-const ESCAPE_PATTERN = new RegExp(
-  String.raw`\u001b(?:[()][0-2A-Z]|[ -/]*[@-~])`,
-  "g",
-);
-
-const CONTROL_PATTERN = new RegExp(
-  String.raw`[\u0000-\u001f\u007f-\u009f]`,
-  "g",
-);
-
-export function sanitizeTerminalLabel(text: string) {
-  return text
-    .replace(OSC_PATTERN, "")
-    .replace(CSI_PATTERN, "")
-    .replace(ESCAPE_PATTERN, "")
-    .replace(CONTROL_PATTERN, "");
-}
+export { sanitizeTerminalLabel } from "../../shared/terminal-text.ts";
 
 function mix(a: number, b: number, amount: number) {
   return Math.round(a + (b - a) * amount);
