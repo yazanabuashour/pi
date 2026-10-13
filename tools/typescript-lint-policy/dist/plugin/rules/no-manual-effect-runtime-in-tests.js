@@ -1,5 +1,5 @@
 import { defineRule } from "@oxlint/plugins";
-import { getPropertyName, isIdentifier, unwrapExpression, } from "../shared/ast.js";
+import { getMemberPropertyName, isIdentifier, unwrapExpression, } from "../shared/ast.js";
 const TEST_FILE_PATTERN = /\.(?:test|spec)\.[cm]?[jt]sx?$/u;
 const EFFECT_RUNTIME_METHODS = new Set([
     "runCallback",
@@ -20,7 +20,7 @@ function manualRunnerName(callee) {
     if (expression?.type !== "MemberExpression")
         return null;
     const object = unwrapExpression(expression.object);
-    const property = getPropertyName(expression.property);
+    const property = getMemberPropertyName(expression);
     if (property === null)
         return null;
     if (isIdentifier(object, "Effect") && EFFECT_RUNTIME_METHODS.has(property)) {

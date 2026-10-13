@@ -1,5 +1,5 @@
 import { defineRule } from "@oxlint/plugins";
-import { createTypeAliasEnvironment, resolvedTypeMatches, } from "../shared/type-alias-resolution.js";
+import { createTypeAliasEnvironment, hasVisibleTypeBinding, resolvedTypeMatches, } from "../shared/type-alias-resolution.js";
 /** Ban function contracts that return unknown instead of a parsed domain type. */
 export const noUnknownReturnsRule = defineRule({
     meta: {
@@ -13,24 +13,28 @@ export const noUnknownReturnsRule = defineRule({
     },
     createOnce(context) {
         let environment = null;
-        const resolvesToUnknown = (type) => environment !== null &&
-            resolvedTypeMatches(type, environment, (resolved, matches) => {
-                if (resolved.type === "TSUnknownKeyword")
-                    return true;
-                if (resolved.type === "TSParenthesizedType") {
-                    return matches(resolved.typeAnnotation);
-                }
-                if (resolved.type === "TSUnionType")
-                    return resolved.types.some(matches);
-                if (resolved.type !== "TSTypeReference" ||
-                    resolved.typeName.type !== "Identifier" ||
-                    (resolved.typeName.name !== "Promise" &&
-                        resolved.typeName.name !== "PromiseLike")) {
-                    return false;
-                }
-                const value = resolved.typeArguments?.params[0];
-                return value !== undefined && matches(value);
-            });
+        const resolvesToUnknown = (type) => {
+            const currentEnvironment = environment;
+            return (currentEnvironment !== null &&
+                resolvedTypeMatches(type, currentEnvironment, (resolved, matches) => {
+                    if (resolved.type === "TSUnknownKeyword")
+                        return true;
+                    if (resolved.type === "TSParenthesizedType") {
+                        return matches(resolved.typeAnnotation);
+                    }
+                    if (resolved.type === "TSUnionType")
+                        return resolved.types.some(matches);
+                    if (resolved.type !== "TSTypeReference" ||
+                        resolved.typeName.type !== "Identifier" ||
+                        (resolved.typeName.name !== "Promise" &&
+                            resolved.typeName.name !== "PromiseLike") ||
+                        hasVisibleTypeBinding(resolved.typeName.name, resolved, currentEnvironment)) {
+                        return false;
+                    }
+                    const value = resolved.typeArguments?.params[0];
+                    return value !== undefined && matches(value);
+                }));
+        };
         const checkReturnType = (node) => {
             const annotation = node.returnType;
             if (annotation === null || annotation === undefined)

@@ -1,5 +1,8 @@
 import { containsUnknownType, functionParameterBindingName, functionParameterTypeAnnotation, } from "../../vendor/anti-slop/src/shared/function-parameters.js";
-import { classifyUnsafeDictionaryValue, isKnownEvidenceExpression, } from "./dictionary-types.js";
+import { isKnownEvidenceExpression } from "./expression-evidence.js";
+import { childNodes } from "./ast.js";
+import { visibleTypeDeclaration } from "./type-alias-resolution.js";
+import { classifyUnsafeDictionaryValue } from "./unsafe-dictionary.js";
 function unwrapExpression(expression) {
     let current = expression;
     while (current.type === "ParenthesizedExpression" ||
@@ -76,11 +79,16 @@ export function localFunctionForCall(sourceCode, callee) {
         isFunctionExpression(definition.node)) {
         return definition.node;
     }
-    if (definition.type !== "Variable" ||
-        definition.node.type !== "VariableDeclarator") {
+    const declarator = variableDeclarator(variable);
+    if (declarator === null)
         return null;
+    const annotation = declarator.id.type === "Identifier"
+        ? declarator.id.typeAnnotation?.typeAnnotation
+        : undefined;
+    if (annotation !== undefined) {
+        return annotation.type === "TSFunctionType" ? annotation : null;
     }
-    const initializer = definition.node.init;
+    const initializer = declarator.init;
     if (initializer === null)
         return null;
     const unwrappedInitializer = unwrapExpression(initializer);
@@ -89,17 +97,13 @@ export function localFunctionForCall(sourceCode, callee) {
         : null;
 }
 function variableTypeAnnotation(sourceCode, variable) {
+    const declarator = variableDeclarator(variable);
+    if (declarator?.id.type === "Identifier")
+        return declarator.id.typeAnnotation ?? null;
     if (variable.defs.length !== 1)
         return null;
     const [definition] = variable.defs;
-    if (definition === undefined)
-        return null;
-    if (definition.type === "Variable" &&
-        definition.node.type === "VariableDeclarator" &&
-        definition.node.id.type === "Identifier") {
-        return definition.node.id.typeAnnotation ?? null;
-    }
-    if (definition.type !== "Parameter" ||
+    if (definition?.type !== "Parameter" ||
         !isFunctionExpression(definition.node)) {
         return null;
     }
@@ -110,6 +114,27 @@ function variableTypeAnnotation(sourceCode, variable) {
 }
 function hasInformativeType(type, environment) {
     return classifyUnsafeDictionaryValue(type, environment) === null;
+}
+function hasUnresolvedGenericReturn(owner, environment) {
+    const parameters = owner.typeParameters?.params ?? [];
+    if (parameters.length === 0)
+        return false;
+    const nodes = owner.returnType == null ? [] : [owner.returnType];
+    while (nodes.length > 0) {
+        const node = nodes.pop();
+        if (node === undefined)
+            break;
+        if (node.type === "TSTypeQuery")
+            return true;
+        if (node.type === "TSTypeReference" &&
+            node.typeName.type === "Identifier") {
+            const declaration = visibleTypeDeclaration(node.typeName.name, node, environment.typeAliases);
+            if (parameters.some((parameter) => parameter === declaration))
+                return true;
+        }
+        nodes.push(...childNodes(node, environment.typeAliases.visitorKeys));
+    }
+    return false;
 }
 export function hasKnownCallArgumentEvidence(sourceCode, expression, environment, visitedVariables = new Set()) {
     if (expression.type === "ParenthesizedExpression" ||
@@ -126,7 +151,10 @@ export function hasKnownCallArgumentEvidence(sourceCode, expression, environment
     if (expression.type === "CallExpression") {
         const owner = localFunctionForCall(sourceCode, expression.callee);
         const returnType = owner?.returnType?.typeAnnotation;
-        return (returnType !== undefined && hasInformativeType(returnType, environment));
+        return (owner !== null &&
+            returnType !== undefined &&
+            !hasUnresolvedGenericReturn(owner, environment) &&
+            hasInformativeType(returnType, environment));
     }
     if (expression.type !== "Identifier")
         return isKnownEvidenceExpression(expression);

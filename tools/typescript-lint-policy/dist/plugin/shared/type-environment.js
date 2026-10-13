@@ -37,33 +37,3 @@ export function unwrapTransparentType(type) {
     }
     return current;
 }
-export function isUnappliedReferenceTo(type, name) {
-    const unwrapped = unwrapTransparentType(type);
-    return (unwrapped.type === "TSTypeReference" &&
-        typeReferenceName(unwrapped) === name &&
-        !unwrapped.typeArguments?.params.length);
-}
-function resolvedSubstitutionArgument(type, base, resolving = new Set()) {
-    const unwrapped = unwrapTransparentType(type);
-    if (unwrapped.type !== "TSTypeReference")
-        return type;
-    const name = typeReferenceName(unwrapped);
-    if (name === null || resolving.has(name))
-        return type;
-    const substitution = base.get(name);
-    if (substitution === undefined)
-        return type;
-    return resolvedSubstitutionArgument(substitution, base, new Set([...resolving, name]));
-}
-export function aliasSubstitution(alias, type, base) {
-    const parameters = alias.typeParameters?.params ?? [];
-    const typeArguments = type.typeArguments?.params ?? [];
-    const next = new Map(base);
-    for (const [index, parameter] of parameters.entries()) {
-        const argument = typeArguments[index] ?? parameter.default;
-        if (argument === null || argument === undefined)
-            return null;
-        next.set(parameter.name.name, resolvedSubstitutionArgument(argument, next));
-    }
-    return next;
-}

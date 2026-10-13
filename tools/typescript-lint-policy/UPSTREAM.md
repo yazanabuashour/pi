@@ -42,8 +42,9 @@ prescribes `catchTag` or `catchReason`. All three rules use the corrected handle
 boundary. Non-tag ternary checks remain active inside those handlers.
 
 Local overrides also import upstream's parameter helpers. There are no local
-copies of those algorithms. Oxfmt and Oxlint leave vendored source untouched. TypeScript checks those files, and the test command
-runs their upstream regressions unchanged through Oxlint's `RuleTester`.
+copies of those algorithms. Oxfmt and Oxlint leave vendored source untouched.
+TypeScript checks those files, and the test command runs their upstream
+regressions unchanged through Oxlint's `RuleTester`.
 The upstream spacing CLI test assumes pnpm and the upstream source entry point;
 project-owned integration coverage instead checks multi-file diagnostics,
 attached comments, whitespace-only fixes, and repeated-fix stability against the
@@ -60,8 +61,11 @@ The alias-based rules share `src/plugin/shared/`. Those helpers derive in part
 from anti-slop and remain covered by its notice. The local resolver preserves
 lexical shadowing, declaration-site generic bindings, nested transparent aliases,
 default arguments, and class-expression scope. Importing the pinned upstream
-resolver would lose existing regression protection. Dictionary and widening
-helpers remain split into focused modules under the measured local line limits.
+resolver would lose existing regression protection. Dictionary keys, dictionary
+values, and widening targets use that same resolver: caller arguments cannot
+replace unrelated declaration-site type bindings. Parameter defaults retain their
+alias's declaration context. Classification stays in focused modules under the
+measured local line limits.
 
 `no-unknown-parameters` resolves local aliases in addition to checking direct
 `unknown` syntax. Predicate exemptions apply only to the named predicate subject.
@@ -71,9 +75,9 @@ marker expressions across files. Existing rule IDs, options, and diagnostics
 remain unchanged.
 
 `src/plugin/rules/` contains the project-owned Node.js import, host-runtime,
-Schema compilation, and Effect test-ownership rules. `src/config.ts` owns native
-Oxlint settings and measured line limits. Consumers own their exemptions; this
-package adds none. The namespaces remain `project` and `project-effect`, so
+Schema compilation, Effect test-ownership, and one-line comment rules.
+`src/config.ts` owns native Oxlint settings and measured line limits. Consumers
+own their exemptions; this package adds none. The namespaces remain `project` and `project-effect`, so
 existing consumer waivers keep their names.
 
 The small `no-runtime-typeof` port also stays local. Upstream accesses an
@@ -81,6 +85,29 @@ index-signature option with dot syntax, which fails this project's
 `noPropertyAccessFromIndexSignature` compiler contract. The local port uses
 Oxlint's schema-validated options. Keeping it avoids patching vendored bytes or
 loosening compiler checks; detection, options, and diagnostics are unchanged.
+
+## Portable policy decisions
+
+[T3 Code at d4cd7d5](https://github.com/pingdotgg/t3code/tree/d4cd7d5c33122473da22ae118c93477ef7e38310)
+informed the native lint and compiler choices; this policy does not vendor its
+application plugins. Its warning severities, disabled React exhaustive-dependency
+checking, and manual Effect runtime debt ceilings would weaken the shared safety
+checks. Its API restrictions, UI components, aliases, and framework settings are
+application contracts, not portable defaults.
+
+Keep the local alias analysis, Node.js `node:test` import exception, Schema
+compiler checks, and host-runtime adapter contract rather than replacing them
+with name-only checks. Host-runtime checks resolve imported `node:os` bindings,
+so shadowed injected contracts and type-only imports do not receive runtime-read
+diagnostics.
+
+Typed linting remains enabled independently of a consumer's Effect compiler
+integration. `test/type-aware.test.mjs` requires semantic diagnostics and accepted
+code through the compiled policy; a silently disabled backend cannot pass it.
+Keep `tsc` as a separate gate rather than enabling experimental lint-time compiler
+diagnostics. The local switch-exhaustiveness waiver in
+`src/plugin/shared/widening-assertion-types.ts` belongs to an AST predicate that
+intentionally recognizes only a subset of node kinds, not to the portable default.
 
 ## Ancestry limitation
 

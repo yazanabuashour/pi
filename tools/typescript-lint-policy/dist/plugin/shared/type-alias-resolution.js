@@ -19,6 +19,7 @@ function declaredTypeBinding(node) {
     if (node.type === "TSTypeAliasDeclaration" ||
         node.type === "TSInterfaceDeclaration" ||
         node.type === "TSEnumDeclaration" ||
+        node.type === "TSImportEqualsDeclaration" ||
         node.type === "ClassDeclaration" ||
         node.type === "ClassExpression") {
         return node.id === null ? null : { declaration: node, name: node.id.name };
@@ -87,10 +88,14 @@ function nearestTypeBindings(name, use, environment) {
     }
     return nearest;
 }
+/** Resolve a unique visible type declaration, respecting lexical shadowing. */
+export function visibleTypeDeclaration(name, use, environment) {
+    const bindings = nearestTypeBindings(name, use, environment);
+    return bindings.length === 1 ? (bindings[0]?.declaration ?? null) : null;
+}
 /** Resolve the nearest visible alias with this name, respecting lexical shadowing. */
 export function visibleTypeAlias(name, use, environment) {
-    const bindings = nearestTypeBindings(name, use, environment);
-    const declaration = bindings.length === 1 ? bindings[0]?.declaration : null;
+    const declaration = visibleTypeDeclaration(name, use, environment);
     return declaration?.type === "TSTypeAliasDeclaration" ? declaration : null;
 }
 /** Return whether a local declaration shadows a built-in type at this use. */
@@ -121,19 +126,18 @@ function aliasSubstitutions(alias, reference, base, resolvingAliases) {
     }
     return next;
 }
-/** Match a type after resolving visible aliases and substituting their type parameters. */
-export function resolvedTypeMatches(type, environment, matcher) {
-    const evaluate = (current, substitutions, resolvingAliases) => {
+/** Resolve aliases and preserve lexical substitutions when a visitor evaluates child types. */
+export function resolveType(type, environment, visitor) {
+    const evaluate = (current, substitutions, resolvingAliases, visit) => {
         if (current.type === "TSTypeReference") {
             const name = typeReferenceName(current);
             if (name !== null) {
-                const bindings = nearestTypeBindings(name, current, environment);
-                const declaration = bindings.length === 1 ? bindings[0]?.declaration : null;
+                const declaration = visibleTypeDeclaration(name, current, environment);
                 const substitution = declaration == null ? undefined : substitutions.get(declaration);
                 if (substitution !== undefined &&
                     !current.typeArguments?.params.length) {
                     // Resume the argument's caller context, not the alias body's cycle guard.
-                    return evaluate(substitution.type, substitution.substitutions, substitution.resolvingAliases);
+                    return evaluate(substitution.type, substitution.substitutions, substitution.resolvingAliases, visit);
                 }
                 const alias = declaration?.type === "TSTypeAliasDeclaration" ? declaration : null;
                 if (alias !== null && !resolvingAliases.has(alias)) {
@@ -141,12 +145,17 @@ export function resolvedTypeMatches(type, environment, matcher) {
                     if (nextSubstitutions !== null) {
                         const nextResolving = new Set(resolvingAliases);
                         nextResolving.add(alias);
-                        return evaluate(alias.typeAnnotation, nextSubstitutions, nextResolving);
+                        return evaluate(alias.typeAnnotation, nextSubstitutions, nextResolving, visit);
                     }
                 }
             }
         }
-        return matcher(current, (child) => evaluate(child, substitutions, resolvingAliases));
+        return visit(current, (child, childVisitor) => evaluate(child, substitutions, resolvingAliases, childVisitor));
     };
-    return evaluate(type, new Map(), new Set());
+    return evaluate(type, new Map(), new Set(), visitor);
+}
+/** Match a resolved type with the same predicate throughout its children. */
+export function resolvedTypeMatches(type, environment, matcher) {
+    const visit = (current, resolve) => matcher(current, (child) => resolve(child, visit));
+    return resolveType(type, environment, visit);
 }

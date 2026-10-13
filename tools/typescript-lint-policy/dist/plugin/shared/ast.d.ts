@@ -5,5 +5,7 @@ export type VisitorKeys = Readonly<Record<string, readonly string[]>>;
 export declare function childNodes(node: AstNode, visitorKeys: VisitorKeys): Iterable<AstNode>;
 export declare function unwrapExpression(node: AstNode | null | undefined): AstNode | null;
 export declare function getPropertyName(expression: AstNode | null | undefined): string | null;
+/** Resolve public dot properties and string-literal computed properties, not variable keys. */
+export declare function getMemberPropertyName(member: ESTree.MemberExpression): string | null;
 export declare function isIdentifier(node: AstNode | null, name?: string): boolean;
 export declare function literalStringValue(expression: AstNode | null | undefined): string | null;

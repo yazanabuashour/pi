@@ -1,5 +1,5 @@
 import { defineRule } from "@oxlint/plugins";
-import { getPropertyName, isIdentifier, unwrapExpression, } from "../shared/ast.js";
+import { getMemberPropertyName, isIdentifier, unwrapExpression, } from "../shared/ast.js";
 const COMPILER_METHODS = new Set([
     "is",
     "asserts",
@@ -34,7 +34,7 @@ function schemaCompilerMethod(callee) {
         return null;
     if (!isIdentifier(unwrapExpression(expression.object), "Schema"))
         return null;
-    const method = getPropertyName(expression.property);
+    const method = getMemberPropertyName(expression);
     return method !== null && COMPILER_METHODS.has(method) ? method : null;
 }
 function isStaticSchemaReference(node) {
@@ -55,7 +55,10 @@ function isNestedStaticSchemaCall(node) {
         return false;
     if (!isIdentifier(unwrapExpression(callee.object), "Schema"))
         return false;
-    if (getPropertyName(callee.property) === "fromJsonString") {
+    const method = getMemberPropertyName(callee);
+    if (method === null)
+        return false;
+    if (method === "fromJsonString") {
         const [firstArgument] = expression.arguments;
         return (isStaticSchemaReference(firstArgument) ||
             isNestedStaticSchemaCall(firstArgument));
@@ -63,12 +66,12 @@ function isNestedStaticSchemaCall(node) {
     return true;
 }
 function isImmediatelyInvoked(node) {
-    const expression = unwrapExpression(node);
-    if (expression === null || !("parent" in expression))
-        return false;
-    const parent = unwrapExpression(expression.parent);
+    let parent = node.parent;
+    while (parent !== null && unwrapExpression(parent) === node) {
+        parent = parent.parent;
+    }
     return (parent?.type === "CallExpression" &&
-        unwrapExpression(parent.callee) === expression);
+        unwrapExpression(parent.callee) === node);
 }
 export const noInlineSchemaCompileRule = defineRule({
     meta: {
