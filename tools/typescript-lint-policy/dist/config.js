@@ -15,6 +15,14 @@ export const strictestConfig = defineConfig({
         typeAware: true,
         typeCheck: false,
     },
+    overrides: [
+        {
+            files: ["**/*.{spec,test}.{js,jsx,ts,tsx,mjs,cjs,mts,cts}"],
+            rules: {
+                "typescript/unbound-method": "off",
+            },
+        },
+    ],
     rules: {
         "eslint/no-await-in-loop": "off",
         "eslint/no-shadow": "off",

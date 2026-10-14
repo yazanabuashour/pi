@@ -65,7 +65,7 @@ resolver would lose existing regression protection. Dictionary keys, dictionary
 values, and widening targets use that same resolver: caller arguments cannot
 replace unrelated declaration-site type bindings. Parameter defaults retain their
 alias's declaration context. Classification stays in focused modules under the
-measured local line limits.
+local readability limits.
 
 `no-unknown-parameters` resolves local aliases in addition to checking direct
 `unknown` syntax. Predicate exemptions apply only to the named predicate subject.
@@ -76,7 +76,7 @@ remain unchanged.
 
 `src/plugin/rules/` contains the project-owned Node.js import, host-runtime,
 Schema compilation, Effect test-ownership, and one-line comment rules.
-`src/config.ts` owns native Oxlint settings and measured line limits. Consumers
+`src/config.ts` owns native Oxlint settings and readability limits. Consumers
 own their exemptions; this package adds none. The namespaces remain `project` and `project-effect`, so
 existing consumer waivers keep their names.
 

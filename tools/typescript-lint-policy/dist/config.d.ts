@@ -14,6 +14,12 @@ export declare const strictestConfig: {
         typeAware: true;
         typeCheck: false;
     };
+    overrides: {
+        files: string[];
+        rules: {
+            "typescript/unbound-method": "off";
+        };
+    }[];
     rules: {
         "eslint/no-await-in-loop": "off";
         "eslint/no-shadow": "off";

@@ -28,5 +28,5 @@
     "fileEffectiveLines": 300,
     "functionEffectiveLines": 100
   },
-  "decision": "Keep the existing common tripwires. The function limit remains beyond the 95th percentile in every measured project. File exemptions remain consumer-owned because static and generated data are project contracts, not policy defaults."
+  "decision": "Keep 300 file and 100 function effective lines as readability preferences, not operational capacity or healthy-behavior tripwires. The legacy tripwires field retains the configured values. Historical percentiles do not classify source roles or establish that larger code is unhealthy. Justified exemptions remain consumer-owned; the portable default adds none."
 }

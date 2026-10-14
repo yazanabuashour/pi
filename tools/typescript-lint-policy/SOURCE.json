@@ -1,18 +1,18 @@
 {
   "repository": "https://github.com/yazanabuashour/typescript-lint-policy",
-  "commit": "785845f751385d619338cbd3fbd848d31db6ef5c",
-  "sourceSha256": "8a89ee7465ff91615f041effd30a7dac49241acb04188b05f8c8a32fb3029a0b",
-  "contentSha256": "bb47ca9b85bc750e6d09758fde14b887a6e503d2d4e7d1e2a89d016a315f6e10",
+  "commit": "3cf2b91850dabbf467d22dc218776ecdf3284923",
+  "sourceSha256": "c85e8723c341f6efacb7b3cee2594e83fa016b1092c916d76a350f605ae0031f",
+  "contentSha256": "f8f52a67dce4cf9dfbd3da08a9a2d00415a040cf029eb5923bf01047a3043a5e",
   "files": {
     "LICENSE": "87a3c73d8eff0a79d4455b7bd85c9db246c3533a236cb722e200848354e01f44",
     "LICENSE.anti-slop": "10ed33bf340d6d63dc0633dfc917a346b369b6aa41fe20734aefc6a3fb75ba17",
     "LICENSE.eslint-stylistic": "a429d52d537b871facb01c086191ec8a56a22bf1a10f4e641daff114bccc4a74",
-    "README.md": "4ec27fba77d9878108161615869e3390aa91f7ba9087a608ac2e4a739c4c1648",
+    "README.md": "69cc7b0abb321c3184fae0adf7044c38c00d114656e074954647b1a37b3be614",
     "UPSTREAM-SOURCE.json": "5ba9406c66eb8fcc0579b6740bdebb7e583b50ddb5bce1d5261c76e9d0a11296",
-    "UPSTREAM.md": "c9340fa7e40a19ede68768fe1b8a6c3fe294fa252b0143fbc751a1db3e1c8e40",
-    "dist/SOURCE.json": "098302e3f9c9014cd958c87aa1e09e14c73e21ad56eebc0bb69fe46a8bb60f28",
-    "dist/config.d.ts": "98dd9f2539218ac7582efc85d91a2a04bf3165f468174597f43735b070f20da3",
-    "dist/config.js": "2473d0133a75c581508219106e77aaef74abffd0c9b8e11404c4296d73443af2",
+    "UPSTREAM.md": "8831fd23d4a9d2f97279c96e4435f9a091298bd15399660bed4f5b50badce5c1",
+    "dist/SOURCE.json": "f5fb45143266cc7f373bd5a72b389d378b41e4934c08b18273a986c22fe9361e",
+    "dist/config.d.ts": "5bc9e912034f3f45492b7482bc68b95e1b75f4271134b675ec9ac1bb61dc1f8c",
+    "dist/config.js": "bd4a941343f6478014ab31d48536f0dea6b74619b3f58a1938ffba665123e86e",
     "dist/plugin/effect/index.d.ts": "16160b700bda0083bcb40334b6ce029a7b3f061dc8fa18c448a01db6f6e5206f",
     "dist/plugin/effect/index.js": "6ec74ad8598b6efc5397e3252f82d4235447f89d6441c04498a62f022381d342",
     "dist/plugin/effect/no-manual-effect-error-tag.d.ts": "4d1befd03375b3de4f2c3cb664a0900bfec1d8c627608a044914a7b887ffdd64",
@@ -48,7 +48,7 @@
     "dist/plugin/rules/no-global-process-runtime.d.ts": "ec6358daf23f2c2808fa826f3043a205dbb1223c93e713a58da0c9e360d979e4",
     "dist/plugin/rules/no-global-process-runtime.js": "6267f58f4c0022245efd9315b4b6476947315cd48878a8a33741824dba217471",
     "dist/plugin/rules/no-inline-schema-compile.d.ts": "66c18c2bdd61d72a78b3a2b6b95ba60e5e7f681f394a667e8c9fe5600310e78b",
-    "dist/plugin/rules/no-inline-schema-compile.js": "55245fc499223b76ffa0b3e6585a2f2bfdbfc6d2c0b842802ba40d15d803170c",
+    "dist/plugin/rules/no-inline-schema-compile.js": "de0bbd849bb687fa0b0ea6f618938f7cf1d8988648544e81cf40a1f4b1ea041e",
     "dist/plugin/rules/no-manual-effect-runtime-in-tests.d.ts": "382a13bb0357581df59c03acea576b56e5ecb7fa80e7275470582a1665877e5d",
     "dist/plugin/rules/no-manual-effect-runtime-in-tests.js": "652859d2208a468a83545d4a0f6e540b8aa6dbdb15d0ebd72ff8c5017e8288e2",
     "dist/plugin/rules/no-multiline-comments.d.ts": "9775c349b41d0edde7e72175de1117441a5172dc2d7ee0ebbe2bc038b88690c9",
@@ -124,6 +124,6 @@
     "dist/vendor/anti-slop/src/vendor/eslint-stylistic/padding-line-between-statements.js": "1114d7ad7f4716e562963048913ca23857a5ca7016ca5c0e441e2791c9183b7a",
     "dist/vendor/anti-slop/src/vendor/eslint-stylistic/padding-line-options.d.ts": "ff3d52f2b1c103bc429e030976641715caec676af4b8a0be802c0009874a0d58",
     "package.json": "e1885eb6b62d4af97b725462aa40c4aafc0ec7c423c6ccdbbea16d29ec4a525d",
-    "receipts/size-limits.json": "0c79fd43fdf6d1af8893c8d31bc1367ddfe0655bbdeed2f8f7cd174e8c68b463"
+    "receipts/size-limits.json": "95be37c1e222481620587dfa380bd782dca519f430af3513d45b44d59109a946"
   }
 }

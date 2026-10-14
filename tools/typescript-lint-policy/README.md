@@ -81,8 +81,10 @@ in local, justified waivers.
   APIs; these rules do not autofix.
 - `max-lines` allows 300 effective lines; `max-lines-per-function` allows 100.
   Blank lines and comments are skipped; immediately invoked function expressions
-  count as functions. The snapshot includes the measurements in
-  `receipts/size-limits.json`.
+  count as functions. These are readability preferences, not operational
+  capacity limits or evidence that larger code is unhealthy.
+  `receipts/size-limits.json` retains historical counts whose source roles and
+  health were not classified.
 
 Custom project and Effect rules use syntax and lexical scope, not full type
 inference. Same-file aliases resolve where supported; imported types and
