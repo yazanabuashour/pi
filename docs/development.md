@@ -119,23 +119,23 @@ source checks also run on macOS. Other runtime versions must pass the same
 capability checks before deployment.
 
 The gate prints a retained receipt directory with runtime versions, provider and
-tool events, telemetry, and saved child transcripts. Pass a new directory as the
+tool events, lifecycle receipts, and telemetry. Pass a new directory as the
 optional fifth argument to select its location. It verifies:
 
 - Locked production dependencies, package discovery, and native SDK imports.
-- `web_search`, `fetch_content`, `get_search_content`, and `source_check` in parent
-  and child provider input; a missing-tool negative control must fail before
+- `web_search`, `fetch_content`, `get_search_content`, and `source_check` in
+  provider input; a missing-tool negative control must fail before
   execution. The probe reads native transcript state through
   `getCurrentSystemPrompt` and `getCurrentTools`, not a separate activation tool.
-- Delegated answers and session IDs reaching provider input, not just history or
-  display; saved child sessions and parent/child lifecycle settlement.
-- Structured workflow results, rejection of invalid output and provider failure
-  even when native JSON mode exits successfully, inherited TMPDIR, and schema cleanup.
-  `runtime-probes/workflow-probe.mjs` loads the installed helper, not a source copy.
-- Opt-in telemetry, child isolation, and valid work continuing when telemetry fails.
+- Upstream `agent-browser` skill discovery and absence of package-owned delegate
+  and workflow tools or skills.
+- Background start acceptance before completion, final stdout reaching provider
+  input, lifecycle receipts, and orderly process shutdown. A local Node
+  fixture waits for the provider to observe start acceptance before it can finish.
+- Opt-in telemetry and valid work continuing when telemetry fails.
 
-The RPC fixture keeps the parent alive until its provider sees the delegated
-answer and Pi emits `agent_settled`. It then closes stdin and awaits process
+The RPC fixture keeps Pi alive until its provider sees the background terminal's
+final stdout and Pi emits `agent_settled`. It then closes stdin and awaits process
 close. Test-only tripwires allow 120 seconds for delivery and another 120 seconds
 for orderly shutdown before forced termination. The receipt is the complete
 offline gate on 2026-10-10: native Pi 1.1.0, Node 24.18.1, `pi-web-access` 0.35.0,

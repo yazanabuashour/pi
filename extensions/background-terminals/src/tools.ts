@@ -1,8 +1,7 @@
 import * as NodeFS from "node:fs";
 import * as NodePath from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { Type } from "typebox";
-import { buildDelegateLaunch, delegateParameters } from "./delegate.ts";
+import { Type, type Static } from "typebox";
 import type { BackgroundTerminalSession } from "./extension-session.ts";
 import type { StartOptions } from "./manager.ts";
 import {
@@ -15,16 +14,20 @@ import {
   BG_START_TOOL_DESCRIPTION,
   BG_STATUS_PARAMETER_DESCRIPTIONS,
   BG_STATUS_TOOL_DESCRIPTION,
-  DELEGATE_TOOL_DESCRIPTION,
-  DELEGATE_PROMPT_SNIPPET,
-  DELEGATE_PROMPT_GUIDELINES,
-  buildDelegateStartResult,
   buildKillReport,
   buildStartResult,
   buildStatusResult,
   describeTerminal,
 } from "./prompt.ts";
 import { runTool } from "./runtime.ts";
+import {
+  TerminalKillOutputSchema,
+  TerminalListOutputSchema,
+  TerminalStatusOutputSchema,
+  TerminalSummarySchema,
+  terminalStatusOutput,
+  terminalSummary,
+} from "./tool-output.ts";
 
 /** Persist the admission receipt, or request cleanup if persistence fails. */
 async function startRecorded(
@@ -55,30 +58,6 @@ async function startRecorded(
   return snapshot;
 }
 
-function registerDelegate(
-  pi: ExtensionAPI,
-  session: BackgroundTerminalSession,
-) {
-  pi.registerTool({
-    name: "delegate",
-    label: "Delegate to Pi Session",
-    description: DELEGATE_TOOL_DESCRIPTION,
-    promptSnippet: DELEGATE_PROMPT_SNIPPET,
-    promptGuidelines: DELEGATE_PROMPT_GUIDELINES,
-    parameters: delegateParameters,
-    async execute(_toolCallId, params, signal, _onUpdate, context) {
-      signal?.throwIfAborted();
-      const launch = buildDelegateLaunch(params, context);
-      const snapshot = await startRecorded(session, launch, signal);
-
-      return {
-        content: [{ type: "text", text: buildDelegateStartResult(snapshot) }],
-        details: session.details(snapshot, "started"),
-      };
-    },
-  });
-}
-
 function registerStart(pi: ExtensionAPI, session: BackgroundTerminalSession) {
   pi.registerTool({
     name: "bg_start",
@@ -86,6 +65,7 @@ function registerStart(pi: ExtensionAPI, session: BackgroundTerminalSession) {
     description: BG_START_TOOL_DESCRIPTION,
     promptSnippet: BG_START_PROMPT_SNIPPET,
     promptGuidelines: BG_START_PROMPT_GUIDELINES,
+    outputSchema: TerminalSummarySchema,
     parameters: Type.Object({
       command: Type.String({
         description: BG_START_PARAMETER_DESCRIPTIONS.command,
@@ -121,9 +101,12 @@ function registerStart(pi: ExtensionAPI, session: BackgroundTerminalSession) {
         signal,
       );
 
+      const details = session.details(snapshot, "started");
+
       return {
         content: [{ type: "text", text: buildStartResult(snapshot) }],
-        details: session.details(snapshot, "started"),
+        details,
+        structuredContent: terminalSummary(snapshot, details),
       };
     },
   });
@@ -134,6 +117,7 @@ function registerStatus(pi: ExtensionAPI, session: BackgroundTerminalSession) {
     name: "bg_status",
     label: "Check Background Terminal",
     description: BG_STATUS_TOOL_DESCRIPTION,
+    outputSchema: TerminalStatusOutputSchema,
     parameters: Type.Object({
       id: Type.String({ description: BG_STATUS_PARAMETER_DESCRIPTIONS.id }),
     }),
@@ -150,9 +134,12 @@ function registerStatus(pi: ExtensionAPI, session: BackgroundTerminalSession) {
 
       if (snapshot.status !== "running") session.consume([snapshot.id]);
 
+      const details = session.details(snapshot, "snapshot");
+
       return {
         content: [{ type: "text", text: buildStatusResult(snapshot) }],
-        details: session.details(snapshot, "snapshot"),
+        details,
+        structuredContent: terminalStatusOutput(snapshot, details),
       };
     },
   });
@@ -163,6 +150,7 @@ function registerList(pi: ExtensionAPI, session: BackgroundTerminalSession) {
     name: "bg_list",
     label: "List Background Terminals",
     description: BG_LIST_TOOL_DESCRIPTION,
+    outputSchema: TerminalListOutputSchema,
     parameters: Type.Object({}),
     async execute() {
       const manager = await session.getManager();
@@ -180,6 +168,11 @@ function registerList(pi: ExtensionAPI, session: BackgroundTerminalSession) {
             session.details(snapshot, "snapshot"),
           ),
         },
+        structuredContent: {
+          terminals: terminals.map((snapshot) =>
+            terminalSummary(snapshot, session.details(snapshot, "snapshot")),
+          ),
+        },
       };
     },
   });
@@ -190,6 +183,7 @@ function registerKill(pi: ExtensionAPI, session: BackgroundTerminalSession) {
     name: "bg_kill",
     label: "Kill Background Terminals",
     description: BG_KILL_TOOL_DESCRIPTION,
+    outputSchema: TerminalKillOutputSchema,
     parameters: Type.Object({
       ids: Type.Array(Type.String(), {
         description: BG_KILL_PARAMETER_DESCRIPTIONS.ids,
@@ -219,8 +213,41 @@ function registerKill(pi: ExtensionAPI, session: BackgroundTerminalSession) {
             "Kill wait aborted; termination continues in the background.",
         });
 
+        const structuredContent = {
+          results: report.map((entry) => {
+            const snapshot = manager.view.get(entry.id);
+
+            const { stopRequested, cleanupIncomplete, ...observed } = entry;
+
+            const result: Static<
+              typeof TerminalKillOutputSchema
+            >["results"][number] = observed;
+
+            if (stopRequested !== undefined)
+              result.stopRequested = stopRequested;
+
+            if (cleanupIncomplete !== undefined)
+              result.cleanupIncomplete = cleanupIncomplete;
+
+            if (snapshot !== undefined) {
+              result.terminal = terminalSummary(
+                snapshot,
+                session.details(
+                  snapshot,
+                  snapshot.status === "running"
+                    ? "cleanup-incomplete"
+                    : "settled",
+                ),
+              );
+            }
+
+            return result;
+          }),
+        };
+
         const result = {
           content: [{ type: "text" as const, text: buildKillReport(report) }],
+          structuredContent,
           details: {
             results: report.map((entry) => {
               const snapshot = manager.view.get(entry.id);
@@ -259,7 +286,6 @@ export function registerTerminalTools(
   session: BackgroundTerminalSession,
 ) {
   registerStart(pi, session);
-  registerDelegate(pi, session);
   registerStatus(pi, session);
   registerList(pi, session);
   registerKill(pi, session);

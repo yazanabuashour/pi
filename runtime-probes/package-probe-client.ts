@@ -154,8 +154,7 @@ child.stdin.write(
   `${JSON.stringify({
     type: "prompt",
     id: "integration",
-    message:
-      "/skill:workflow-authoring run the offline package integration probe.",
+    message: "Run the offline background terminal package integration probe.",
   })}\n`,
 );
 

@@ -16,6 +16,9 @@ dependencies. Start a new session and check for startup errors; existing session
 keep their loaded extensions. Use `/login` to authenticate and `/model` to select
 a model; Ctrl+S in the picker saves the startup model.
 
+Use T3 Code or Herdr's native orchestration for delegated tasks and workflows.
+No package-owned orchestration helper or host patch is required.
+
 ## Update
 
 After [validation and required review](development.md), run `npm run install:local`

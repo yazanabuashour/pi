@@ -93,7 +93,6 @@ await NodeTest(
       const { snap: failed } = await settlement(manager, snap.id);
       NodeAssert.equal(failed.status, "failed");
       NodeAssert.equal(failed.exitCode, 3);
-      const delegate = { model: "provider/model", sessionId: "saved-1" };
 
       const direct = await runTool(
         runtime,
@@ -110,7 +109,6 @@ await NodeTest(
             ],
           },
           env: { ...process.env, CHILD_ONLY: "isolated" },
-          delegate,
         }),
       );
 
@@ -118,7 +116,6 @@ await NodeTest(
       NodeAssert.equal(directFailed.exitCode, 4);
       NodeAssert.equal(directFailed.stdout.text, "$HOME;|\nisolated\n");
       NodeAssert.equal(directFailed.command, "display only");
-      NodeAssert.deepEqual(directFailed.delegate, delegate);
     });
   },
 );

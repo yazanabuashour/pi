@@ -1,11 +1,10 @@
 # pi
 
-Reusable extensions, skills, and themes for [Pi](https://github.com/earendil-works/pi).
+Reusable extensions and themes for [Pi](https://github.com/earendil-works/pi).
 Provider choices, credentials, and other private settings stay on each machine.
 
-The package provides background terminals, delegated Pi sessions, workflow
-authoring, structured questions, and interface tools. Browser and web tools are
-separate packages.
+The package provides background terminals, structured questions, and interface
+tools. The host owns orchestration. Browser and web tools are separate packages.
 
 - [Install the package](docs/install.md)
 - [Develop and validate changes](docs/development.md)

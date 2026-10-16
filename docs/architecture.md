@@ -2,9 +2,12 @@
 
 This package owns resources that depend on Pi's runtime or interfaces.
 [agents](https://github.com/yazanabuashour/agents) owns instructions, skills, and
-helpers usable from any harness. Calling Pi does not decide ownership:
-checkpoint review belongs in agents; `workflow-authoring` belongs here because
-it uses this package's Pi tools. Neither repository requires the other.
+helpers usable from any harness. Calling Pi does not decide ownership;
+checkpoint review belongs in agents. Neither repository requires the other.
+
+T3 Code and Herdr own delegation, workflows, and scheduling through their native
+orchestration. This package supplies session tools, not a second orchestration
+layer or host patches.
 
 Browser policy and technical writing belong in agents, not this package.
 Upstream tools own their CLI guides and updates. Users and employers own settings,

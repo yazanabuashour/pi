@@ -1,4 +1,6 @@
 import * as NodeFS from "node:fs";
+import * as NodeOS from "node:os";
+import * as NodePath from "node:path";
 
 import {
   fauxAssistantMessage,
@@ -13,7 +15,7 @@ import {
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { registerReceipts } from "./package-probe-receipts.ts";
 import { Type } from "typebox";
-import { Check, Parse } from "typebox/value";
+import { Parse } from "typebox/value";
 
 const requiredTools = [
   "ask_user",
@@ -21,7 +23,6 @@ const requiredTools = [
   "bg_status",
   "bg_list",
   "bg_kill",
-  "delegate",
   "bash",
   "read",
   "edit",
@@ -32,35 +33,17 @@ const requiredTools = [
   "web_search",
 ];
 
-const childFixture = "dotfiles-native-delegate-completed";
+const terminalFixture = "dotfiles-native-background-completed";
 
-const childPrompt = "Return the synthetic native delegate fixture.";
-
-const helperPrompt = "Return the synthetic native workflow fixture.";
-
-const invalidHelperPrompt = "Return an invalid synthetic workflow fixture.";
-
-const failedHelperPrompt = "Fail the synthetic native workflow fixture.";
-
-const childPromptSchema = Type.Union([
-  Type.Literal(`Task: ${childPrompt}`),
-  Type.Tuple([
-    Type.Object({
-      type: Type.Literal("text"),
-      text: Type.Literal(`Task: ${childPrompt}`),
-    }),
-  ]),
-]);
-
-const delegateSchema = Type.Object({
+const startedSchema = Type.Object({
   schemaVersion: Type.Literal(1),
   event: Type.Literal("started"),
   id: Type.String(),
   pid: Type.Number(),
-  delegate: Type.Object({
-    model: Type.Literal("dotfiles-package-probe/probe"),
-    sessionId: Type.String(),
-  }),
+  status: Type.Literal("running"),
+  outcome: Type.Optional(Type.Never()),
+  settledAt: Type.Optional(Type.Never()),
+  exitCode: Type.Optional(Type.Never()),
 });
 
 function callTool(name: string, args: ToolCall["arguments"]) {
@@ -83,25 +66,43 @@ function toolResult(context: TranscriptContext, name: string) {
   return result;
 }
 
-function parentResponse(context: TranscriptContext) {
+function shellQuote(value: string) {
+  return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+function parentResponse(context: TranscriptContext, releasePath: string) {
   if (!toolResult(context, "package_probe"))
     return callTool("package_probe", { value: "probe-receipt" });
-  const delegated = toolResult(context, "delegate");
+  const started = toolResult(context, "bg_start");
 
-  if (!delegated)
-    return callTool("delegate", {
-      prompt: childPrompt,
+  if (!started) {
+    const script =
+      `const fs = require("node:fs");` +
+      `const timer = setInterval(() => {` +
+      `if (!fs.existsSync(${JSON.stringify(releasePath)})) return;` +
+      `clearInterval(timer); console.log(${JSON.stringify(terminalFixture)});` +
+      `}, 10);`;
+
+    return callTool("bg_start", {
+      command: `node -e ${shellQuote(script)}`,
       title: "native package fixture",
     });
+  }
 
-  const receipt = Parse(delegateSchema, delegated.details);
+  const receipt = Parse(startedSchema, started.details);
+
+  // The process cannot finish until the provider observes its admission receipt.
+  NodeFS.writeFileSync(releasePath, "release", { mode: 0o600 });
 
   if (
     !context.messages.some(
       (message) =>
         message.role === "user" &&
-        JSON.stringify(message.content).includes(childFixture) &&
-        JSON.stringify(message.content).includes(receipt.delegate.sessionId),
+        JSON.stringify(message.content).includes(terminalFixture) &&
+        JSON.stringify(message.content).includes(
+          `Background terminal ${receipt.id} `,
+        ) &&
+        JSON.stringify(message.content).includes("exited (exit 0)"),
     )
   )
     return fauxAssistantMessage("dotfiles-package-probe-waiting");
@@ -113,7 +114,6 @@ function checkResources(
   pi: ExtensionAPI,
   context: TranscriptContext,
   browserSkillName: string | undefined,
-  child: boolean,
 ) {
   const resources = {
     systemPrompt: getCurrentSystemPrompt(context.messages),
@@ -126,27 +126,18 @@ function checkResources(
   )
     throw new Error("upstream agent-browser skill was not discovered");
 
-  if (resources.systemPrompt.includes("<name>swarm</name>"))
-    throw new Error("obsolete swarm skill was discovered");
-
-  if (resources.systemPrompt.includes("<name>workflow-authoring</name>"))
-    throw new Error("manual workflow skill is advertised to the model");
-
-  for (const name of ["browser-resilience", "technical-writing"]) {
+  for (const name of [
+    "swarm",
+    "workflow-authoring",
+    "browser-resilience",
+    "technical-writing",
+  ]) {
     if (
       resources.systemPrompt.includes(`<name>${name}</name>`) ||
       pi.getCommands().some((command) => command.name === `skill:${name}`)
     )
-      throw new Error(`extracted personal skill was discovered: ${name}`);
+      throw new Error(`removed or extracted skill was discovered: ${name}`);
   }
-
-  if (
-    !child &&
-    !pi
-      .getCommands()
-      .some((command) => command.name === "skill:workflow-authoring")
-  )
-    throw new Error("manual workflow skill command is missing");
 
   if (pi.getCommands().some((command) => command.name === "swarm"))
     throw new Error("obsolete swarm command was registered");
@@ -154,53 +145,23 @@ function checkResources(
   const names = new Set(resources.tools.map((tool) => tool.name));
 
   if (
-    [...names].some((name) => name.startsWith("swarm_") || name === "workflow")
+    pi
+      .getAllTools()
+      .some(
+        (tool) =>
+          tool.name.startsWith("swarm_") ||
+          tool.name === "delegate" ||
+          tool.name === "workflow",
+      )
   )
-    throw new Error("obsolete swarm or workflow tool was registered");
-
-  const parentOnly = new Set(["ask_user", "delegate"]);
+    throw new Error("package-owned orchestration tool was registered");
 
   for (const name of requiredTools) {
-    if (child && parentOnly.has(name)) {
-      if (names.has(name))
-        throw new Error(`child received parent tool: ${name}`);
-    } else if (!names.has(name))
-      throw new Error(`missing required tool: ${name}`);
+    if (!names.has(name)) throw new Error(`missing required tool: ${name}`);
   }
-
-  if (
-    child &&
-    Object.keys(process.env).some((name) => name.startsWith("PI_AUTOMATION_"))
-  )
-    throw new Error("delegated child inherited automation telemetry variables");
 }
 
-function helperResponse(context: TranscriptContext, prompts: string[]) {
-  if (prompts.some((prompt) => prompt.includes(`Task: ${failedHelperPrompt}`)))
-    throw new Error("synthetic workflow provider failure");
-
-  const structured = context.messages.find(
-    (message) =>
-      message.role === "toolResult" && message.toolName === "structured_output",
-  );
-
-  if (structured)
-    return fauxAssistantMessage("dotfiles-native-workflow-completed");
-
-  return callTool("structured_output", {
-    result: prompts.some((prompt) =>
-      prompt.includes(`Task: ${invalidHelperPrompt}`),
-    )
-      ? 42
-      : "dotfiles-native-workflow-completed",
-  });
-}
-
-function recordProviderRequest(
-  context: TranscriptContext,
-  child: boolean,
-  helper: boolean,
-) {
+function recordProviderRequest(context: TranscriptContext) {
   const path = process.env["DOTFILES_PI_PROBE_PROVIDER_EVENTS"];
 
   if (!path) return;
@@ -208,9 +169,6 @@ function recordProviderRequest(
     path,
     `${JSON.stringify({
       type: "provider_request",
-      child,
-      helper,
-      tmpdir: process.env["TMPDIR"],
       messages: context.messages.map(({ role, content }) => ({
         role,
         content,
@@ -222,12 +180,20 @@ function recordProviderRequest(
 }
 
 export default function (pi: ExtensionAPI) {
+  const releasePath = NodePath.join(
+    process.env["TMPDIR"] ?? NodeOS.tmpdir(),
+    `pi-package-probe-release-${process.pid}`,
+  );
+
   let browserSkillName: string | undefined;
   pi.on("session_start", () => {
     if (process.env["DOTFILES_PI_PROBE_MISSING_TOOL"] === "1")
       pi.setActiveTools(
         pi.getActiveTools().filter((name) => name !== "web_search"),
       );
+  });
+  pi.on("session_shutdown", () => {
+    NodeFS.rmSync(releasePath, { force: true });
   });
   pi.on("before_agent_start", (event) => {
     const expectedSkill = process.env["DOTFILES_PI_PROBE_BROWSER_SKILL"];
@@ -257,30 +223,10 @@ export default function (pi: ExtensionAPI) {
 
   const respond: FauxResponseFactory = (context) => {
     faux.appendResponses([respond]);
+    recordProviderRequest(context);
+    checkResources(pi, context, browserSkillName);
 
-    const prompts = context.messages
-      .filter((message) => message.role === "user")
-      .map((message) => JSON.stringify(message.content));
-
-    const helper = prompts.some((prompt) =>
-      [helperPrompt, invalidHelperPrompt, failedHelperPrompt].some((task) =>
-        prompt.includes(`Task: ${task}`),
-      ),
-    );
-
-    const child =
-      helper ||
-      context.messages.some(
-        (message) =>
-          message.role === "user" && Check(childPromptSchema, message.content),
-      );
-
-    recordProviderRequest(context, child, helper);
-    checkResources(pi, context, browserSkillName, child);
-
-    if (helper) return helperResponse(context, prompts);
-
-    return child ? fauxAssistantMessage(childFixture) : parentResponse(context);
+    return parentResponse(context, releasePath);
   };
 
   faux.setResponses([respond]);

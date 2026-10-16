@@ -2,7 +2,7 @@
   "name": "yazan-pi-setup",
   "version": "1.0.0",
   "private": true,
-  "description": "Provider-independent Pi extensions, skills, and themes",
+  "description": "Provider-independent Pi extensions and themes",
   "license": "MIT",
   "author": "Yazan Abuashour",
   "repository": {
@@ -23,9 +23,7 @@
     "extensions": [
       "./extensions"
     ],
-    "skills": [
-      "./skills/workflow-authoring"
-    ],
+    "skills": [],
     "themes": [
       "./themes"
     ]
@@ -70,9 +68,6 @@
     "extensions/**/*.cjs",
     "extensions/**/*.md",
     "runtime-probes/automation-telemetry.ts",
-    "skills/workflow-authoring/SKILL.md",
-    "skills/workflow-authoring/pi-agents.mjs",
-    "skills/workflow-authoring/structured-output.ts",
     "themes",
     "!extensions/**/*.test.ts",
     "!extensions/**/*.vitest.ts",
@@ -83,11 +78,11 @@
     "install:local": "bash scripts/install-local",
     "update:extensions": "bash scripts/update-extensions",
     "test:integration": "bash scripts/test-integration",
-    "format": "oxfmt \"extensions/**/*.{ts,cjs}\" \"runtime-probes/**/*.{ts,mjs}\" \"skills/**/*.{ts,mjs}\" \"*.{json,ts}\" \"themes/*.json\"",
-    "format:check": "oxfmt --check \"extensions/**/*.{ts,cjs}\" \"runtime-probes/**/*.{ts,mjs}\" \"skills/**/*.{ts,mjs}\" \"*.{json,ts}\" \"themes/*.json\"",
+    "format": "oxfmt \"extensions/**/*.{ts,cjs}\" \"runtime-probes/**/*.ts\" \"*.{json,ts}\" \"themes/*.json\"",
+    "format:check": "oxfmt --check \"extensions/**/*.{ts,cjs}\" \"runtime-probes/**/*.ts\" \"*.{json,ts}\" \"themes/*.json\"",
     "lint": "oxlint --deny-warnings --report-unused-disable-directives .",
     "test": "npm run test:node && npm run test:vitest",
-    "test:node": "node --test --experimental-strip-types \"extensions/**/*.test.ts\" \"runtime-probes/*.test.ts\" \"skills/**/*.test.mjs\"",
+    "test:node": "node --test --experimental-strip-types \"extensions/**/*.test.ts\" \"runtime-probes/*.test.ts\"",
     "test:vitest": "vitest run",
     "typecheck": "bash scripts/patch-declarations && tsc --noEmit"
   }

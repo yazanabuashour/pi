@@ -16,11 +16,8 @@ package directory. The web extension owns its configuration paths.
 
 ## Models
 
-`delegate` runs its child on the requested `provider/model-id`, or on the calling
-session's model and thinking level when omitted. The requested model must be
-available with configured credentials. Otherwise the call fails and lists the
-available models. Workflow-script children use Pi's saved defaults unless the
-script passes `model`.
+Use host orchestration: T3 Code's task tools or Herdr's agent/pane CLI. This
+package runs shell jobs, not a second agent or workflow runner.
 
 Search is independent of the coding provider: Copilot authentication does not
 provide Codex-backed OpenAI search. Search, hosted extraction, summaries, and page
@@ -33,17 +30,24 @@ answers can send content to other services. Preferences are not security control
 | `bg_start` | Start a shell command without stdin; return a terminal ID before execution completes. |
 | `bg_status` / `bg_list` | Inspect one terminal or list running and settled terminals. |
 | `bg_kill` | Request termination and report observed settlement or incomplete cleanup. |
-| `delegate` | Run a self-contained prompt in a saved Pi `--print` child process. Return immediately; deliver its final answer as a terminal completion. |
 | `ask_user` | Ask one multiple-choice question with a free-form answer option. |
-| `/skill:workflow-authoring` | Write a Node script that runs phased Pi children with schema-checked results. |
 
-Delegated children save their session, and the completion names the session ID.
-Reopen it from the child's working directory with `pi --session <id>`. Children
-never receive `delegate` or `ask_user`, so delegation does not nest.
-`PI_AUTOMATION_*` variables are removed from their environment.
+### Structured background results
 
-See the [workflow authoring guide](../skills/workflow-authoring/SKILL.md).
-Agents share the account's files and permissions; they are not a security sandbox.
+The `bg_*` tools keep their text replies and expose schema-defined
+`structuredContent` to RPC clients and Codemode scripts. Terminal summaries include
+`runtimeId`, `id`, title, command, working directory, observed status, and output
+byte counts. Use `runtimeId` and `id` together across session restarts.
+
+`bg_start` acknowledges launch, not completion. `bg_status` adds bounded stdout and
+stderr tails, truncation flags, and full-log paths when capture is available.
+`bg_list` omits log bodies. `bg_kill` distinguishes a stop request from observed
+exit and includes a terminal summary while the record remains tracked.
+
+Hosts decide how to display these results. Tracking work after launch requires
+consuming lifecycle entries; structured results alone create neither task cards
+nor session residency. Session shutdown requests cleanup of its jobs.
+Run persistent services outside the agent session.
 
 ### Background wake policy
 
@@ -58,8 +62,8 @@ A host that owns scheduling uses `PI_BACKGROUND_WAKE_POLICY=host pi --mode rpc`.
 RPC alone does not select the policy. Each extension reads it at runtime creation;
 invalid values fail initialization.
 
-The policy covers terminal results, including delegated sessions. It does not
-control third-party extensions or block explicit prompts. Terminal results
+The policy covers terminal results. It does not control third-party extensions
+or block explicit prompts. Terminal results
 received during active work wait for delivery. Execution, submission, and
 starting another turn are separate operations.
 
@@ -96,15 +100,7 @@ can leave the tracked list without deleting spill files. Shutdown removes the
 session's temporary log directory. Background jobs have no age timeout.
 
 `/ps` shows retained output tails. Reported log paths hold captured output while
-available; capture limits or write failures can prevent complete logs. Delegated
-sessions preserve conversations, not running agents.
-
-Delegated reports use Pi's tool-output allowance (50 KB and 2,000 lines), not the
-concise shell tail. Oversized reports retain both their beginning and end.
-The photographed receipt, `IMG20261009212849.jpg`, measured 122 child reports on
-2026-10-09; the largest report was 22 KB and 499 lines. Delegates retain an
-original head and a current tail within the existing 2 MiB in-memory stream cap.
-Spill files remain the source for complete output when available.
+available; capture limits or write failures can prevent complete logs.
 
 ## Interface commands
 
@@ -127,7 +123,7 @@ also supplies the `tokyo-night` theme.
 The package ships `runtime-probes/automation-telemetry.ts` without loading it.
 Automation callers pass `--extension` with its installed path and set
 `PI_AUTOMATION_TELEMETRY_PATH`. `PI_AUTOMATION_NAME` and `PI_AUTOMATION_RUN_ID`
-identify the caller and run. Delegated children do not inherit these variables.
+identify the caller and run.
 
 The `pi-automation-telemetry/v2` stream records lifecycle events, tool durations,
 concurrency, errors, and a shutdown summary—not arguments, results, inferred query
