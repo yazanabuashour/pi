@@ -30,6 +30,7 @@ export default function modelInfo(pi: ExtensionAPI) {
   }
 
   function refresh(ctx: ExtensionContext) {
+    if (ctx.mode !== "tui") return;
     currentContext = ctx;
     const model = ctx.model;
     const usage = ctx.getContextUsage();

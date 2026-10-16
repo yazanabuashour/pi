@@ -45,8 +45,13 @@ await NodeTest(
 
     modelInfo(api);
 
-    const context = (cost: number, percent: number): ExtensionContext =>
+    const context = (
+      cost: number,
+      percent: number,
+      mode: ExtensionContext["mode"] = "tui",
+    ): ExtensionContext =>
       Object.assign(Object.create(null), {
+        mode,
         getContextUsage: () => ({ contextWindow: 1000, percent }),
         sessionManager: {
           getBranch: () => [
@@ -57,6 +62,13 @@ await NodeTest(
           ],
         },
       });
+
+    await handlers.get("session_start")?.(
+      { reason: "startup" },
+      context(3, 60, "rpc"),
+    );
+    refreshListener?.();
+    NodeAssert.equal(publications.length, 0);
 
     await handlers.get("session_start")?.(
       { reason: "startup" },

@@ -115,10 +115,12 @@ Spill files remain the source for complete output when available.
 | `/pr` | Refresh Git and pull request information; pull request lookup uses `gh` and its authentication. |
 | `/copy-all` | Copy the current branch's user and assistant messages to the clipboard, excluding tool output and reasoning. |
 
-The custom footer shows directory, Git status, model, thinking level, context
-usage, and estimated cost. Cost comes from Pi's assistant-message estimates on
-the current branch, not subscription billing; it excludes delegated work and
-summaries. The package also supplies the `tokyo-night` theme.
+The interactive terminal's custom footer shows directory, Git status, model,
+thinking level, context usage, and estimated cost. Automatic Git refresh and model
+metrics run only in terminal sessions; `/pr` still refreshes on demand in other
+modes. Cost comes from Pi's assistant-message estimates on the current branch,
+not subscription billing; it excludes delegated work and summaries. The package
+also supplies the `tokyo-night` theme.
 
 ## Automation telemetry
 

@@ -74,6 +74,7 @@ class GitInfoController {
   }
 
   private refreshInBackground(ctx: ExtensionContext) {
+    if (ctx.mode !== "tui") return;
     this.currentContext = ctx;
     this.forkBackground(this.refresh.refreshIfIdle(ctx.cwd));
   }
@@ -81,11 +82,14 @@ class GitInfoController {
   private installLifecycle() {
     this.pi.on("session_start", async (_event, ctx) => {
       this.refresh.invalidate();
+      this.currentContext = undefined;
       const previous = this.pollingFiber;
       this.pollingFiber = undefined;
 
       if (previous)
         await this.getRuntime().runPromise(Fiber.interrupt(previous));
+
+      if (ctx.mode !== "tui") return;
       this.refreshInBackground(ctx);
       this.pollingFiber = this.forkBackground(this.poll());
     });

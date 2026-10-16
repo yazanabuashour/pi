@@ -38,7 +38,7 @@ interface CommandResults {
   [command: string]: Partial<CommandResult> | CommandError;
 }
 
-export async function fixture() {
+export async function fixture(mode: ExtensionContext["mode"] = "tui") {
   const bus = new NodeEvents.EventEmitter();
 
   type Handler = (
@@ -94,7 +94,7 @@ export async function fixture() {
       commands.set(name, command),
   });
 
-  const ui = fixtureUi();
+  const ui = fixtureUi(mode);
   const { ctx } = ui;
 
   const dispatch = async (name: string) => {
@@ -117,6 +117,8 @@ export async function fixture() {
     results,
     requests,
     runtime,
+    dispatch,
+    runtimeCreations: () => runtimeMock.mock.calls.length,
     refresh: async () => {
       const command = commands.get("pr");
       assert.ok(command);
@@ -130,7 +132,7 @@ export async function fixture() {
   };
 }
 
-function fixtureUi() {
+function fixtureUi(mode: ExtensionContext["mode"]) {
   const notices: { text: string; level: string }[] = [];
   const tui = Object.assign(Object.create(null), { requestRender: () => {} });
 
@@ -148,7 +150,7 @@ function fixtureUi() {
 
   const ctx: ExtensionCommandContext = Object.assign(Object.create(null), {
     cwd: "/fixture",
-    mode: "tui",
+    mode,
     ui: {
       theme,
       setHeader: () => {},

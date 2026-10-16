@@ -4,6 +4,7 @@ import {
   emptyModelInfoState,
   GIT_INFO_CHANNEL,
   MODEL_INFO_CHANNEL,
+  REFRESH_CHANNEL,
   isGitInfoState,
 } from "../shared/dashboard-state.ts";
 import {
@@ -16,6 +17,24 @@ import {
 } from "./index.test-support.ts";
 import { CommandError, type CommandResult } from "./src/process.ts";
 import { lookupPullRequest } from "./src/repository.ts";
+
+it("non-terminal sessions skip dashboard work but retain explicit /pr", async () => {
+  const f = await fixture("rpc");
+  await f.dispatch("session_start");
+  await f.dispatch("input");
+  await f.dispatch("tool_execution_end");
+  f.bus.emit(REFRESH_CHANNEL);
+  assert.equal(f.runtimeCreations(), 0);
+  assert.isEmpty(f.requests);
+
+  await f.refresh();
+  assert.include(f.notice(), "PR #7");
+  const requests = [...f.requests];
+  await f.dispatch("input");
+  await f.dispatch("tool_execution_end");
+  f.bus.emit(REFRESH_CHANNEL);
+  assert.deepEqual(f.requests, requests);
+});
 
 it("command failures reach the guard, footer and /pr without clean or absent claims", async () => {
   const f = await fixture();
