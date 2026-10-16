@@ -49,7 +49,7 @@
     "@types/node": "26.6.4",
     "@yazanabuashour/oxlint-config": "file:tools/typescript-lint-policy",
     "oxfmt": "0.71.0",
-    "oxlint": "1.86.0",
+    "oxlint": "1.87.0",
     "oxlint-tsgolint": "7.0.2003",
     "typebox": "1.3.34",
     "typescript": "7.0.2",
