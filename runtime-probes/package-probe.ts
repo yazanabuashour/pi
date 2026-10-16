@@ -18,7 +18,6 @@ import { Type } from "typebox";
 import { Parse } from "typebox/value";
 
 const requiredTools = [
-  "ask_user",
   "bg_start",
   "bg_status",
   "bg_list",
@@ -150,11 +149,12 @@ function checkResources(
       .some(
         (tool) =>
           tool.name.startsWith("swarm_") ||
+          tool.name === "ask_user" ||
           tool.name === "delegate" ||
           tool.name === "workflow",
       )
   )
-    throw new Error("package-owned orchestration tool was registered");
+    throw new Error("removed package tool was registered");
 
   for (const name of requiredTools) {
     if (!names.has(name)) throw new Error(`missing required tool: ${name}`);

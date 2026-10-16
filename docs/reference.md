@@ -30,7 +30,6 @@ answers can send content to other services. Preferences are not security control
 | `bg_start` | Start a shell command without stdin; return a terminal ID before execution completes. |
 | `bg_status` / `bg_list` | Inspect one terminal or list running and settled terminals. |
 | `bg_kill` | Request termination and report observed settlement or incomplete cleanup. |
-| `ask_user` | Ask one multiple-choice question with a free-form answer option. |
 
 ### Structured background results
 
@@ -76,9 +75,6 @@ settings still apply; `--no-session` provides no disk durability.
 Background terminals need no UI, but remain session-owned. One-shot clients can
 exit and stop unfinished work. Keep the session alive until settlement. Wake
 policy extends no resource lifetime.
-
-`ask_user` uses RPC dialogs only with `--ask-user-rpc`, which declares client
-support for `extension_ui_request`. Other non-interactive clients get a fallback.
 
 ### Cancellation and shutdown
 
