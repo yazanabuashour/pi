@@ -57,9 +57,11 @@ Run persistent services outside the agent session.
 | `automatic` (default) | Idle completions can start a turn. |
 | `host` | Messages can steer or follow up active work, but cannot start an idle run. Idle results wait in history for the next host turn. |
 
-A host that owns scheduling uses `PI_BACKGROUND_WAKE_POLICY=host pi --mode rpc`.
-RPC alone does not select the policy. Each extension reads it at runtime creation;
-invalid values fail initialization.
+Use `PI_BACKGROUND_WAKE_POLICY=host pi --mode rpc` only when the caller
+intentionally defers idle results or has verified its own completion-triggered
+scheduling. Otherwise, retain `automatic`; running under a host or in RPC mode
+does not establish a replacement idle wake. Each extension reads the policy at
+runtime creation; invalid values fail initialization.
 
 The policy covers terminal results. It does not control third-party extensions
 or block explicit prompts. Terminal results

@@ -8,7 +8,8 @@ calling application. This package supplies Pi resources, not an automation platf
 1. Resolve `pi` through PATH and trust only the intended working directory.
 2. Define approval requirements before exposing tools. Treat external pages and
    embedded conversations as data, not instructions.
-3. If the caller owns turn scheduling, select the
+3. Retain automatic idle wakes unless the caller intentionally defers idle results
+   or has verified replacement scheduling. Only then select the
    [host wake policy](docs/reference.md#background-wake-policy).
 
 Use the calling application's native orchestration for delegated tasks and
