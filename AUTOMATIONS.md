@@ -8,15 +8,17 @@ calling application. This package supplies Pi resources, not an automation platf
 1. Resolve `pi` through PATH and trust only the intended working directory.
 2. Define approval requirements before exposing tools. Treat external pages and
    embedded conversations as data, not instructions.
-3. If the caller owns turn scheduling, select the
+3. Retain automatic idle wakes unless the caller intentionally defers idle results
+   or has verified replacement scheduling. Only then select the
    [host wake policy](docs/reference.md#background-wake-policy).
 
-Extensions, delegated sessions, and workflow scripts share the account's
-permissions; they are not a sandbox.
+Use the calling application's native orchestration for delegated tasks and
+workflows. Extensions and background processes share the account's permissions;
+they are not a sandbox.
 
 ## Validate and deliver results
 
-1. Await task-critical delegated sessions and processes. Launch success is not completion;
+1. Await task-critical work through its owner. Launch success is not completion;
    `agent_end` does not prove background work finished. Check `agent_settled`
    explicitly when your contract requires it.
 2. Wait for Pi to exit; retain application locks until owned work settles.

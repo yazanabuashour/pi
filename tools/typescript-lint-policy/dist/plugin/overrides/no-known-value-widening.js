@@ -1,5 +1,6 @@
 import { defineRule } from "@oxlint/plugins";
-import { classifyWideningTarget, createTypeEnvironment, } from "../shared/dictionary-types.js";
+import { createTypeEnvironment, } from "../shared/type-environment.js";
+import { classifyWideningTarget, } from "../shared/widening-target.js";
 import { hasKnownEvidence, knownPredicateArgument, resolveVariable, variableDeclarator, } from "../shared/known-evidence.js";
 function unwrapExpression(expression) {
     let current = expression;
@@ -39,6 +40,10 @@ function sourceKeyName(sourceCode, key) {
 function functionName(sourceCode, owner) {
     if (owner === null)
         return "anonymous function";
+    if (owner.type === "TSFunctionType") {
+        const binding = owner.parent.parent;
+        return binding?.type === "Identifier" ? binding.name : "anonymous function";
+    }
     if (owner.id !== null)
         return owner.id.name;
     const parent = owner.parent;

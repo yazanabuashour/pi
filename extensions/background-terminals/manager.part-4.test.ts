@@ -5,10 +5,14 @@ import * as NodeFS from "node:fs";
 import * as NodePath from "node:path";
 
 import NodeTest from "node:test";
+import * as NodeOS from "node:os";
+import { flushSpillStreams } from "./src/manager-spill.ts";
+import type { Entry } from "./src/manager-contract.ts";
 
 import {
   cwd,
   nodeCmd,
+  pollUntil,
   settlement,
   withManager,
 } from "./manager.test-support.ts";
@@ -118,6 +122,82 @@ await NodeTest(
       NodeAssert.equal(failed.exitCode, undefined);
       NodeAssert.equal(failed.signal, undefined);
     });
+  },
+);
+
+await NodeTest(
+  "stalled spill flush keeps resource ownership through late close",
+  async (test) => {
+    const dir = NodeFS.mkdtempSync(
+      NodePath.join(NodeOS.tmpdir(), "spill-stall-"),
+    );
+
+    test.after(() => NodeFS.rmSync(dir, { recursive: true, force: true }));
+    let releaseWrite: (() => void) | undefined;
+
+    const file = NodeFS.createWriteStream(NodePath.join(dir, "log"), {
+      fs: {
+        open: NodeFS.open,
+        close: NodeFS.close,
+        write: (_fd, buffer, _offset, length, _position, callback) => {
+          releaseWrite = () => {
+            releaseWrite = undefined;
+            callback(null, length, buffer);
+          };
+        },
+      },
+    });
+
+    const streamErrors: Error[] = [];
+    file.on("error", (error) => streamErrors.push(error));
+    const closed = new Promise<void>((resolve) => file.once("close", resolve));
+    test.after(async () => {
+      file.destroy();
+      releaseWrite?.();
+      await closed;
+    });
+
+    const fd = await new Promise<number>((resolve) =>
+      file.once("open", resolve),
+    );
+
+    file.write("fixture");
+    NodeAssert.ok(await pollUntil(() => releaseWrite !== undefined));
+
+    const entry: Entry = Object.assign(Object.create(null), {
+      spillStreams: [file],
+      stdoutBuf: { spillPath: "log" },
+      stderrBuf: { spillPath: "log" },
+      snapshot: {},
+    });
+
+    await withManager(async (_manager, runtime) => {
+      await runTool(runtime, flushSpillStreams(entry));
+    });
+    NodeAssert.match(entry.snapshot.cleanupIncomplete ?? "", /flush timed out/);
+    NodeAssert.equal(entry.stdoutBuf.spillPath, undefined);
+    NodeAssert.equal(
+      file.destroyed,
+      true,
+      "timeout requests stream cancellation",
+    );
+    NodeAssert.ok(
+      entry.spillStreams.includes(file),
+      "ignored cancellation remains owned until close",
+    );
+    releaseWrite?.();
+    await closed;
+    NodeAssert.throws(
+      () => NodeFS.fstatSync(fd),
+      { code: "EBADF" },
+      "late callback closes the real descriptor",
+    );
+    NodeAssert.deepEqual(entry.spillStreams, []);
+    NodeAssert.ok(
+      streamErrors.every((error) =>
+        error.message.includes("stream was destroyed"),
+      ),
+    );
   },
 );
 

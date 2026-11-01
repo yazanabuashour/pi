@@ -31,10 +31,13 @@ const executable = NodeProcess.argv[2];
 
 if (!executable) throw new Error("Expected a native Pi executable");
 
+const telemetryExtension = NodeProcess.argv[4];
+
 // The test-only shutdown tripwires and their measurement receipt are documented in docs/development.md.
 const child = NodeChildProcess.spawn(
   executable,
   [
+    ...(telemetryExtension ? ["--extension", telemetryExtension] : []),
     "--mode",
     "rpc",
     "--no-session",
@@ -151,8 +154,7 @@ child.stdin.write(
   `${JSON.stringify({
     type: "prompt",
     id: "integration",
-    message:
-      "/skill:workflow-authoring run the offline package integration probe.",
+    message: "Run the offline background terminal package integration probe.",
   })}\n`,
 );
 

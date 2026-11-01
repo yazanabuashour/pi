@@ -2,9 +2,12 @@
 
 This package owns resources that depend on Pi's runtime or interfaces.
 [agents](https://github.com/yazanabuashour/agents) owns instructions, skills, and
-helpers usable from any harness. Calling Pi does not decide ownership:
-checkpoint review belongs in agents; `workflow-authoring` belongs here because
-it uses this package's Pi tools. Neither repository requires the other.
+helpers usable from any harness. Calling Pi does not decide ownership;
+checkpoint review belongs in agents. Neither repository requires the other.
+
+T3 Code and Herdr own delegation, workflows, and scheduling through their native
+orchestration. This package supplies session tools, not a second orchestration
+layer or host patches.
 
 Browser policy and technical writing belong in agents, not this package.
 Upstream tools own their CLI guides and updates. Users and employers own settings,
@@ -25,5 +28,6 @@ dependencies do not select the runtime SDKs.
 npm omits `package-lock.json` from tarballs, so the installer copies it separately
 to preserve locked dependencies. The lock does not pin the machine's Pi version.
 
-`npm run install:local` installs this source; `pi update --extensions` updates
-upstream packages. See [installation](install.md) and [validation](development.md).
+`npm run install:local` installs this source. `npm run update:extensions` updates
+upstream packages and the CI dependency snapshot. See [installation](install.md)
+and [validation](development.md).

@@ -1,4 +1,5 @@
-import { Context, Effect, Layer, Stream } from "effect";
+import { Cause, Context, Data, Effect, Layer, Match, Stream } from "effect";
+import type * as PlatformError from "effect/PlatformError";
 import { ChildProcess } from "effect/process";
 import { ChildProcessSpawner } from "effect/process/ChildProcessSpawner";
 
@@ -21,25 +22,49 @@ export interface CommandResult {
   stdout: string;
 }
 
+export class CommandError extends Data.TaggedError("CommandError")<{
+  readonly command: string;
+  readonly args: ReadonlyArray<string>;
+  readonly cwd: string;
+  readonly stdout: string;
+  readonly stderr: string;
+  readonly cause: PlatformError.PlatformError | Cause.TimeoutError;
+}> {
+  override get message() {
+    return Match.value(this.cause).pipe(
+      Match.tag("TimeoutError", () => "timed out"),
+      Match.tag("PlatformError", ({ reason }) =>
+        Match.value(reason).pipe(
+          Match.when(
+            { module: "ChildProcess", method: "exitCode" },
+            () => "terminated",
+          ),
+          Match.tag(
+            "NotFound",
+            () => "command or working directory not found (NotFound)",
+          ),
+          Match.tag("BadArgument", () => "invalid command arguments"),
+          Match.orElse((error) => `system error (${error._tag})`),
+        ),
+      ),
+      Match.exhaustive,
+    );
+  }
+}
+
 interface CommandRunnerService {
   run(
     command: string,
     args: string[],
     cwd: string,
     timeout: number,
-  ): Effect.Effect<CommandResult>;
+  ): Effect.Effect<CommandResult, CommandError>;
 }
 
 export class CommandRunner extends Context.Service<
   CommandRunner,
   CommandRunnerService
 >()("git-info/CommandRunner") {}
-
-function appendCommandFailure(stderr: string, command: string, error: Error) {
-  const failure = `Failed to run ${command}: ${error.message}`;
-
-  return stderr ? `${stderr.trimEnd()}\n${failure}` : failure;
-}
 
 export const CommandRunnerLive = Layer.effect(
   CommandRunner,
@@ -85,16 +110,17 @@ export const CommandRunnerLive = Layer.effect(
               return { code: Number(code), stderr, stdout };
             }),
           ).pipe(
-            Effect.timeoutOrElse({
-              duration: timeout,
-              orElse: () => Effect.succeed({ code: -1, stderr, stdout }),
-            }),
-            Effect.catch((error) =>
-              Effect.succeed({
-                code: 1,
-                stderr: appendCommandFailure(stderr, command, error),
-                stdout,
-              }),
+            Effect.timeout(timeout),
+            Effect.mapError(
+              (cause) =>
+                new CommandError({
+                  command,
+                  args: [...args],
+                  cwd,
+                  stderr,
+                  stdout,
+                  cause,
+                }),
             ),
           );
         }),

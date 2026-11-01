@@ -47,6 +47,7 @@ export class BackgroundTerminalSession {
   private readonly rejectedLifecycleIds = new Set<string>();
   private readonly resultDelivery =
     createDeferredResultDelivery<TerminalSnapshot>((result) => result.id);
+  readonly consume = this.resultDelivery.consume;
   private readonly pi: ExtensionAPI;
   private readonly delivery: BackgroundDelivery;
 
@@ -70,8 +71,8 @@ export class BackgroundTerminalSession {
     this.managerPromise ??= owningRuntime
       .runPromise(TerminalManager)
       .then((manager) => {
-        manager.view.setOnSettled((snapshot, consumed) => {
-          if (this.runtimeId === runtimeId) this.onSettled(snapshot, consumed);
+        manager.view.setOnSettled((snapshot) => {
+          if (this.runtimeId === runtimeId) this.onSettled(snapshot);
         });
         this.unsubStatus?.();
         this.unsubStatus = manager.view.subscribe(() =>
@@ -105,8 +106,11 @@ export class BackgroundTerminalSession {
     return !this.closing && this.recordLifecycleSnapshot(snapshot, "started");
   }
 
-  consume(ids: ReadonlyArray<string>) {
-    this.resultDelivery.consume(ids);
+  holdKillResults(ids: ReadonlyArray<string>) {
+    return this.resultDelivery.hold(ids, () => {
+      if (!this.closing && this.sessionContext?.isIdle())
+        this.flushResults(true);
+    });
   }
 
   private startSession(context: ExtensionContext) {
@@ -262,19 +266,13 @@ export class BackgroundTerminalSession {
     }
   }
 
-  private onSettled(snapshot: TerminalSnapshot, consumed: boolean) {
+  private onSettled(snapshot: TerminalSnapshot) {
     this.recordLifecycleSnapshot(
       snapshot,
       snapshot.status === "running" ? "cleanup-incomplete" : "settled",
     );
 
     if (this.closing) return;
-
-    if (consumed) {
-      this.resultDelivery.consume([snapshot.id]);
-
-      return;
-    }
 
     this.resultDelivery.defer({
       ...snapshot,

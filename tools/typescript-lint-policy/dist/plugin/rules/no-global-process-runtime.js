@@ -1,5 +1,5 @@
 import { defineRule, } from "@oxlint/plugins";
-import { getPropertyName, literalStringValue, unwrapExpression, } from "../shared/ast.js";
+import { getMemberPropertyName, getPropertyName, literalStringValue, unwrapExpression, } from "../shared/ast.js";
 const RUNTIME_PROPERTIES = new Set(["platform", "arch"]);
 const NODE_OS_MODULES = new Set(["node:os", "os"]);
 function normalizePath(path) {
@@ -52,7 +52,7 @@ function isGlobalProcessObject(sourceCode, node) {
     if (expression?.type !== "MemberExpression")
         return false;
     return (isUnshadowedGlobal(sourceCode, expression.object, "globalThis") &&
-        getPropertyName(expression.property) === "process");
+        getMemberPropertyName(expression) === "process");
 }
 function runtimeMessage(property) {
     return `Inject a project-owned host ${property} contract instead of reading process.${property} directly.`;
@@ -122,7 +122,7 @@ export const noGlobalProcessRuntimeRule = defineRule({
             const variable = resolveVariable(context.sourceCode, object);
             if (variable === null || !nodeOsNamespaces.has(variable))
                 return null;
-            const property = getPropertyName(expression.property);
+            const property = getMemberPropertyName(expression);
             return property !== null && RUNTIME_PROPERTIES.has(property)
                 ? property
                 : null;
@@ -132,7 +132,7 @@ export const noGlobalProcessRuntimeRule = defineRule({
             MemberExpression(node) {
                 if (isAllowedFile(context.filename, context.cwd, allowed))
                     return;
-                const property = getPropertyName(node.property);
+                const property = getMemberPropertyName(node);
                 if (property === null || !RUNTIME_PROPERTIES.has(property))
                     return;
                 if (!isGlobalProcessObject(context.sourceCode, node.object))

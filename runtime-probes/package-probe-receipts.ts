@@ -3,6 +3,17 @@ import type {
   ExtensionAPI,
   ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { Type, type Static } from "typebox";
+import { Parse } from "typebox/value";
+
+const lifecycleSchema = Type.Object({
+  schemaVersion: Type.Literal(1),
+  id: Type.String(),
+  event: Type.String(),
+  status: Type.String(),
+  outcome: Type.Optional(Type.String()),
+  exitCode: Type.Optional(Type.Number()),
+});
 
 const receiptEvents = [
   "session_start",
@@ -19,6 +30,7 @@ interface ProbeReceipt {
   sessionFile?: string;
   toolName?: string;
   isError?: boolean;
+  lifecycle: ReadonlyArray<Static<typeof lifecycleSchema>>;
 }
 
 export function registerReceipts(pi: ExtensionAPI) {
@@ -34,6 +46,14 @@ export function registerReceipts(pi: ExtensionAPI) {
       type: event.type,
       sessionId: context.sessionManager.getSessionId(),
       mode: context.mode,
+      lifecycle: context.sessionManager
+        .getBranch()
+        .flatMap((entry) =>
+          entry.type === "custom" &&
+          entry.customType === "background-terminal-lifecycle"
+            ? [Parse(lifecycleSchema, entry.data)]
+            : [],
+        ),
     };
 
     const sessionFile = context.sessionManager.getSessionFile();
