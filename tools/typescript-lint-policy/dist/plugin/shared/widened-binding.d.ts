@@ -1,4 +1,5 @@
 import type { ESTree, Variable } from "@oxlint/plugins";
+import type { TypeAliasEnvironment } from "./type-alias-resolution.ts";
 import { type BroadTypeKind, type KnownValueEvidence } from "./widening-assertion-types.ts";
 type Scopes = readonly {
     readonly references: readonly {
@@ -14,5 +15,5 @@ export type WidenedBinding = {
 };
 export declare function functionBoundary(node: ESTree.Node): ESTree.Node | null;
 export declare function resolvedVariableForIdentifier(scopes: Scopes, identifier: ESTree.IdentifierReference): Variable | null;
-export declare function widenedBinding(variable: Variable, scopes: Scopes): WidenedBinding | null;
+export declare function widenedBinding(variable: Variable, scopes: Scopes, environment: TypeAliasEnvironment): WidenedBinding | null;
 export {};

@@ -1,4 +1,5 @@
 import { defineRule } from "@oxlint/plugins";
+import { createTypeAliasEnvironment } from "../shared/type-alias-resolution.js";
 import { functionBoundary, resolvedVariableForIdentifier, widenedBinding, } from "../shared/widened-binding.js";
 import { assertedExpression, assertionIsNarrower, } from "../shared/widening-assertion-types.js";
 /** Detect immutable local bindings that erase a known type and are later asserted back to a narrower type. */
@@ -14,6 +15,7 @@ export const noWidenThenAssertRule = defineRule({
     },
     create(context) {
         const scopes = context.sourceCode.scopeManager.scopes;
+        const environment = createTypeAliasEnvironment(context.sourceCode.ast, context.sourceCode.visitorKeys);
         const checkAssertion = (node) => {
             const expression = assertedExpression(node);
             if (expression.type !== "Identifier")
@@ -21,11 +23,11 @@ export const noWidenThenAssertRule = defineRule({
             const variable = resolvedVariableForIdentifier(scopes, expression);
             if (variable === null)
                 return;
-            const widened = widenedBinding(variable, scopes);
+            const widened = widenedBinding(variable, scopes, environment);
             if (widened === null ||
                 node.start <= widened.declaredAt ||
                 functionBoundary(node) !== widened.boundary ||
-                !assertionIsNarrower(context.sourceCode.text, widened.broadKind, widened.evidence, node.typeAnnotation)) {
+                !assertionIsNarrower(context.sourceCode.text, widened.broadKind, widened.evidence, node.typeAnnotation, environment)) {
                 return;
             }
             context.report({

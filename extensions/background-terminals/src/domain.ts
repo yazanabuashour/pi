@@ -1,10 +1,18 @@
 import { Data } from "effect";
+import { Type, type Static } from "typebox";
 
 /**
  * done: exited with code 0; failed: non-zero exit or spawn error.
  * killed: observed signal exit after a stop request, not proof of descendant exit.
  */
-export type TerminalStatus = "running" | "done" | "failed" | "killed";
+export const TerminalStatusSchema = Type.Union([
+  Type.Literal("running"),
+  Type.Literal("done"),
+  Type.Literal("failed"),
+  Type.Literal("killed"),
+]);
+
+export type TerminalStatus = Static<typeof TerminalStatusSchema>;
 
 /** Read-only view over one captured output stream (stdout or stderr). */
 export interface OutputView {
@@ -16,16 +24,6 @@ export interface OutputView {
   readonly truncatedBytes: number;
   /** On-disk full capture; always the complete stream when spilling works. */
   readonly spillPath?: string;
-  /** Original report prefix retained separately when a delegate's tail evicts it. */
-  readonly headText?: string;
-}
-
-/** A terminal running an independent, saved Pi session. */
-export interface DelegateInfo {
-  readonly model: string;
-  readonly sessionId: string;
-  readonly thinking?: string;
-  readonly tools?: ReadonlyArray<string>;
 }
 
 export interface TerminalSnapshot {
@@ -53,40 +51,45 @@ export interface TerminalSnapshot {
   readonly signal?: string;
   /** Spawn error / kill-escalation notes, bounded. */
   readonly errorText?: string;
-  readonly delegate?: DelegateInfo;
   readonly stdout: OutputView;
   readonly stderr: OutputView;
 }
 
-export type TerminalOutcome = "completed" | "failed" | "interrupted";
-
 /** Stable machine details for tool results and durable lifecycle entries. */
-export interface BackgroundTerminalDetailsV1 {
-  readonly schemaVersion: 1;
-  readonly event: "started" | "snapshot" | "settled" | "cleanup-incomplete";
-  readonly runtimeId: string;
-  readonly id: string;
-  readonly title: string;
-  readonly cwd: string;
-  readonly pid?: number;
-  readonly status: TerminalStatus;
-  readonly stopRequested?: boolean;
-  readonly cleanupIncomplete?: string;
-  readonly outcome?: TerminalOutcome;
-  readonly createdAt: number;
-  readonly settledAt?: number;
-  readonly exitCode?: number;
-  readonly signal?: string;
-  readonly errorText?: string;
-  readonly delegate?: DelegateInfo;
-  readonly shutdownReason?: string;
-}
+export const BackgroundTerminalDetailsSchema = Type.Object({
+  schemaVersion: Type.Literal(1),
+  event: Type.Union([
+    Type.Literal("started"),
+    Type.Literal("snapshot"),
+    Type.Literal("settled"),
+    Type.Literal("cleanup-incomplete"),
+  ]),
+  runtimeId: Type.String(),
+  id: Type.String(),
+  title: Type.String(),
+  cwd: Type.String(),
+  pid: Type.Optional(Type.Number()),
+  status: TerminalStatusSchema,
+  stopRequested: Type.Optional(Type.Boolean()),
+  cleanupIncomplete: Type.Optional(Type.String()),
+  outcome: Type.Optional(
+    Type.Union([
+      Type.Literal("completed"),
+      Type.Literal("failed"),
+      Type.Literal("interrupted"),
+    ]),
+  ),
+  createdAt: Type.Number(),
+  settledAt: Type.Optional(Type.Number()),
+  exitCode: Type.Optional(Type.Number()),
+  signal: Type.Optional(Type.String()),
+  errorText: Type.Optional(Type.String()),
+  shutdownReason: Type.Optional(Type.String()),
+});
 
-type MutableBackgroundTerminalDetailsV1 = {
-  -readonly [
-    Key in keyof BackgroundTerminalDetailsV1
-  ]: BackgroundTerminalDetailsV1[Key];
-};
+export type BackgroundTerminalDetailsV1 = Readonly<
+  Static<typeof BackgroundTerminalDetailsSchema>
+>;
 
 export function backgroundTerminalDetails(
   snapshot: TerminalSnapshot,
@@ -105,7 +108,7 @@ export function backgroundTerminalDetails(
             ? "interrupted"
             : undefined;
 
-  const details: MutableBackgroundTerminalDetailsV1 = {
+  const details: Static<typeof BackgroundTerminalDetailsSchema> = {
     schemaVersion: 1,
     event,
     runtimeId,
@@ -117,8 +120,6 @@ export function backgroundTerminalDetails(
   };
 
   if (snapshot.pid !== undefined) details.pid = snapshot.pid;
-
-  if (snapshot.delegate !== undefined) details.delegate = snapshot.delegate;
 
   if (outcome !== undefined) details.outcome = outcome;
 

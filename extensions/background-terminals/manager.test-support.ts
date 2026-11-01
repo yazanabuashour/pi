@@ -25,26 +25,24 @@ export async function withManager(
 }
 
 export function settlement(manager: TerminalManagerService, id: string) {
-  return new Promise<{ snap: TerminalSnapshot; consumed: boolean }>(
-    (resolve) => {
-      const existing = manager.view.get(id);
+  return new Promise<{ snap: TerminalSnapshot }>((resolve) => {
+    const existing = manager.view.get(id);
 
-      if (existing && existing.status !== "running") {
-        resolve({ snap: existing, consumed: false });
+    if (existing && existing.status !== "running") {
+      resolve({ snap: existing });
 
-        return;
+      return;
+    }
+
+    const unsubscribe = manager.view.subscribeTo(id, () => {
+      const snapshot = manager.view.get(id);
+
+      if (snapshot && snapshot.status !== "running") {
+        unsubscribe();
+        resolve({ snap: snapshot });
       }
-
-      const unsubscribe = manager.view.subscribeTo(id, () => {
-        const snapshot = manager.view.get(id);
-
-        if (snapshot && snapshot.status !== "running") {
-          unsubscribe();
-          resolve({ snap: snapshot, consumed: false });
-        }
-      });
-    },
-  );
+    });
+  });
 }
 
 export function processGone(pid: number) {

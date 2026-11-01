@@ -4,8 +4,8 @@ import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 import * as NodeTimersPromises from "node:timers/promises";
 import NodeTest from "node:test";
-import { Cause, Effect } from "effect";
-import { runCommand } from "./src/process.ts";
+import { Cause, Effect, PlatformError } from "effect";
+import { CommandError, runCommand } from "./src/process.ts";
 import { createRuntime, runEffect } from "./src/runtime.ts";
 
 const runtime = createRuntime();
@@ -38,23 +38,36 @@ await Promise.all([
   }),
 
   NodeTest(
-    "renders platform failures without making callers handle them",
+    "platform failures preserve typed causes and command context",
     async () => {
       const command = "git-info-command-that-does-not-exist";
 
       const result = await runtime.runPromise(
-        runCommand(command, [], process.cwd(), 1_000),
+        runCommand(command, [], process.cwd(), 1_000).pipe(Effect.flip),
       );
 
-      NodeAssert.equal(result.code, 1);
-      NodeAssert.match(result.stderr, new RegExp(`Failed to run ${command}:`));
-      NodeAssert.match(result.stderr, /NotFound|not found|ENOENT/i);
+      NodeAssert.ok(result instanceof CommandError);
+      NodeAssert.equal(result.command, command);
+      NodeAssert.equal(result.cwd, process.cwd());
+      NodeAssert.deepEqual(result.args, []);
+      NodeAssert.equal(result.stderr, "");
+      NodeAssert.ok(PlatformError.isPlatformError(result.cause));
+      NodeAssert.equal(result.cause.reason._tag, "NotFound");
     },
   ),
 
   NodeTest("reports command timeouts as failures", async () => {
-    const result = await runNode("setTimeout(() => {}, 1_000)", 20);
-    NodeAssert.equal(result.code, -1);
+    const result = await runtime.runPromise(
+      runCommand(
+        process.execPath,
+        ["--input-type=module", "--eval", "setTimeout(() => {}, 1_000)"],
+        process.cwd(),
+        20,
+      ).pipe(Effect.flip),
+    );
+
+    NodeAssert.ok(Cause.isTimeoutError(result.cause));
+    NodeAssert.equal(result.message, "timed out");
   }),
   NodeTest(
     "pre-aborted commands preserve the reason without starting work",

@@ -1,5 +1,7 @@
 import { childNodes } from "./ast.js";
 function inferTypeParameter(name, node, visitorKeys) {
+    if (node.type === "TSConditionalType")
+        return null;
     if (node.type === "TSInferType" && node.typeParameter.name.name === name)
         return node.typeParameter;
     for (const child of childNodes(node, visitorKeys)) {

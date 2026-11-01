@@ -1,5 +1,6 @@
 import { defineRule } from "@oxlint/plugins";
-import { classifyUnsafeDictionary, classifyUnsafeDictionaryValue, createTypeEnvironment, } from "../shared/dictionary-types.js";
+import { createTypeEnvironment, } from "../shared/type-environment.js";
+import { classifyUnsafeDictionary, classifyUnsafeDictionaryValue, } from "../shared/unsafe-dictionary.js";
 import { visibleTypeAlias } from "../shared/type-alias-resolution.js";
 const typeNodeKinds = new Set([
     "JSDocNonNullableType",

@@ -12,17 +12,29 @@ import {
 import type { ManagerState } from "./manager-state.ts";
 
 export function flushSpillStreams(entry: Entry) {
-  const streams = entry.spillStreams;
-  entry.spillStreams = [];
+  const streams = [...entry.spillStreams];
 
   return Effect.forEach(
     streams,
     (stream) =>
       Effect.callback<void>((resume) => {
-        const done = () => resume(Effect.void);
+        const onClose = () => {
+          entry.spillStreams = entry.spillStreams.filter(
+            (owned) => owned !== stream,
+          );
+          resume(Effect.void);
+        };
+
+        if (stream.closed) {
+          onClose();
+
+          return;
+        }
+
+        stream.once("close", onClose);
 
         try {
-          stream.end(done);
+          stream.end();
         } catch (error) {
           entry.stdoutBuf.spillPath = undefined;
           entry.stderrBuf.spillPath = undefined;
@@ -30,8 +42,11 @@ export function flushSpillStreams(entry: Entry) {
           entry.snapshot.cleanupIncomplete = bounded(
             `Full-log spill cleanup failed: ${boundedError(error)}`,
           );
-          done();
+          stream.destroy();
         }
+
+        // Close retains ownership even when pending I/O ignores destruction.
+        return Effect.sync(() => stream.destroy());
       }),
     { concurrency: "unbounded", discard: true },
   ).pipe(

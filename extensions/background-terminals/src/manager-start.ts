@@ -72,7 +72,6 @@ function createBuffers(
   state: ManagerState,
   child: NodeChildProcess.ChildProcess,
   id: string,
-  delegate: boolean,
 ) {
   const entryRef = () => state.entries.get(id);
 
@@ -84,11 +83,7 @@ function createBuffers(
     child.stderr?.resume(),
   );
 
-  const stdoutBuf = new OutputBuffer(
-    RETAINED_PER_STREAM,
-    stdoutSpill?.write,
-    delegate,
-  );
+  const stdoutBuf = new OutputBuffer(RETAINED_PER_STREAM, stdoutSpill?.write);
 
   const stderrBuf = new OutputBuffer(RETAINED_PER_STREAM, stderrSpill?.write);
   stdoutBuf.spillPath = stdoutSpill?.spillPath;
@@ -105,12 +100,7 @@ function createEntry(
   return Effect.gen(function* () {
     const id = `bt-${++state.counter}`;
 
-    const buffers = createBuffers(
-      state,
-      child,
-      id,
-      options.delegate !== undefined,
-    );
+    const buffers = createBuffers(state, child, id);
 
     const snapshot: MutableSnapshot = {
       id,
@@ -129,7 +119,6 @@ function createEntry(
 
     if (child.pid !== undefined) snapshot.pid = child.pid;
 
-    if (options.delegate !== undefined) snapshot.delegate = options.delegate;
     const scope = yield* Scope.make();
     const settled = yield* Deferred.make<void>();
 

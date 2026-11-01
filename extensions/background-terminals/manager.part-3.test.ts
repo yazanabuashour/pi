@@ -120,14 +120,13 @@ await NodeTest(
 );
 
 await NodeTest(
-  "UI requestKill settles as killed and is NOT consumed",
+  "UI requestKill settles as killed and notifies once",
   async () => {
     await withManager(async (manager, runtime) => {
-      const settled: Array<{ id: string; status: string; consumed: boolean }> =
-        [];
+      const settled: Array<{ id: string; status: string }> = [];
 
-      manager.view.setOnSettled((snap, consumed) =>
-        settled.push({ id: snap.id, status: snap.status, consumed }),
+      manager.view.setOnSettled((snap) =>
+        settled.push({ id: snap.id, status: snap.status }),
       );
 
       const snap = await runTool(
@@ -142,9 +141,7 @@ await NodeTest(
       manager.view.requestKill(snap.id);
       const { snap: after } = await settlement(manager, snap.id);
       NodeAssert.equal(after.status, "killed");
-      NodeAssert.deepEqual(settled, [
-        { id: snap.id, status: "killed", consumed: false },
-      ]);
+      NodeAssert.deepEqual(settled, [{ id: snap.id, status: "killed" }]);
     });
   },
 );

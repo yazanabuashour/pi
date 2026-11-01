@@ -16,11 +16,8 @@ package directory. The web extension owns its configuration paths.
 
 ## Models
 
-`delegate` runs its child on the requested `provider/model-id`, or on the calling
-session's model and thinking level when omitted. The requested model must be
-available with configured credentials. Otherwise the call fails and lists the
-available models. Workflow-script children use Pi's saved defaults unless the
-script passes `model`.
+Use host orchestration: T3 Code's task tools or Herdr's agent/pane CLI. This
+package runs shell jobs, not a second agent or workflow runner.
 
 Search is independent of the coding provider: Copilot authentication does not
 provide Codex-backed OpenAI search. Search, hosted extraction, summaries, and page
@@ -30,17 +27,26 @@ answers can send content to other services. Preferences are not security control
 
 | Entry point | Purpose |
 | --- | --- |
-| `/ps` | Display background terminals, including delegated sessions. |
-| `delegate` | Run a self-contained prompt in a saved Pi `--print` child process. Return immediately; deliver its final answer as a terminal completion. |
-| `/skill:workflow-authoring` | Write a Node script that runs phased Pi children with schema-checked results. |
+| `bg_start` | Start a shell command without stdin; return a terminal ID before execution completes. |
+| `bg_status` / `bg_list` | Inspect one terminal or list running and settled terminals. |
+| `bg_kill` | Request termination and report observed settlement or incomplete cleanup. |
 
-Delegated children save their session, and the completion names the session ID.
-Reopen it from the child's working directory with `pi --session <id>`. Children
-never receive `delegate` or `ask_user`, so delegation does not nest.
-`PI_AUTOMATION_*` variables are removed from their environment.
+### Structured background results
 
-See the [workflow authoring guide](../skills/workflow-authoring/SKILL.md).
-Agents share the account's files and permissions; they are not a security sandbox.
+The `bg_*` tools keep their text replies and expose schema-defined
+`structuredContent` to RPC clients and Codemode scripts. Terminal summaries include
+`runtimeId`, `id`, title, command, working directory, observed status, and output
+byte counts. Use `runtimeId` and `id` together across session restarts.
+
+`bg_start` acknowledges launch, not completion. `bg_status` adds bounded stdout and
+stderr tails, truncation flags, and full-log paths when capture is available.
+`bg_list` omits log bodies. `bg_kill` distinguishes a stop request from observed
+exit and includes a terminal summary while the record remains tracked.
+
+Hosts decide how to display these results. Tracking work after launch requires
+consuming lifecycle entries; structured results alone create neither task cards
+nor session residency. Session shutdown requests cleanup of its jobs.
+Run persistent services outside the agent session.
 
 ### Background wake policy
 
@@ -51,12 +57,14 @@ Agents share the account's files and permissions; they are not a security sandbo
 | `automatic` (default) | Idle completions can start a turn. |
 | `host` | Messages can steer or follow up active work, but cannot start an idle run. Idle results wait in history for the next host turn. |
 
-A host that owns scheduling uses `PI_BACKGROUND_WAKE_POLICY=host pi --mode rpc`.
-RPC alone does not select the policy. Each extension reads it at runtime creation;
-invalid values fail initialization.
+Use `PI_BACKGROUND_WAKE_POLICY=host pi --mode rpc` only when the caller
+intentionally defers idle results or has verified its own completion-triggered
+scheduling. Otherwise, retain `automatic`; running under a host or in RPC mode
+does not establish a replacement idle wake. Each extension reads the policy at
+runtime creation; invalid values fail initialization.
 
-The policy covers terminal results, including delegated sessions. It does not
-control third-party extensions or block explicit prompts. Terminal results
+The policy covers terminal results. It does not control third-party extensions
+or block explicit prompts. Terminal results
 received during active work wait for delivery. Execution, submission, and
 starting another turn are separate operations.
 
@@ -69,9 +77,6 @@ settings still apply; `--no-session` provides no disk durability.
 Background terminals need no UI, but remain session-owned. One-shot clients can
 exit and stop unfinished work. Keep the session alive until settlement. Wake
 policy extends no resource lifetime.
-
-`ask_user` uses RPC dialogs only with `--ask-user-rpc`, which declares client
-support for `extension_ui_request`. Other non-interactive clients get a fallback.
 
 ### Cancellation and shutdown
 
@@ -93,53 +98,42 @@ can leave the tracked list without deleting spill files. Shutdown removes the
 session's temporary log directory. Background jobs have no age timeout.
 
 `/ps` shows retained output tails. Reported log paths hold captured output while
-available; capture limits or write failures can prevent complete logs. Delegated
-sessions preserve conversations, not running agents.
+available; capture limits or write failures can prevent complete logs.
 
-Delegated reports use Pi's tool-output allowance (50 KB and 2,000 lines), not the
-concise shell tail. Oversized reports retain both their beginning and end.
-The photographed receipt, `IMG20261009212849.jpg`, measured 122 child reports on
-2026-10-09; the largest report was 22 KB and 499 lines. Delegates retain an
-original head and a current tail within the existing 2 MiB in-memory stream cap.
-Spill files remain the source for complete output when available.
+## Interface commands
+
+| Entry point | Purpose |
+| --- | --- |
+| `/ps` | Inspect background terminals and their retained output; interactive sessions offer a picker. |
+| `/lg` | Browse changed files and diffs in the interactive terminal interface. |
+| `/pr` | Refresh Git and pull request information; pull request lookup uses `gh` and its authentication. |
+| `/copy-all` | Copy the current branch's user and assistant messages to the clipboard, excluding tool output and reasoning. |
+
+The interactive terminal's custom footer shows directory, Git status, model,
+thinking level, context usage, and estimated cost. Automatic Git refresh and model
+metrics run only in terminal sessions; `/pr` still refreshes on demand in other
+modes. Cost comes from Pi's assistant-message estimates on the current branch,
+not subscription billing; it excludes delegated work and summaries. The package
+also supplies the `tokyo-night` theme.
 
 ## Automation telemetry
 
-`runtime-probes/automation-telemetry.ts` activates only with
+The package ships `runtime-probes/automation-telemetry.ts` without loading it.
+Automation callers pass `--extension` with its installed path and set
 `PI_AUTOMATION_TELEMETRY_PATH`. `PI_AUTOMATION_NAME` and `PI_AUTOMATION_RUN_ID`
-identify the caller and run. Delegated children do not inherit them, so they do
-not write to the caller's file.
+identify the caller and run.
 
-Telemetry records tool durations, query counts, concurrency, provider status,
-rate-limit indications, lifecycle events, and a shutdown summary—not tool
-arguments or results. Missing reasoning metadata stays unknown. File failures
-produce diagnostics without stopping valid work. Rate-limit indications do not
-prove throttling; telemetry does not establish business-action completion.
+The `pi-automation-telemetry/v2` stream records lifecycle events, tool durations,
+concurrency, errors, and a shutdown summary—not arguments, results, inferred query
+counts, or rate limits. Counts include nested calls; `summedToolDurationMs` sums
+completed call durations, including overlapping and nested calls, not wall time.
+`settled` describes the latest agent run; each new session resets all counters.
+Provider coverage is not measured. Missing reasoning metadata stays unknown.
 
-## Development policies
+Writes reach the operating-system cache without per-event disk synchronization;
+a crash or power loss can leave incomplete diagnostics. File failures warn without
+stopping valid work. Callers verify native process exit, lifecycle events, and
+business results independently of telemetry.
 
-`@effect/vitest@4.0.0` requires Vitest 5. Vite is an explicit development
-dependency because Vitest 5 declares it as a peer and the required
-`--legacy-peer-deps` install does not install peers.
-
-Both development policies use producer-exported, content-addressed snapshots
-under `tools/`. Neither ships in the installed package:
-
-- `tsconfig.json` extends `tools/typescript-config-policy/node-ts-source.json` from
-  [typescript-config-policy](https://github.com/yazanabuashour/typescript-config-policy),
-  adding local target, library, types, and source paths.
-- `oxlint.config.ts` extends the default and `effectConfig` exports from
-  `@yazanabuashour/oxlint-config`
-  ([typescript-lint-policy](https://github.com/yazanabuashour/typescript-lint-policy)),
-  installed from its local snapshot through `package-lock.json`. It exempts `extensions/shared/host-runtime.ts` from
-  `project/no-global-process-runtime`.
-
-`skipLibCheck` is false. `npm run typecheck` first applies the version-checked
-declaration patches documented in `patches/README.md`, then checks source and dependency
-declarations with NodeNext and Node globals. `npm run check` includes a negative
-control that requires an invalid declaration to fail compilation. Native Pi
-supplies runtime SDKs; these repairs affect development declarations only.
-
-Update a policy through its producer's snapshot exporter, replace the local
-snapshot, regenerate the lock with npm, and run the project gates. Do not edit
-vendored policy content.
+See the [development guide](development.md) for source-check policies and
+declaration repairs.

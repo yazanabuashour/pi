@@ -33,11 +33,11 @@ function variableDeclarator(variable) {
     }
     return null;
 }
-function knownValueEvidence(expression, scopes, boundary, visitedVariables) {
+function knownValueEvidence(expression, scopes, boundary, visitedVariables, environment) {
     const unwrapped = unwrapExpressionParentheses(expression);
     if (unwrapped.type === "TSAsExpression" ||
         unwrapped.type === "TSTypeAssertion") {
-        if (broadTypeKind(unwrapped.typeAnnotation) !== null)
+        if (broadTypeKind(unwrapped.typeAnnotation, environment) !== null)
             return null;
         return { type: unwrapped.typeAnnotation };
     }
@@ -62,7 +62,7 @@ function knownValueEvidence(expression, scopes, boundary, visitedVariables) {
     const annotation = annotatedIdentifier?.typeAnnotation?.typeAnnotation;
     if (annotation !== undefined && annotatedIdentifier !== undefined) {
         if (functionBoundary(annotatedIdentifier) !== boundary ||
-            broadTypeKind(annotation) !== null) {
+            broadTypeKind(annotation, environment) !== null) {
             return null;
         }
         return { type: annotation };
@@ -76,9 +76,9 @@ function knownValueEvidence(expression, scopes, boundary, visitedVariables) {
         functionBoundary(declarator) !== boundary) {
         return null;
     }
-    return knownValueEvidence(declarator.init, scopes, boundary, new Set([...visitedVariables, variable]));
+    return knownValueEvidence(declarator.init, scopes, boundary, new Set([...visitedVariables, variable]), environment);
 }
-export function widenedBinding(variable, scopes) {
+export function widenedBinding(variable, scopes, environment) {
     const declarator = variableDeclarator(variable);
     if (declarator === null ||
         declarator.parent.type !== "VariableDeclaration" ||
@@ -93,15 +93,15 @@ export function widenedBinding(variable, scopes) {
     const initializerAssertion = assertionFromExpression(declarator.init);
     const initializerBroadKind = initializerAssertion === null
         ? null
-        : broadTypeKind(initializerAssertion.typeAnnotation);
-    const declaredBroadKind = declaredType === undefined ? null : broadTypeKind(declaredType);
+        : broadTypeKind(initializerAssertion.typeAnnotation, environment);
+    const declaredBroadKind = declaredType === undefined ? null : broadTypeKind(declaredType, environment);
     const broadKind = declaredBroadKind ?? initializerBroadKind;
     if (broadKind === null)
         return null;
     const originalExpression = initializerAssertion !== null && initializerBroadKind !== null
         ? assertedExpression(initializerAssertion)
         : declarator.init;
-    const evidence = knownValueEvidence(originalExpression, scopes, boundary, new Set([variable]));
+    const evidence = knownValueEvidence(originalExpression, scopes, boundary, new Set([variable]), environment);
     return evidence === null
         ? null
         : { broadKind, evidence, declaredAt: declarator.end, boundary };

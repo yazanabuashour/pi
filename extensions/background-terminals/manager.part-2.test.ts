@@ -24,10 +24,8 @@ await NodeTest(
   "concurrent overlapping multi-id kills observe each settlement exactly once",
   async () => {
     await withManager(async (manager, runtime) => {
-      const settled: Array<{ id: string; consumed: boolean }> = [];
-      manager.view.setOnSettled((snap, consumed) =>
-        settled.push({ id: snap.id, consumed }),
-      );
+      const settled: Array<{ id: string }> = [];
+      manager.view.setOnSettled((snap) => settled.push({ id: snap.id }));
 
       const [first, second] = await runTool(
         runtime,
@@ -67,10 +65,9 @@ await NodeTest(
       NodeAssert.ok(reports.flat().every((entry) => entry.status === "killed"));
       NodeAssert.deepEqual(
         settled.sort((a, b) => a.id.localeCompare(b.id)),
-        [
-          { id: first.id, consumed: true },
-          { id: second.id, consumed: true },
-        ].sort((a, b) => a.id.localeCompare(b.id)),
+        [{ id: first.id }, { id: second.id }].sort((a, b) =>
+          a.id.localeCompare(b.id),
+        ),
       );
     });
   },

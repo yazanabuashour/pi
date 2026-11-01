@@ -7,11 +7,7 @@ import type { Component, TUI } from "@earendil-works/pi-tui";
 import { truncateToWidth } from "@earendil-works/pi-tui";
 import { formatElapsed, formatExit, type TerminalSnapshot } from "../domain.ts";
 import type { TerminalReadModel } from "../manager.ts";
-import { createOutputLineCache, sanitizeText } from "./output-view.ts";
-
-function oneLine(text: string) {
-  return sanitizeText(text.replace(/\s+/g, " "));
-}
+import { createOutputLineCache, sanitizeOneLine } from "./output-view.ts";
 
 function configuredKeys(
   keybindings: KeybindingsManager,
@@ -203,7 +199,7 @@ export class TerminalDetailView implements Component {
         truncateToWidth(
           this.theme.fg(
             "warning",
-            `cleanup incomplete: ${oneLine(snap.cleanupIncomplete)}`,
+            `cleanup incomplete: ${sanitizeOneLine(snap.cleanupIncomplete)}`,
           ),
           width,
         ),
@@ -213,7 +209,7 @@ export class TerminalDetailView implements Component {
     if (snap.errorText) {
       body.push(
         truncateToWidth(
-          this.theme.fg("error", `error: ${oneLine(snap.errorText)}`),
+          this.theme.fg("error", `error: ${sanitizeOneLine(snap.errorText)}`),
           width,
         ),
       );
@@ -224,7 +220,7 @@ export class TerminalDetailView implements Component {
         truncateToWidth(
           this.theme.fg(
             "dim",
-            `first ${formatSize(buffer.truncatedBytes)} dropped from view — full log: ${buffer.spillPath ?? "(unavailable)"}`,
+            `first ${formatSize(buffer.truncatedBytes)} dropped from view — full log: ${sanitizeOneLine(buffer.spillPath ?? "(unavailable)")}`,
           ),
           width,
         ),
@@ -278,20 +274,25 @@ export class TerminalDetailView implements Component {
 
     const header =
       `${statusGlyph(snap, theme)} ` +
-      theme.fg("accent", theme.bold(`${snap.id} · ${oneLine(snap.title)}`)) +
+      theme.fg(
+        "accent",
+        theme.bold(
+          `${sanitizeOneLine(snap.id)} · ${sanitizeOneLine(snap.title)}`,
+        ),
+      ) +
       theme.fg(
         "muted",
         ` · ${snap.status}${snap.stopRequested ? " (stop requested)" : ""} · ${formatElapsed(snap)} · pid ${snap.pid ?? "?"}`,
       ) +
       (snap.status !== "running"
-        ? theme.fg("muted", ` · ${formatExit(snap)}`)
+        ? theme.fg("muted", ` · ${sanitizeOneLine(formatExit(snap))}`)
         : "") +
-      theme.fg("dim", ` · ${snap.cwd}`);
+      theme.fg("dim", ` · ${sanitizeOneLine(snap.cwd)}`);
 
     lines.push(truncateToWidth(header, width));
     lines.push(
       truncateToWidth(
-        theme.fg("dim", "$ ") + theme.fg("text", oneLine(snap.command)),
+        theme.fg("dim", "$ ") + theme.fg("text", sanitizeOneLine(snap.command)),
         width,
       ),
     );

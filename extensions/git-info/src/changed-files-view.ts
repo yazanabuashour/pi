@@ -6,37 +6,13 @@ import { runCommand, type CommandResult } from "./process.ts";
 
 const MAX_DIFF_LINES = 20_000;
 
-// Repository text must not inject terminal controls into trusted theme styling.
-const OSC_PATTERN = new RegExp(
-  String.raw`(?:\u001b\]|\u009d)(?:[^\u0007\u001b\u009c]|\u001b(?!\\))*(?:\u0007|\u001b\\|\u009c)`,
-  "g",
-);
+import { sanitizeTerminalText } from "../../shared/terminal-text.ts";
 
-const CSI_PATTERN = new RegExp(
-  String.raw`(?:\u001b\[|\u009b)[0-?]*[ -/]*[@-~]`,
-  "g",
-);
-
-const ESCAPE_PATTERN = new RegExp(
-  String.raw`\u001b(?:[()][0-2A-Z]|[ -/]*[@-~])`,
-  "g",
-);
-
-const CONTROL_PATTERN = new RegExp(
-  String.raw`[\u0000-\u0008\u000b-\u001f\u007f-\u009f]`,
-  "g",
-);
-
-export function sanitizeTerminalText(text: string) {
-  return text
-    .replace(OSC_PATTERN, "")
-    .replace(CSI_PATTERN, "")
-    .replace(ESCAPE_PATTERN, "")
-    .replace(CONTROL_PATTERN, "");
-}
+export { sanitizeTerminalText };
 
 interface ChangedPath {
   path: string;
+  sourcePath: string | undefined;
   status: string;
 }
 
@@ -59,26 +35,33 @@ function parseChangedPaths(output: string) {
 
     const status = record.slice(0, 2);
     const path = record.slice(3);
-    paths.push({ path, status });
 
     // In porcelain v1 -z output, rename/copy records are followed by the old path.
-    if (status.includes("R") || status.includes("C")) index += 1;
+    const sourcePath =
+      status.includes("R") || status.includes("C")
+        ? records[++index]
+        : undefined;
+
+    paths.push({ path, sourcePath, status });
   }
 
   return [...new Map(paths.map((entry) => [entry.path, entry])).values()];
 }
 
 function parseNumstat(output: string) {
-  const line = output.split("\n").find(Boolean);
+  let additions = 0;
+  let deletions = 0;
 
-  if (!line) return { additions: 0, deletions: 0 };
+  for (const line of output.split("\n").filter(Boolean)) {
+    const [added, deleted] = line.split("\t");
 
-  const [added, deleted] = line.split("\t");
+    if (added === "-" || deleted === "-")
+      return { additions: null, deletions: null };
+    additions += Number.parseInt(added ?? "0", 10);
+    deletions += Number.parseInt(deleted ?? "0", 10);
+  }
 
-  return {
-    additions: added === "-" ? null : Number.parseInt(added ?? "0", 10),
-    deletions: deleted === "-" ? null : Number.parseInt(deleted ?? "0", 10),
-  };
+  return { additions, deletions };
 }
 
 function cleanDisplayPath(path: string) {
@@ -86,13 +69,21 @@ function cleanDisplayPath(path: string) {
 }
 
 const run = (cwd: string, args: string[]) =>
-  runCommand("git", args, cwd, 10_000);
+  runCommand("git", args, cwd, 10_000).pipe(
+    Effect.mapError(
+      (error) =>
+        new Error(`git ${args[0]} unavailable: ${error.message}`, {
+          cause: error,
+        }),
+    ),
+  );
 
 function commandFailure(operation: string, result: CommandResult) {
   const detail = sanitizeTerminalText(result.stderr).trim();
 
   return new Error(
     `git ${operation} unavailable (exit ${result.code})${detail ? `: ${detail}` : ""}`,
+    { cause: result },
   );
 }
 
@@ -100,8 +91,30 @@ const loadFile = Effect.fn("git-info.loadFile")(function* (
   repoRoot: string,
   changedPath: ChangedPath,
   hasHead: boolean,
+  changedPaths: ChangedPath[],
 ) {
   const useNoIndex = changedPath.status === "??" || !hasHead;
+
+  const paths =
+    changedPath.sourcePath && changedPath.status.includes("R")
+      ? [changedPath.sourcePath, changedPath.path]
+      : [changedPath.path];
+
+  // Literal pathspecs still recurse; exclude other change identities before rename detection.
+  const descendants = changedPaths
+    .flatMap(({ path, sourcePath }) =>
+      sourcePath ? [path, sourcePath] : [path],
+    )
+    .filter(
+      (other) =>
+        !paths.includes(other) &&
+        paths.some((path) => other.startsWith(`${path}/`)),
+    );
+
+  const pathspecs = [
+    ...paths.map((path) => `:(literal)${path}`),
+    ...new Set(descendants.map((path) => `:(literal,exclude)${path}`)),
+  ];
 
   const diffArguments = useNoIndex
     ? [
@@ -119,24 +132,32 @@ const loadFile = Effect.fn("git-info.loadFile")(function* (
         "--no-ext-diff",
         "--no-color",
         "--unified=3",
+        "--find-renames",
         "HEAD",
         "--",
-        changedPath.path,
+        ...pathspecs,
       ];
 
   const statArguments = useNoIndex
     ? ["diff", "--no-index", "--numstat", "--", "/dev/null", changedPath.path]
-    : ["diff", "--numstat", "HEAD", "--", changedPath.path];
+    : ["diff", "--numstat", "--find-renames", "HEAD", "--", ...pathspecs];
 
   const [diffResult, statResult] = yield* Effect.all(
     [run(repoRoot, diffArguments), run(repoRoot, statArguments)],
     { concurrency: "unbounded" },
   );
 
-  if (diffResult.code !== 0 && !(useNoIndex && diffResult.code === 1))
+  // No-index exit 1 also covers missing paths; valid differences still emit output.
+  if (
+    diffResult.code !== 0 &&
+    !(useNoIndex && diffResult.code === 1 && diffResult.stdout !== "")
+  )
     return yield* Effect.fail(commandFailure("diff", diffResult));
 
-  if (statResult.code !== 0 && !(useNoIndex && statResult.code === 1))
+  if (
+    statResult.code !== 0 &&
+    !(useNoIndex && statResult.code === 1 && statResult.stdout !== "")
+  )
     return yield* Effect.fail(commandFailure("diff --numstat", statResult));
   const stats = parseNumstat(statResult.stdout);
 
@@ -180,7 +201,7 @@ export const loadChangedFiles = Effect.fn("git-info.loadChangedFiles")(
       );
     }
 
-    const repoRoot = rootResult.stdout.trim();
+    const repoRoot = rootResult.stdout.replace(/\n$/, "");
 
     const [statusResult, headResult] = yield* Effect.all(
       [
@@ -210,7 +231,14 @@ export const loadChangedFiles = Effect.fn("git-info.loadChangedFiles")(
     const files: ChangedFile[] = [];
 
     for (const changedPath of changedPaths) {
-      files.push(yield* loadFile(repoRoot, changedPath, headResult.code === 0));
+      files.push(
+        yield* loadFile(
+          repoRoot,
+          changedPath,
+          headResult.code === 0,
+          changedPaths,
+        ),
+      );
     }
 
     return files;

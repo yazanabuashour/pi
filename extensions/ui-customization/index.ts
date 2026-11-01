@@ -1,5 +1,6 @@
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
+import { sanitizeOneLine } from "../shared/terminal-text.ts";
 import type {
   ExtensionAPI,
   ExtensionContext,
@@ -117,9 +118,11 @@ function renderFooter(
   const usage = `${contextPercent}%/${contextWindow} · ~$${state.modelInfo.cost.toFixed(2)}`;
   const location = git ? `${directory} · ${theme.fg("muted", git)}` : directory;
 
-  const model = state.modelInfo.provider
-    ? `${state.modelInfo.provider}/${state.modelInfo.modelId} · ${state.modelInfo.thinking}`
-    : state.modelInfo.modelId;
+  const model = sanitizeOneLine(
+    state.modelInfo.provider
+      ? `${state.modelInfo.provider}/${state.modelInfo.modelId} · ${state.modelInfo.thinking}`
+      : state.modelInfo.modelId,
+  );
 
   const lines = [
     ...(visibleWidth(location) + visibleWidth(model) + 1 <= width
