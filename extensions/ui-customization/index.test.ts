@@ -7,11 +7,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
 import customize from "./index.ts";
-import modelInfo from "../model-info/index.ts";
-import type {
-  GitInfoState,
-  ModelInfoState,
-} from "../shared/dashboard-state.ts";
+import type { GitInfoState } from "../shared/dashboard-state.ts";
 
 await NodeTest(
   "footer sanitizes producer metadata without stripping trusted styling",
@@ -23,7 +19,7 @@ await NodeTest(
 
     const hooks = new Map<string, Handler[]>();
 
-    type DashboardState = ModelInfoState | GitInfoState | undefined;
+    type DashboardState = GitInfoState | undefined;
 
     const listeners = new Map<string, (value: DashboardState) => void>();
 
@@ -85,7 +81,6 @@ await NodeTest(
     });
 
     customize(api);
-    modelInfo(api);
 
     try {
       for (const handler of hooks.get("session_start") ?? [])

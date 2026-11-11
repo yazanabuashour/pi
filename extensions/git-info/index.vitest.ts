@@ -1,9 +1,7 @@
 import { assert, it } from "@effect/vitest";
 import { Cause, Effect, PlatformError } from "effect";
 import {
-  emptyModelInfoState,
   GIT_INFO_CHANNEL,
-  MODEL_INFO_CHANNEL,
   REFRESH_CHANNEL,
   isGitInfoState,
 } from "../shared/dashboard-state.ts";
@@ -229,12 +227,6 @@ it("unavailable state takes precedence and preserves minimal usage at narrow wid
   assert.equal(isGitInfoState({ unavailable: "" }), false);
   assert.equal(isGitInfoState({}), false);
   assert.equal(isGitInfoState({ unavailable: null }), false);
-  f.bus.emit(MODEL_INFO_CHANNEL, {
-    ...emptyModelInfoState(),
-    cost: 3.75,
-    contextPercent: 19,
-    contextWindow: 272_000,
-  });
   f.bus.emit(GIT_INFO_CHANNEL, {
     unavailable: "Git unavailable: gh pr view failed (exit 4)",
     branch: "stale",

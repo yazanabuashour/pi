@@ -90,6 +90,7 @@ export async function fixture(mode: ExtensionContext["mode"] = "tui") {
     },
     on: (name: string, handler: Handler) =>
       handlers.set(name, [...(handlers.get(name) ?? []), handler]),
+    getThinkingLevel: () => "off",
     registerCommand: (name: string, command: Command) =>
       commands.set(name, command),
   });
@@ -151,6 +152,15 @@ function fixtureUi(mode: ExtensionContext["mode"]) {
   const ctx: ExtensionCommandContext = Object.assign(Object.create(null), {
     cwd: "/fixture",
     mode,
+    getContextUsage: () => ({ contextWindow: 272_000, percent: 19 }),
+    sessionManager: {
+      getBranch: () => [
+        {
+          type: "message",
+          message: { role: "assistant", usage: { cost: { total: 3.75 } } },
+        },
+      ],
+    },
     ui: {
       theme,
       setHeader: () => {},

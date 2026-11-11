@@ -15,12 +15,9 @@ import {
 } from "@earendil-works/pi-tui";
 import {
   emptyGitInfoState,
-  emptyModelInfoState,
   GIT_INFO_CHANNEL,
-  MODEL_INFO_CHANNEL,
   REFRESH_CHANNEL,
   isGitInfoState,
-  isModelInfoState,
 } from "../shared/dashboard-state.ts";
 
 import {
@@ -30,6 +27,26 @@ import {
   sanitizeTerminalLabel,
   TITLE_LINES,
 } from "./src/theme-rendering.ts";
+
+interface ModelInfoState {
+  provider: string;
+  modelId: string;
+  thinking: string;
+  contextWindow: number;
+  contextPercent: number | null;
+  cost: number;
+}
+
+function emptyModelInfoState(): ModelInfoState {
+  return {
+    provider: "",
+    modelId: "no-model",
+    thinking: "off",
+    contextWindow: 0,
+    contextPercent: null,
+    cost: 0,
+  };
+}
 
 function formatTokens(tokens: number) {
   if (tokens < 1_000) return `${tokens}`;
@@ -187,11 +204,43 @@ export default function uiCustomization(pi: ExtensionAPI) {
     requestRender: undefined,
   };
 
-  const stopModelListener = pi.events.on(MODEL_INFO_CHANNEL, (value) => {
-    if (!isModelInfoState(value)) return;
-    state.modelInfo = value;
+  function refreshModelInfo(ctx: ExtensionContext) {
+    if (ctx.mode !== "tui") return;
+    const model = ctx.model;
+    const usage = ctx.getContextUsage();
+    let cost = 0;
+
+    // SDK estimates are not subscription billing and exclude nested tool work and summaries.
+    for (const entry of ctx.sessionManager.getBranch()) {
+      if (entry.type === "message" && entry.message.role === "assistant") {
+        cost += entry.message.usage.cost.total;
+      }
+    }
+
+    state.modelInfo = {
+      provider: model?.provider ?? "",
+      modelId: model?.id ?? "no-model",
+      thinking: model?.reasoning ? pi.getThinkingLevel() : "off",
+      contextWindow: usage?.contextWindow ?? model?.contextWindow ?? 0,
+      contextPercent: usage?.percent ?? null,
+      cost,
+    };
+    state.requestRender?.();
+  }
+
+  pi.on("session_tree", (_event, ctx) => refreshModelInfo(ctx));
+  pi.on("session_compact", (_event, ctx) => refreshModelInfo(ctx));
+  pi.on("model_select", (_event, ctx) => refreshModelInfo(ctx));
+  pi.on("thinking_level_select", (event) => {
+    state.modelInfo = { ...state.modelInfo, thinking: event.level };
     state.requestRender?.();
   });
+  pi.on("agent_start", (_event, ctx) => refreshModelInfo(ctx));
+  pi.on("message_end", (event, ctx) => {
+    if (event.message.role === "assistant") refreshModelInfo(ctx);
+  });
+  pi.on("turn_end", (_event, ctx) => refreshModelInfo(ctx));
+  pi.on("agent_settled", (_event, ctx) => refreshModelInfo(ctx));
 
   const stopGitListener = pi.events.on(GIT_INFO_CHANNEL, (value) => {
     if (!isGitInfoState(value)) return;
@@ -203,11 +252,11 @@ export default function uiCustomization(pi: ExtensionAPI) {
     state.title = formatDirectory(ctx.cwd);
     state.modelInfo = emptyModelInfoState();
     state.gitInfo = emptyGitInfoState();
+    refreshModelInfo(ctx);
     install(pi, state, ctx);
   });
 
   pi.on("session_shutdown", (_event, ctx) => {
-    stopModelListener();
     stopGitListener();
     state.requestRender = undefined;
 
