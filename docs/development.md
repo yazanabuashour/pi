@@ -120,7 +120,9 @@ capability checks before deployment.
 
 The gate prints a retained receipt directory with runtime versions, provider and
 tool events, lifecycle receipts, and telemetry. Pass a new directory as the
-optional fifth argument to select its location. It verifies:
+optional fifth argument to select its location. CI publishes only the tested
+versions and source revision. Reproduce failures locally to inspect transcripts.
+The gate verifies:
 
 - Locked production dependencies, package discovery, and native SDK imports.
 - `web_search`, `fetch_content`, `get_search_content`, and `source_check` in

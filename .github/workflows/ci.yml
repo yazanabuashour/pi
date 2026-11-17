@@ -70,10 +70,14 @@ jobs:
             "$stage/.local/share/dotfiles-pi-package/current/node_modules/yazan-pi-setup" \
             "$PWD/runtime-probes/integration-deps/node_modules/pi-web-access" \
             "$PWD/runtime-probes/integration-deps/node_modules/agent-browser" \
-            "$RUNNER_TEMP/pi-integration-receipts"
-      - name: Retain native integration receipts
+            "$RUNNER_TEMP/pi-integration-receipts" \
+            >"$RUNNER_TEMP/pi-integration.log" 2>&1 || {
+              echo "Installed package integration failed. Reproduce with docs/development.md." >&2
+              exit 1
+            }
+      - name: Retain tested versions
         if: always() && runner.os == 'Linux' && steps.integration.outcome != 'skipped'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: native-pi-integration
-          path: ${{ runner.temp }}/pi-integration-receipts
+          path: ${{ runner.temp }}/pi-integration-receipts/environment.json
