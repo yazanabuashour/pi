@@ -80,12 +80,11 @@ Native Pi supplies runtime SDKs; development dependencies serve source checks on
 npm run update:extensions
 ```
 
-This runs `pi update --extensions`, then generates the CI dependency snapshot from
-Pi's installed versions and npm lockfile. It uses `PI_CODING_AGENT_DIR` or
-`~/.pi/agent`; no settings or credentials enter the snapshot. If the update,
-snapshot, or audit fails, the command leaves the repository's snapshot unchanged.
-Run the source and integration gates, then commit both files under
-`runtime-probes/integration-deps`. Do not edit their versions by hand.
+This resolves the CI web and browser packages from the public npm registry under
+the repository's release-age policy. It does not read or update a Pi installation.
+Resolution and audit must pass before the command replaces the manifest and lock
+under `runtime-probes/integration-deps`. Run the source and integration gates
+before committing both files. To update your own extensions, use Pi separately.
 
 ## Test the installed candidate
 

@@ -29,5 +29,5 @@ npm omits `package-lock.json` from tarballs, so the installer copies it separate
 to preserve locked dependencies. The lock does not pin the machine's Pi version.
 
 `npm run install:local` installs this source. `npm run update:extensions` updates
-upstream packages and the CI dependency snapshot. See [installation](install.md)
-and [validation](development.md).
+only the CI dependency snapshot. See [installation](install.md) and
+[validation](development.md).
