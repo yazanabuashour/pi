@@ -118,7 +118,7 @@ await NodeTest(
         timestamp: 0,
         details: { ...snapshot, id: hostile, signal: hostile },
       },
-      { expanded: false, outputPad: 0 },
+      { expanded: false, outputPad: 0, keyText: () => "", keyHint: () => "" },
       theme,
     );
 

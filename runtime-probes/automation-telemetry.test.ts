@@ -58,7 +58,7 @@ await NodeTest.test(
     automationTelemetry(api);
     dispatch({ type: "session_start", reason: "startup" });
     dispatch({ type: "agent_start" });
-    dispatch({ type: "agent_settled" });
+    dispatch({ type: "agent_settled", aborted: false });
     dispatch({ type: "agent_start" });
     dispatch({
       type: "tool_execution_start",
@@ -69,7 +69,7 @@ await NodeTest.test(
     dispatch({ type: "session_shutdown", reason: "new" });
     dispatch({ type: "session_start", reason: "new" });
     dispatch({ type: "agent_start" });
-    dispatch({ type: "agent_settled" });
+    dispatch({ type: "agent_settled", aborted: false });
     dispatch({ type: "session_shutdown", reason: "quit" });
 
     const text = NodeFS.readFileSync(path, "utf8");

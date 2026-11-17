@@ -45,16 +45,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          destination="$RUNNER_TEMP/native-pi-1.0.2"
+          version=1.5.2
+          destination="$RUNNER_TEMP/native-pi"
           mkdir -p "$destination"
           curl --fail --silent --show-error --location \
-            https://github.com/earendil-works/pi/releases/download/v1.0.2/pi-linux-x64.tar.gz \
+            "https://github.com/earendil-works/pi/releases/download/v$version/pi-linux-x64.tar.gz" \
             --output "$destination/pi-linux-x64.tar.gz"
           printf '%s  %s\n' \
-            0d7687a6a9fcbaa88ff664cb6b28683ce9ee3e028931b55eb48a70ae9a285d18 \
+            811c6f2c9e7aaee252b5404252e556fb713aa209c1f7f924226aa77d4ef70cb5 \
             "$destination/pi-linux-x64.tar.gz" | sha256sum --check -
           tar -xzf "$destination/pi-linux-x64.tar.gz" -C "$destination"
-          test "$("$destination/pi/pi" --version)" = 1.0.2
+          test "$("$destination/pi/pi" --version)" = "$version"
       - name: Check installed package integration
         id: integration
         if: runner.os == 'Linux'
@@ -66,7 +67,7 @@ jobs:
           HOME="$stage" npm_config_cache="$npm_cache" npm run install:local
           npm ci --prefix runtime-probes/integration-deps \
             --ignore-scripts --omit=dev --legacy-peer-deps --no-audit --no-fund
-          npm run test:integration -- "$RUNNER_TEMP/native-pi-1.0.2/pi/pi" \
+          npm run test:integration -- "$RUNNER_TEMP/native-pi/pi/pi" \
             "$stage/.local/share/dotfiles-pi-package/current/node_modules/yazan-pi-setup" \
             "$PWD/runtime-probes/integration-deps/node_modules/pi-web-access" \
             "$PWD/runtime-probes/integration-deps/node_modules/agent-browser" \

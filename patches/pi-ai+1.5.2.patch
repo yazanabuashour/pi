@@ -22,14 +22,14 @@
  import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
  export declare const ANTHROPIC_MODELS: ChatModelCatalog<typeof values, "anthropic">;
  export declare const ANTHROPIC_IMAGE_MODELS: ImageModelCatalog<typeof values, "anthropic">;
---- a/node_modules/@earendil-works/pi-ai/dist/providers/azure-openai-responses.models.d.ts
-+++ b/node_modules/@earendil-works/pi-ai/dist/providers/azure-openai-responses.models.d.ts
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/azure.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/azure.models.d.ts
 @@ -1,4 +1,4 @@
--import values from "./data/azure-openai-responses.json";
-+import values from "./data/azure-openai-responses.json" with { type: "json" };
+-import values from "./data/azure.json";
++import values from "./data/azure.json" with { type: "json" };
  import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
- export declare const AZURE_OPENAI_RESPONSES_MODELS: ChatModelCatalog<typeof values, "azure-openai-responses">;
- export declare const AZURE_OPENAI_RESPONSES_IMAGE_MODELS: ImageModelCatalog<typeof values, "azure-openai-responses">;
+ export declare const AZURE_MODELS: ChatModelCatalog<typeof values, "azure">;
+ export declare const AZURE_IMAGE_MODELS: ImageModelCatalog<typeof values, "azure">;
 --- a/node_modules/@earendil-works/pi-ai/dist/providers/baseten.models.d.ts
 +++ b/node_modules/@earendil-works/pi-ai/dist/providers/baseten.models.d.ts
 @@ -1,4 +1,4 @@
@@ -230,6 +230,14 @@
  import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
  export declare const QWEN_TOKEN_PLAN_CN_MODELS: ChatModelCatalog<typeof values, "qwen-token-plan-cn">;
  export declare const QWEN_TOKEN_PLAN_CN_IMAGE_MODELS: ImageModelCatalog<typeof values, "qwen-token-plan-cn">;
+--- a/node_modules/@earendil-works/pi-ai/dist/providers/qwen-token-plan-individual-cn.models.d.ts
++++ b/node_modules/@earendil-works/pi-ai/dist/providers/qwen-token-plan-individual-cn.models.d.ts
+@@ -1,4 +1,4 @@
+-import values from "./data/qwen-token-plan-individual-cn.json";
++import values from "./data/qwen-token-plan-individual-cn.json" with { type: "json" };
+ import { type ChatModelCatalog, type ClassifierModelCatalog, type ImageModelCatalog } from "../model-catalog.ts";
+ export declare const QWEN_TOKEN_PLAN_INDIVIDUAL_CN_MODELS: ChatModelCatalog<typeof values, "qwen-token-plan-individual-cn">;
+ export declare const QWEN_TOKEN_PLAN_INDIVIDUAL_CN_IMAGE_MODELS: ImageModelCatalog<typeof values, "qwen-token-plan-individual-cn">;
 --- a/node_modules/@earendil-works/pi-ai/dist/providers/qwen-token-plan-individual.models.d.ts
 +++ b/node_modules/@earendil-works/pi-ai/dist/providers/qwen-token-plan-individual.models.d.ts
 @@ -1,4 +1,4 @@

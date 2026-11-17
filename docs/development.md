@@ -41,9 +41,8 @@ Update a policy through its producer's snapshot exporter, replace the local
 snapshot, regenerate the lock with npm, and run the project gates. Do not edit
 vendored policy content.
 
-`@effect/vitest@4.0.0` requires Vitest 5, which declares Vite as a peer. GenAI's
-public declarations import its optional MCP peer. Both peers are explicit
-development dependencies because `--legacy-peer-deps` does not install peers.
+`--legacy-peer-deps` skips peer installation, so declare Vite for Vitest and the
+MCP SDK for GenAI's Node declarations as explicit development dependencies.
 
 ### Maintain declaration repairs
 
@@ -57,9 +56,8 @@ installed package or modify shared policies or third-party notices.
 | --- | --- |
 | `@earendil-works/pi-ai` | Add NodeNext JSON import attributes to generated model declarations. |
 | `@earendil-works/pi-coding-agent` | Derive the find tool's path module type from `path.posix`; Node 26 types no longer export `PlatformPath`. |
-| `@google/genai` | Import `ErrorEvent`, `HeadersInit`, and `RequestInfo` from `undici-types` at the Node entry point. |
+| `@google/genai` | Import `HeadersInit` and `RequestInfo` from `undici-types` at the Node entry point. |
 | `@modelcontextprotocol/sdk` | Import `HeadersInit` in the transport declaration. |
-| `effect` | Derive decoder options from the runtime's `TextDecoder` constructor. |
 
 `scripts/patch-declarations` requires exact package versions and checks the complete
 patch set before applying it. A second run accepts only the fully applied set.
