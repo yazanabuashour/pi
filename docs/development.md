@@ -137,8 +137,8 @@ The RPC fixture keeps Pi alive until its provider sees the background terminal's
 final stdout and Pi emits `agent_settled`. It then closes stdin and awaits process
 close. Test-only tripwires allow 120 seconds for delivery and another 120 seconds
 for orderly shutdown before forced termination. The receipt is the complete
-offline gate on 2026-10-10: native Pi 1.1.0, Node 24.18.1, `pi-web-access` 0.35.0,
-and `agent-browser` 0.38.2 completed in 8 seconds. These tripwires do not limit
+offline gate on 2026-11-19: native Pi 1.5.2, Node 24.18.1, `pi-web-access` 0.47.0,
+and `agent-browser` 0.42.0 completed in 7 seconds. These tripwires do not limit
 production background jobs.
 
 ## Install the checked changes
