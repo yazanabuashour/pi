@@ -139,7 +139,18 @@ await NodeTest(
       fs: {
         open: NodeFS.open,
         close: NodeFS.close,
-        write: (_fd, buffer, _offset, length, _position, callback) => {
+        write: (
+          _fd,
+          buffer,
+          _offset,
+          length,
+          _position,
+          callback: (
+            error: NodeJS.ErrnoException | null,
+            bytes: number,
+            buffer: Buffer,
+          ) => void,
+        ) => {
           releaseWrite = () => {
             releaseWrite = undefined;
             callback(null, length, buffer);
@@ -150,16 +161,20 @@ await NodeTest(
 
     const streamErrors: Error[] = [];
     file.on("error", (error) => streamErrors.push(error));
-    const closed = new Promise<void>((resolve) => file.once("close", resolve));
+
+    const closed = new Promise<void>((resolve) => {
+      file.once("close", resolve);
+    });
+
     test.after(async () => {
       file.destroy();
       releaseWrite?.();
       await closed;
     });
 
-    const fd = await new Promise<number>((resolve) =>
-      file.once("open", resolve),
-    );
+    const fd = await new Promise<number>((resolve) => {
+      file.once("open", resolve);
+    });
 
     file.write("fixture");
     NodeAssert.ok(await pollUntil(() => releaseWrite !== undefined));

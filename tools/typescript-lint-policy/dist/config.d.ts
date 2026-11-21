@@ -4,7 +4,7 @@ export declare const strictestConfig: {
         perf: "error";
         suspicious: "error";
     };
-    plugins: ("eslint" | "jsx-a11y" | "oxc" | "react" | "typescript" | "unicorn")[];
+    plugins: ("eslint" | "import" | "jsx-a11y" | "oxc" | "promise" | "react" | "typescript" | "unicorn")[];
     jsPlugins: {
         name: string;
         specifier: string;
@@ -14,17 +14,36 @@ export declare const strictestConfig: {
         typeAware: true;
         typeCheck: false;
     };
-    overrides: {
+    overrides: ({
         files: string[];
         rules: {
+            "typescript/no-unsafe-argument": "off";
+            "typescript/no-unsafe-assignment": "off";
+            "typescript/no-unsafe-member-access": "off";
             "typescript/unbound-method": "off";
+            "typescript/no-unsafe-call"?: never;
+            "typescript/no-unsafe-return"?: never;
         };
-    }[];
+    } | {
+        files: string[];
+        rules: {
+            "typescript/unbound-method"?: never;
+            "typescript/no-unsafe-argument": "off";
+            "typescript/no-unsafe-assignment": "off";
+            "typescript/no-unsafe-call": "off";
+            "typescript/no-unsafe-member-access": "off";
+            "typescript/no-unsafe-return": "off";
+        };
+    })[];
     rules: {
         "eslint/no-await-in-loop": "off";
         "eslint/no-shadow": "off";
         "eslint/no-underscore-dangle": "off";
+        "import/no-named-as-default": "off";
+        "import/no-namespace": "off";
+        "import/no-unassigned-import": "off";
         "oxc/no-map-spread": "off";
+        "promise/always-return": "off";
         "react-in-jsx-scope": "off";
         "typescript/consistent-return": "off";
         "typescript/no-unnecessary-boolean-literal-compare": "off";
@@ -45,6 +64,46 @@ export declare const strictestConfig: {
         "typescript/switch-exhaustiveness-check": "error";
         "typescript/no-explicit-any": "error";
         "typescript/no-non-null-assertion": "error";
+        "typescript/ban-ts-comment": "error";
+        "typescript/consistent-type-imports": "error";
+        "typescript/no-empty-object-type": "error";
+        "typescript/no-import-type-side-effects": "error";
+        "typescript/no-non-null-asserted-nullish-coalescing": "error";
+        "typescript/no-require-imports": "error";
+        "typescript/no-unsafe-argument": "error";
+        "typescript/no-unsafe-assignment": "error";
+        "typescript/no-unsafe-call": "error";
+        "typescript/no-unsafe-function-type": "error";
+        "typescript/no-unsafe-member-access": "error";
+        "typescript/no-unsafe-return": "error";
+        "typescript/only-throw-error": "error";
+        "typescript/return-await": ["error", "error-handling-correctness-only"];
+        "typescript/use-unknown-in-catch-callback-variable": "error";
+        "eslint/array-callback-return": "error";
+        "eslint/eqeqeq": ["error", "always", {
+            null: "ignore";
+        }];
+        "eslint/no-array-constructor": "error";
+        "eslint/no-case-declarations": "error";
+        "eslint/no-empty": "error";
+        "eslint/no-fallthrough": "error";
+        "eslint/no-new-wrappers": "error";
+        "eslint/no-promise-executor-return": "error";
+        "eslint/no-prototype-builtins": "error";
+        "eslint/no-regex-spaces": "error";
+        "eslint/no-self-compare": "error";
+        "eslint/no-useless-assignment": "error";
+        "eslint/no-var": "error";
+        "eslint/prefer-const": "error";
+        "eslint/prefer-object-has-own": "error";
+        "eslint/prefer-promise-reject-errors": "error";
+        "import/export": "error";
+        "import/no-self-import": "error";
+        "promise/no-multiple-resolved": "error";
+        "promise/no-return-in-finally": "error";
+        "unicorn/no-abusive-eslint-disable": "error";
+        "unicorn/no-useless-promise-resolve-reject": "error";
+        "oxc/bad-bitwise-operator": "error";
         "oxc/no-accumulating-spread": "error";
         "project/no-array-filter-map": "error";
         "project/no-reduce-accumulator-copy": "error";

@@ -1,18 +1,18 @@
 {
   "repository": "https://github.com/yazanabuashour/typescript-lint-policy",
-  "commit": "3cf2b91850dabbf467d22dc218776ecdf3284923",
-  "sourceSha256": "c85e8723c341f6efacb7b3cee2594e83fa016b1092c916d76a350f605ae0031f",
-  "contentSha256": "f8f52a67dce4cf9dfbd3da08a9a2d00415a040cf029eb5923bf01047a3043a5e",
+  "commit": "06c98857404b3cc89ce4f5f47dd9df1413d6c806",
+  "sourceSha256": "aab69cb4375ec0f1d87e7e8a45dd221cd4a1af50bf1f782ef9370f8f01dd0483",
+  "contentSha256": "a663f5e0eb0055760db8868d4436b2f9f827e9aaf4aaec2641254e5b3be25b08",
   "files": {
     "LICENSE": "87a3c73d8eff0a79d4455b7bd85c9db246c3533a236cb722e200848354e01f44",
     "LICENSE.anti-slop": "10ed33bf340d6d63dc0633dfc917a346b369b6aa41fe20734aefc6a3fb75ba17",
     "LICENSE.eslint-stylistic": "a429d52d537b871facb01c086191ec8a56a22bf1a10f4e641daff114bccc4a74",
-    "README.md": "69cc7b0abb321c3184fae0adf7044c38c00d114656e074954647b1a37b3be614",
+    "README.md": "500cecf43453c7f238f3f86b318e25d5dd4f06ba24bba180d228b0cde431b2f0",
     "UPSTREAM-SOURCE.json": "5ba9406c66eb8fcc0579b6740bdebb7e583b50ddb5bce1d5261c76e9d0a11296",
     "UPSTREAM.md": "8831fd23d4a9d2f97279c96e4435f9a091298bd15399660bed4f5b50badce5c1",
-    "dist/SOURCE.json": "f5fb45143266cc7f373bd5a72b389d378b41e4934c08b18273a986c22fe9361e",
-    "dist/config.d.ts": "5bc9e912034f3f45492b7482bc68b95e1b75f4271134b675ec9ac1bb61dc1f8c",
-    "dist/config.js": "bd4a941343f6478014ab31d48536f0dea6b74619b3f58a1938ffba665123e86e",
+    "dist/SOURCE.json": "6fe7cae8e8ce5f478dff8b61261e429b86f9ae806db7e94f02626df37ffcfb77",
+    "dist/config.d.ts": "1d988553a2bb2712243f4c841c1caa1414f69549650df15ef7b09147a6ce43de",
+    "dist/config.js": "59e22e068efa55e0a9257d01f5142cab4582c97edf966bda233a7edd45f54d7d",
     "dist/plugin/effect/index.d.ts": "16160b700bda0083bcb40334b6ce029a7b3f061dc8fa18c448a01db6f6e5206f",
     "dist/plugin/effect/index.js": "6ec74ad8598b6efc5397e3252f82d4235447f89d6441c04498a62f022381d342",
     "dist/plugin/effect/no-manual-effect-error-tag.d.ts": "4d1befd03375b3de4f2c3cb664a0900bfec1d8c627608a044914a7b887ffdd64",
@@ -123,7 +123,7 @@
     "dist/vendor/anti-slop/src/vendor/eslint-stylistic/padding-line-between-statements.d.ts": "dfe14cfe81ac2e5953247817e2a12bcfdabb9aaac7673e0f4a63fd7f3d84a841",
     "dist/vendor/anti-slop/src/vendor/eslint-stylistic/padding-line-between-statements.js": "1114d7ad7f4716e562963048913ca23857a5ca7016ca5c0e441e2791c9183b7a",
     "dist/vendor/anti-slop/src/vendor/eslint-stylistic/padding-line-options.d.ts": "ff3d52f2b1c103bc429e030976641715caec676af4b8a0be802c0009874a0d58",
-    "package.json": "e1885eb6b62d4af97b725462aa40c4aafc0ec7c423c6ccdbbea16d29ec4a525d",
+    "package.json": "24dae3c7c2d5c83273f602c2eff83257c6c612853d61be835739ca0bc64640ae",
     "receipts/size-limits.json": "95be37c1e222481620587dfa380bd782dca519f430af3513d45b44d59109a946"
   }
 }

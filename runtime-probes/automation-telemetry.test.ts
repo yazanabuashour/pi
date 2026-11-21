@@ -12,15 +12,13 @@ import { Type } from "typebox";
 import { Parse } from "typebox/value";
 import automationTelemetry from "./automation-telemetry.ts";
 
-const EventsSchema = Type.Array(
-  Type.Object({
-    event: Type.String(),
-    settled: Type.Optional(Type.Boolean()),
-    calls: Type.Optional(Type.Number()),
-    errors: Type.Optional(Type.Number()),
-    orphanedTools: Type.Optional(Type.Number()),
-  }),
-);
+const EventSchema = Type.Object({
+  event: Type.String(),
+  settled: Type.Optional(Type.Boolean()),
+  calls: Type.Optional(Type.Number()),
+  errors: Type.Optional(Type.Number()),
+  orphanedTools: Type.Optional(Type.Number()),
+});
 
 await NodeTest.test(
   "telemetry resets settlement on restart and counters on session replacement",
@@ -74,13 +72,14 @@ await NodeTest.test(
 
     const text = NodeFS.readFileSync(path, "utf8");
 
-    const events = Parse(
-      EventsSchema,
-      text
-        .trimEnd()
-        .split("\n")
-        .map((line) => JSON.parse(line)),
-    );
+    const events = text
+      .trimEnd()
+      .split("\n")
+      .map((line) => {
+        const value: unknown = JSON.parse(line);
+
+        return Parse(EventSchema, value);
+      });
 
     NodeAssert.deepEqual(
       events

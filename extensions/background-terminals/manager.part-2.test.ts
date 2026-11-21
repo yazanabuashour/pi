@@ -7,6 +7,7 @@ import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 
 import NodeTest from "node:test";
+import * as NodeTimersPromises from "node:timers/promises";
 import { hostPlatform } from "../shared/host-runtime.ts";
 
 import { Effect } from "effect";
@@ -124,7 +125,7 @@ await NodeTest(
         "grandchild process is gone after group kill",
       );
       const stoppedAt = NodeFS.readFileSync(sentinel, "utf8");
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await NodeTimersPromises.setTimeout(100);
       NodeAssert.equal(
         NodeFS.readFileSync(sentinel, "utf8"),
         stoppedAt,

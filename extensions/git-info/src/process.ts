@@ -1,4 +1,12 @@
-import { Cause, Context, Data, Effect, Layer, Match, Stream } from "effect";
+import {
+  type Cause,
+  Context,
+  Data,
+  Effect,
+  Layer,
+  Match,
+  Stream,
+} from "effect";
 import type * as PlatformError from "effect/PlatformError";
 import { ChildProcess } from "effect/process";
 import { ChildProcessSpawner } from "effect/process/ChildProcessSpawner";

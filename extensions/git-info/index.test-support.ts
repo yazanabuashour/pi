@@ -7,9 +7,14 @@ import type {
   ExtensionAPI,
   ExtensionCommandContext,
   ExtensionContext,
+  ExtensionUIContext,
 } from "@earendil-works/pi-coding-agent";
 import { type Component, visibleWidth } from "@earendil-works/pi-tui";
 import { GIT_INFO_CHANNEL } from "../shared/dashboard-state.ts";
+import {
+  footerFixtureArgs,
+  sessionWithCost,
+} from "../shared/footer.test-support.ts";
 import uiCustomization from "../ui-customization/index.ts";
 import gitInfo from "./index.ts";
 import {
@@ -79,7 +84,10 @@ export async function fixture(mode: ExtensionContext["mode"] = "tui") {
   const runtimeMock = vi.spyOn(Runtime, "createRuntime");
   runtimeMock.mockReturnValue(runtime);
 
-  const api: ExtensionAPI = Object.assign(Object.create(null), {
+  const apiStub: Pick<
+    ExtensionAPI,
+    "events" | "on" | "getThinkingLevel" | "registerCommand"
+  > = {
     events: {
       on: (name: string, handler: Listener) => {
         bus.on(name, handler);
@@ -88,12 +96,23 @@ export async function fixture(mode: ExtensionContext["mode"] = "tui") {
       },
       emit: bus.emit.bind(bus),
     },
-    on: (name: string, handler: Handler) =>
-      handlers.set(name, [...(handlers.get(name) ?? []), handler]),
+    on: (name, handler) => {
+      // SAFETY: Dispatch supplies the lifecycle fields these handlers read; it ignores their results.
+      const run = handler as Handler;
+      handlers.set(name, [...(handlers.get(name) ?? []), run]);
+
+      return () => {
+        throw new Error("Fixture does not support removing lifecycle handlers");
+      };
+    },
     getThinkingLevel: () => "off",
-    registerCommand: (name: string, command: Command) =>
-      commands.set(name, command),
-  });
+    registerCommand: (name: string, command: Command) => {
+      commands.set(name, command);
+    },
+  };
+
+  // SAFETY: The fixture supplies only the events, commands, and thinking level these extensions use.
+  const api = apiStub as ExtensionAPI;
 
   const ui = fixtureUi(mode);
   const { ctx } = ui;
@@ -135,42 +154,44 @@ export async function fixture(mode: ExtensionContext["mode"] = "tui") {
 
 function fixtureUi(mode: ExtensionContext["mode"]) {
   const notices: { text: string; level: string }[] = [];
-  const tui = Object.assign(Object.create(null), { requestRender: () => {} });
 
-  const theme = Object.assign(Object.create(null), {
-    fg: (_color: string, text: string) => text,
-  });
-
-  const footerData = Object.assign(Object.create(null), {
-    getExtensionStatuses: () => new Map(),
-  });
-
-  type FooterFactory = Parameters<ExtensionContext["ui"]["setFooter"]>[0];
+  const footerArgs = footerFixtureArgs();
 
   let footer: Component | undefined;
 
-  const ctx: ExtensionCommandContext = Object.assign(Object.create(null), {
-    cwd: "/fixture",
+  const ui: Pick<
+    ExtensionUIContext,
+    "setHeader" | "setTitle" | "setFooter" | "notify"
+  > = {
+    setHeader: () => {},
+    setTitle: () => {},
+    setFooter: (factory) => {
+      footer = factory?.(...footerArgs);
+    },
+    notify: (text, level = "info") => {
+      notices.push({ text, level });
+    },
+  };
+
+  const cwd = "/fixture";
+
+  const context: Pick<
+    ExtensionContext,
+    "cwd" | "mode" | "getContextUsage" | "sessionManager"
+  > & { ui: typeof ui } = {
+    cwd,
     mode,
-    getContextUsage: () => ({ contextWindow: 272_000, percent: 19 }),
-    sessionManager: {
-      getBranch: () => [
-        {
-          type: "message",
-          message: { role: "assistant", usage: { cost: { total: 3.75 } } },
-        },
-      ],
-    },
-    ui: {
-      theme,
-      setHeader: () => {},
-      setTitle: () => {},
-      setFooter: (factory: FooterFactory) => {
-        footer = factory?.(tui, theme, footerData);
-      },
-      notify: (text: string, level: string) => notices.push({ text, level }),
-    },
-  });
+    getContextUsage: () => ({
+      tokens: 51_680,
+      contextWindow: 272_000,
+      percent: 19,
+    }),
+    sessionManager: sessionWithCost(cwd, 3.75),
+    ui,
+  };
+
+  // SAFETY: Footer rendering, refresh handlers, and /pr only use the fields supplied here.
+  const ctx = context as ExtensionCommandContext;
 
   return {
     ctx,

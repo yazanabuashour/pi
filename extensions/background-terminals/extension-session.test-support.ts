@@ -1,5 +1,5 @@
 import * as NodeAssert from "node:assert/strict";
-import { BackgroundTerminalSession } from "./src/extension-session.ts";
+import type { BackgroundTerminalSession } from "./src/extension-session.ts";
 import { runTool } from "./src/runtime.ts";
 import { cwd, nodeCmd, pollUntil } from "./manager.test-support.ts";
 

@@ -1,30 +1,37 @@
 import { isObjectValue, isString } from "../shared/runtime-values.ts";
+import type { AssistantMessage, UserMessage } from "@earendil-works/pi-ai";
 import {
   copyToClipboard,
   type ExtensionAPI,
 } from "@earendil-works/pi-coding-agent";
 
-function textFromContent<Input1>(content: Input1) {
+function textFromContent(
+  content: UserMessage["content"] | AssistantMessage["content"],
+) {
   if (isString(content)) return content;
 
   if (!Array.isArray(content)) return "";
 
-  return content
-    .map((block) => {
-      if (!block || !isObjectValue(block)) return "";
+  const blocks: readonly unknown[] = content;
+  const lines: string[] = [];
 
-      if (!("type" in block)) return "";
+  for (const block of blocks) {
+    if (!block || !isObjectValue(block) || !("type" in block)) continue;
 
-      if (block.type === "text" && "text" in block && isString(block.text)) {
-        return block.text;
-      }
+    const type = block["type"];
 
-      if (block.type === "image") return "[image]";
+    if (type === "image") {
+      lines.push("[image]");
+      continue;
+    }
 
-      return "";
-    })
-    .filter(Boolean)
-    .join("\n");
+    if (type !== "text" || !("text" in block)) continue;
+    const text = block["text"];
+
+    if (isString(text) && text) lines.push(text);
+  }
+
+  return lines.join("\n");
 }
 
 export default function (pi: ExtensionAPI) {

@@ -1,3 +1,4 @@
+import * as NodeTimersPromises from "node:timers/promises";
 import type { TerminalSnapshot } from "./src/domain.ts";
 import { TerminalManager, type TerminalManagerService } from "./src/manager.ts";
 import { createTerminalRuntime } from "./src/runtime.ts";
@@ -60,7 +61,7 @@ export async function pollUntil(check: () => boolean, timeoutMs = 5_000) {
 
   while (!check()) {
     if (Date.now() > deadline) return false;
-    await new Promise((resolve) => setTimeout(resolve, 25));
+    await NodeTimersPromises.setTimeout(25);
   }
 
   return true;

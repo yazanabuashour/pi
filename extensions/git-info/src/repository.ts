@@ -158,8 +158,12 @@ export const lookupPullRequest = Effect.fn("git-info.lookupPullRequest")(
       return yield* Effect.fail(commandFailure("gh pr view", result));
     }
 
-    const value: unknown = yield* Effect.try({
-      try: () => JSON.parse(result.stdout),
+    const value = yield* Effect.try({
+      try: () => {
+        const parsed: unknown = JSON.parse(result.stdout);
+
+        return parsed;
+      },
       catch: () => malformedResponse("gh pr view"),
     });
 

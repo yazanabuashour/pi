@@ -3,8 +3,10 @@
 `@yazanabuashour/oxlint-config` is distributed as a compiled snapshot from
 [typescript-lint-policy](https://github.com/yazanabuashour/typescript-lint-policy).
 `private: true` prevents npm publication; the producer source is public on GitHub.
-The snapshot's `SOURCE.json` identifies its source inputs and exported bytes. A
-null `commit` means the source was not a clean committed tree.
+Consumers select reviewed full commits, not release tags or the package version.
+The snapshot's `SOURCE.json` records that commit and hashes its source inputs and
+exported bytes. A null `commit` identifies a development export; do not use it for
+consumer updates.
 
 ## Install and configure
 
@@ -133,11 +135,13 @@ test rule remains in the default.
 Do not run producer build or development commands in a snapshot directory. The
 snapshot intentionally omits their inputs.
 
-1. Obtain a complete producer checkout at the reviewed source revision.
+1. Select a reviewed full commit ID and obtain a clean producer checkout at that
+   commit.
 2. Run `npm ci` and `npm run check` there.
 3. Run `npm run vendor -- <new-destination>` there. Use a new directory next to
    the old snapshot, not the old directory itself. Its parent must exist, and the
    destination must be outside the producer tree.
-4. Compare the export, including all license notices, `UPSTREAM.md`, and provenance.
+4. Verify `SOURCE.json.commit` matches the selected commit. Compare the export,
+   including all license notices, `UPSTREAM.md`, and provenance.
 5. Replace the old snapshot after review.
 6. Update the consumer's dependency lockfile and run its gates.

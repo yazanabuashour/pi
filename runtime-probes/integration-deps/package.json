@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "dependencies": {
-    "agent-browser": "0.42.0",
+    "agent-browser": "0.43.0",
     "pi-web-access": "0.47.0"
   }
 }

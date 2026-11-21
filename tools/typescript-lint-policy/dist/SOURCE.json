@@ -1,15 +1,15 @@
 {
-  "sourceSha256": "c85e8723c341f6efacb7b3cee2594e83fa016b1092c916d76a350f605ae0031f",
+  "sourceSha256": "aab69cb4375ec0f1d87e7e8a45dd221cd4a1af50bf1f782ef9370f8f01dd0483",
   "inputs": {
     "UPSTREAM-SOURCE.json": "5ba9406c66eb8fcc0579b6740bdebb7e583b50ddb5bce1d5261c76e9d0a11296",
-    "package-lock.json": "8a8bf94bbce8da6ad578281af27f492baa45253a849c1666f2671668b5e579a3",
-    "package.json": "ec3cb5faf1c8703051488a9e321567f545254ddff269b3a87f460e655cea2865",
-    "scripts/build.mjs": "6f30cd490f7f2e3a17c4aaffc41800d7c14b89f4dbf39d9b9cdd16f2b2e8f518",
-    "scripts/integrity.mjs": "4d4fa827016ae596b924ea6eef57ec6a0b5867d8d46751c80d6e8977e5428079",
+    "package-lock.json": "6879ebdc36c2105c8a76d283a725741fc8ffc52f26ad2184aa1863a5f97c45b3",
+    "package.json": "08cab5b98c1286c1290e505257ebc84eed55ffbbce3678730b309e3b3e658819",
+    "scripts/build.mjs": "cd2caef552feb7a23eb2084799fc0f104ced4e25d22dd1a3a4af465a5a21da97",
+    "scripts/integrity.mjs": "064feaaaca0633e9b51703c1aa7c9955c341b8ebafd59bf3270063a225b1d520",
     "scripts/update-upstream.mjs": "e51007bfd4f72773f6c37b04f7472abe354c1f05447ae3e54f611d9e7682a330",
     "scripts/upstream.mjs": "04af434d1bf132431a0ed2160937cb794625ffce7a32f6c10a5fb71cf0b96a3b",
-    "scripts/vendor.mjs": "d607eded22500617f8806c4f023d2b3b5758d806f384af21917f5f45e635f788",
-    "src/config.ts": "2cb53d5613eb7f0778db49221fa1a4a386ac7a11bff244e03f9898e4b7959e65",
+    "scripts/vendor.mjs": "556b06c84a7a8e5bfe4bd39ee9a9204574db83300b602e60508f897005054aa9",
+    "src/config.ts": "345a15bef7f665577c2952bdd4d560344d2cd0c797321fd3aaee55f65b07fabb",
     "src/plugin/effect/index.ts": "3d147dc9c80a22c93dae5301dea6b5c9a573b00483658149ec4d031ae8cea77a",
     "src/plugin/effect/no-manual-effect-error-tag.ts": "1da2eec03d802c73fd5694a77231a3e5f9f381ae51328f4584cb5f4e972bcbd7",
     "src/plugin/effect/no-manual-tag-comparison.ts": "1669035a37a52521a7ec5203f0c4a031cc64cdb513ce3e8d38274f64c0cf472f",
@@ -92,8 +92,8 @@
     "tsconfig.json": "88f388edd1b769bb92333093fa436479e2a967f1b630382038a33227af39e323"
   },
   "outputs": {
-    "config.d.ts": "5bc9e912034f3f45492b7482bc68b95e1b75f4271134b675ec9ac1bb61dc1f8c",
-    "config.js": "bd4a941343f6478014ab31d48536f0dea6b74619b3f58a1938ffba665123e86e",
+    "config.d.ts": "1d988553a2bb2712243f4c841c1caa1414f69549650df15ef7b09147a6ce43de",
+    "config.js": "59e22e068efa55e0a9257d01f5142cab4582c97edf966bda233a7edd45f54d7d",
     "plugin/effect/index.d.ts": "16160b700bda0083bcb40334b6ce029a7b3f061dc8fa18c448a01db6f6e5206f",
     "plugin/effect/index.js": "6ec74ad8598b6efc5397e3252f82d4235447f89d6441c04498a62f022381d342",
     "plugin/effect/no-manual-effect-error-tag.d.ts": "4d1befd03375b3de4f2c3cb664a0900bfec1d8c627608a044914a7b887ffdd64",

@@ -6,6 +6,10 @@ import type {
   ExtensionUIContext,
 } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
+import {
+  footerFixtureArgs,
+  sessionWithCost,
+} from "../shared/footer.test-support.ts";
 import customize from "./index.ts";
 
 await NodeTest(
@@ -39,39 +43,44 @@ await NodeTest(
       return footer.render(120).join("\n");
     }
 
+    const footerArgs = footerFixtureArgs();
+
     const context = (
       cost: number,
       percent: number,
       mode: ExtensionContext["mode"] = "tui",
-    ): ExtensionContext =>
-      Object.assign(Object.create(null), {
+    ): ExtensionContext => {
+      const ui: Pick<
+        ExtensionUIContext,
+        "setHeader" | "setTitle" | "setFooter"
+      > = {
+        setHeader() {},
+        setTitle() {},
+        setFooter: (make) => {
+          footer = make?.(...footerArgs);
+        },
+      };
+
+      const cwd = "/fixture";
+
+      const stub: Pick<
+        ExtensionContext,
+        "cwd" | "mode" | "getContextUsage" | "sessionManager"
+      > & { ui: typeof ui } = {
         mode,
-        cwd: "/fixture",
-        getContextUsage: () => ({ contextWindow: 1000, percent }),
-        sessionManager: {
-          getBranch: () => [
-            {
-              type: "message",
-              message: { role: "assistant", usage: { cost: { total: cost } } },
-            },
-          ],
-        },
-        ui: {
-          setHeader() {},
-          setTitle() {},
-          setFooter: (make: Parameters<ExtensionUIContext["setFooter"]>[0]) => {
-            footer = make?.(
-              Object.assign(Object.create(null), { requestRender() {} }),
-              Object.assign(Object.create(null), {
-                fg: (_color: string, text: string) => text,
-              }),
-              Object.assign(Object.create(null), {
-                getExtensionStatuses: () => new Map(),
-              }),
-            );
-          },
-        },
-      });
+        cwd,
+        getContextUsage: () => ({
+          tokens: percent * 10,
+          contextWindow: 1000,
+          percent,
+        }),
+        sessionManager: sessionWithCost(cwd, cost),
+        ui,
+      };
+
+      // SAFETY: Startup, navigation, compaction, and shutdown only read the supplied fields.
+      return stub as ExtensionContext;
+    };
 
     customize(api);
     handlers.get("session_start")?.(
